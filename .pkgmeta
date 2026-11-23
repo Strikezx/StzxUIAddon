@@ -1,0 +1,15 @@
+# How the release zip is built (BigWigsMods/packager).
+# The repo holds several addon folders; each becomes its own folder in AddOns.
+package-as: StzxUI
+
+move-folders:
+  StzxUI/StzxUI: StzxUI
+  StzxUI/StzxUI_Social: StzxUI_Social
+
+ignore:
+  - docs
+  - tests
+  - README.md
+  - CLAUDE.md
+  - .luacheckrc
+  - .editorconfig

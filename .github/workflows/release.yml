@@ -1,0 +1,30 @@
+# Builds the addon zip and publishes it when you push a version tag (v0.1.0, v0.2.0, ...).
+# Without any extra setup it creates a GitHub Release with the zip attached:
+# that download link is the "shareable link".
+#
+# Later, to also upload to CurseForge: create the CurseForge project, add
+# "## X-Curse-Project-ID: <id>" to each .toc, and add a repository secret named
+# CF_API_KEY (GitHub > Settings > Secrets and variables > Actions).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2

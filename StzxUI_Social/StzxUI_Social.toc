@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Social
+## Notes: Declines duel requests and thanks players who buff you.
+## Author: Strikezx
+## Version: @project-version@
+## Dependencies: StzxUI
+
+Social.lua
+Duels.lua
+Thanks.lua
