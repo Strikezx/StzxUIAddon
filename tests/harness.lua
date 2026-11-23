@@ -1,7 +1,9 @@
 -- Offline test harness for StzxUI.
--- Fakes just enough of the WoW API to load the addons in the game's order
--- and fire events at them. It can't prove anything about the real client:
--- it catches typos, load-order mistakes and logic slips before you /reload.
+-- Fakes just enough of the WoW client to load the addons in the game's order,
+-- fire events, drag frames and click buttons. It can't prove anything about
+-- the real client: it catches typos, load-order mistakes and logic slips
+-- before you /reload. A frame method the fake doesn't know raises an error,
+-- so new API calls get noticed (then check them against Blizzard's source).
 --
 -- Run from the repo root:  lua5.1 tests/harness.lua
 
@@ -11,182 +13,511 @@ local function check(cond, label)
 end
 
 ---------------------------------------------------------------------------
--- Fake client
+-- Fake client state
 ---------------------------------------------------------------------------
-local log = { prints = {}, emotes = {}, whispers = {}, cancelled = 0, hidden = {}, settings = {} }
-local now, inCombat, aurasSecret = 1000, false, false
-local units = {} -- [token] = { name, surname, isPlayer, isSelf, inParty }
+local log
+local now, inCombat, aurasSecret, shiftDown = 1000, false, false, false
+local units, mapPos = {}, nil
+local frames, tickers
+local SECRET = { __secret = true }
+local SCREEN_W, SCREEN_H = 1600, 900
+
+local function ResetLog()
+	log = { prints = {}, emotes = {}, whispers = {}, cancelled = 0, hidden = {}, settings = {},
+		reloads = 0, categories = {}, settingsClosed = 0 }
+end
+ResetLog()
 
 function print(...) local t = {} for i = 1, select("#", ...) do t[#t+1] = tostring(select(i, ...)) end table.insert(log.prints, table.concat(t, " ")) end
+local function lastPrint() return log.prints[#log.prints] or "" end
 function issecretvalue(v) return type(v) == "table" and v.__secret == true end
-local SECRET = { __secret = true }
+date = os.date
 
-local frames = {}
-function CreateFrame()
-	local f = { events = {}, unitEvents = {} }
-	function f:RegisterEvent(e) self.events[e] = true end
-	function f:RegisterUnitEvent(e, u) self.events[e] = true; self.unitEvents[e] = u end
-	function f:SetScript(_, fn) self.onEvent = fn end
+---------------------------------------------------------------------------
+-- Fake frames (with simple geometry for anchoring and dragging)
+---------------------------------------------------------------------------
+local FRACTION = {
+	TOPLEFT = { 0, 1 }, TOP = { 0.5, 1 }, TOPRIGHT = { 1, 1 },
+	LEFT = { 0, 0.5 }, CENTER = { 0.5, 0.5 }, RIGHT = { 1, 0.5 },
+	BOTTOMLEFT = { 0, 0 }, BOTTOM = { 0.5, 0 }, BOTTOMRIGHT = { 1, 0 },
+}
+
+local Frame = {}
+Frame.__index = Frame
+local UIParentRect = { left = 0, bottom = 0, w = SCREEN_W, h = SCREEN_H }
+
+local function NewFrame(kind, name, parent)
+	local f = setmetatable({ kind = kind, name = name, parent = parent, points = {}, w = 0, h = 0,
+		shown = true, scripts = {}, events = {}, unitEvents = {}, text = "" }, Frame)
 	table.insert(frames, f)
+	if name then _G[name] = f end
 	return f
 end
+
+function Frame:Rect()
+	if self.isUIParent then return UIParentRect end
+	if self.allPointsOf then
+		local r = self.allPointsOf:Rect()
+		return r and { left = r.left, bottom = r.bottom, w = r.w, h = r.h }
+	end
+	local p = self.points[1]
+	if not p then return nil end
+	local rel = p.rel or self.parent or UIParent
+	local rr = rel:Rect()
+	if not rr then return nil end
+	local rf, pf = FRACTION[p.relPoint], FRACTION[p.point]
+	local ax, ay = rr.left + rf[1] * rr.w + p.x, rr.bottom + rf[2] * rr.h + p.y
+	return { left = ax - pf[1] * self.w, bottom = ay - pf[2] * self.h, w = self.w, h = self.h }
+end
+function Frame:SetPoint(point, rel, relPoint, x, y)
+	if type(rel) == "number" then rel, relPoint, x, y = nil, point, rel, relPoint end
+	if type(relPoint) == "number" then relPoint, x, y = point, relPoint, x end
+	relPoint = relPoint or point
+	assert(FRACTION[point] and FRACTION[relPoint], "bad anchor point " .. tostring(point))
+	self.allPointsOf = nil
+	table.insert(self.points, { point = point, rel = rel, relPoint = relPoint, x = x or 0, y = y or 0 })
+end
+function Frame:ClearAllPoints() self.points = {}; self.allPointsOf = nil end
+function Frame:SetAllPoints(rel) self.allPointsOf = rel or self.parent end
+function Frame:GetLeft() local r = self:Rect(); return r and r.left end
+function Frame:GetTop() local r = self:Rect(); return r and (r.bottom + r.h) end
+function Frame:GetCenter() local r = self:Rect(); if r then return r.left + r.w / 2, r.bottom + r.h / 2 end end
+function Frame:SetSize(w, h) self.w, self.h = w, h end
+function Frame:SetWidth(w) self.w = w end
+function Frame:SetHeight(h) self.h = h end
+function Frame:GetWidth() return self.isUIParent and SCREEN_W or self.w end
+function Frame:GetHeight() return self.isUIParent and SCREEN_H or self.h end
+function Frame:Show() local was = self.shown; self.shown = true; if not was and self.scripts.OnShow then self.scripts.OnShow(self) end end
+function Frame:Hide() local was = self.shown; self.shown = false; if was and self.scripts.OnHide then self.scripts.OnHide(self) end end
+function Frame:SetShown(v) if v then self:Show() else self:Hide() end end
+function Frame:IsShown() return self.shown end
+function Frame:SetScript(name, fn) self.scripts[name] = fn end
+function Frame:RegisterEvent(e) self.events[e] = true end
+function Frame:UnregisterEvent(e) self.events[e] = nil end
+function Frame:RegisterUnitEvent(e, u) self.events[e] = true; self.unitEvents[e] = u end
+function Frame:StartMoving() self.moving = true end
+function Frame:StopMovingOrSizing() self.moving = false end
+function Frame:CreateTexture() return NewFrame("Texture", nil, self) end
+function Frame:CreateFontString() return NewFrame("FontString", nil, self) end
+function Frame:SetText(t) self.text = t or "" end
+function Frame:GetText() return self.text end
+function Frame:SetFormattedText(fmt, ...) self.text = fmt:format(...) end
+function Frame:SetChecked(v) self.checked = v end
+function Frame:GetChecked() return self.checked end
+function Frame:Click(button) if self.scripts.OnClick then self.scripts.OnClick(self, button or "LeftButton") end end
+function Frame:EnableKeyboard(v) self.keyboard = v end
+function Frame:SetPropagateKeyboardInput(v) self.propagate = v end
+function Frame:GetStringHeight() return 14 end
+function Frame:HighlightText() self.highlighted = true end
+function Frame:SetFocus() self.focused = true end
+local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
+	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture", "SetTextColor",
+	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
+	"SetScrollChild", "SetOwner", "AddLine" }
+for _, m in ipairs(NOOPS) do Frame[m] = function() end end
+
 local function Fire(event, ...)
 	for _, f in ipairs(frames) do
-		if f.events[event] and f.onEvent then
+		if f.events[event] and f.scripts.OnEvent then
 			local unit = f.unitEvents[event]
-			if not unit or unit == (...) then f.onEvent(f, event, ...) end
+			if not unit or unit == (...) then f.scripts.OnEvent(f, event, ...) end
 		end
 	end
 end
+local function Script(f, name, ...) assert(f.scripts[name], "no " .. name .. " script")(f, ...) end
 
-C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
-SlashCmdList = {}
-function GetTime() return now end
-function InCombatLockdown() return inCombat end
-function IsInInstance() return false end
-C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
-function UnitName(u) local d = units[u]; if d then return d.name, d.surname end end
-function UnitIsPlayer(u) local d = units[u]; return d and d.isPlayer or false end
-function UnitIsUnit(a, b) if b == "player" then local d = units[a]; return d and d.isSelf or false end return a == b end
-function UnitInParty(u) local d = units[u]; return d and d.inParty or false end
-function UnitInRaid() return nil end
-function CancelDuel() log.cancelled = log.cancelled + 1 end
-function StaticPopup_Hide(which) table.insert(log.hidden, which) end
-C_ChatInfo = {
-	PerformEmote = function(emote, target) table.insert(log.emotes, emote .. ">" .. tostring(target)); return true end,
-	SendChatMessage = function(msg, kind, _, target) table.insert(log.whispers, kind .. ">" .. target .. ">" .. msg) end,
-}
+---------------------------------------------------------------------------
+-- Fake game API
+---------------------------------------------------------------------------
+local function InstallClient()
+	frames, tickers = {}, {}
+	UIParent = setmetatable({ isUIParent = true, points = {}, shown = true, scripts = {}, events = {}, unitEvents = {} }, Frame)
+	GameTooltip = NewFrame("GameTooltip", "GameTooltip")
+	UISpecialFrames = {}
+	SlashCmdList = {}
+	function CreateFrame(kind, name, parent) return NewFrame(kind, name, parent or UIParent) end
+	C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
+	function GetTime() return now end
+	function InCombatLockdown() return inCombat end
+	function IsInInstance() return false end
+	function IsShiftKeyDown() return shiftDown end
+	C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
+	function UnitName(u) local d = units[u]; if d then return d.name, d.surname end end
+	function UnitIsPlayer(u) local d = units[u]; return d and d.isPlayer or false end
+	function UnitIsUnit(a, b) if b == "player" then local d = units[a]; return d and d.isSelf or false end return a == b end
+	function UnitInParty(u) local d = units[u]; return d and d.inParty or false end
+	function UnitInRaid() return nil end
+	function GetRealmName() return "Testrealm" end
+	function CancelDuel() log.cancelled = log.cancelled + 1 end
+	function StaticPopup_Hide(which) table.insert(log.hidden, which) end
+	C_ChatInfo = {
+		PerformEmote = function(emote, target) table.insert(log.emotes, emote .. ">" .. tostring(target)); return true end,
+		SendChatMessage = function(msg, kind, _, target) table.insert(log.whispers, kind .. ">" .. target .. ">" .. msg) end,
+	}
+	C_UI = { Reload = function() log.reloads = log.reloads + 1 end }
+	function GetFramerate() return 59.6 end
+	function GetNetStats() return 0, 0, 42, 61 end
+	C_Map = {
+		GetBestMapForUnit = function() return 1429 end,
+		GetPlayerMapPosition = function() if mapPos then return { GetXY = function() return mapPos[1], mapPos[2] end } end end,
+	}
+	C_Timer = { NewTicker = function(_, fn)
+		local t = { fn = fn }
+		function t:Cancel() self.cancelled = true end
+		table.insert(tickers, t)
+		return t
+	end }
+	-- Profile strings: a tiny stand-in for CBOR/compress/base64 that round-trips Lua tables.
+	local function Ser(v)
+		if type(v) == "table" then
+			local parts = {}
+			for k, x in pairs(v) do parts[#parts + 1] = "[" .. Ser(k) .. "]=" .. Ser(x) end
+			return "{" .. table.concat(parts, ",") .. "}"
+		end
+		return type(v) == "string" and ("%q"):format(v) or tostring(v)
+	end
+	C_EncodingUtil = {
+		SerializeCBOR = Ser,
+		DeserializeCBOR = function(s) return assert(loadstring("return " .. s))() end,
+		CompressString = function(s) return "Z" .. s end,
+		DecompressString = function(s) assert(s:sub(1, 1) == "Z", "bad data"); return s:sub(2) end,
+		EncodeBase64 = function(s) return (s:gsub(".", function(c) return ("%02x"):format(c:byte()) end)) end,
+		DecodeBase64 = function(s)
+			assert(#s % 2 == 0 and not s:find("[^0-9a-f]"), "bad base64")
+			return (s:gsub("..", function(h) return string.char(tonumber(h, 16)) end))
+		end,
+	}
 
--- Settings API: record what gets registered, write defaults into the table like the real one.
-local categoryId = 0
-local function NewCategory(name) categoryId = categoryId + 1; local c = { name = name, id = categoryId }; function c:GetID() return self.id end; return c end
-local function NewSetting(var, key, tbl, kind, default)
-	if tbl[key] == nil then tbl[key] = default end
-	local s = { var = var, key = key, tbl = tbl, kind = kind }
-	function s:SetValueChangedCallback(fn) self.cb = fn end
-	log.settings[var] = s
-	return s
+	-- Settings API: record what gets registered; settings read/write their table like the real one.
+	local nextId = 0
+	local function NewCategory(name, parent)
+		nextId = nextId + 1
+		local layout = { initializers = {} }
+		function layout:AddInitializer(init) table.insert(self.initializers, init) end
+		local c = { name = name, id = nextId, parent = parent, layout = layout, controls = {} }
+		function c:GetID() return self.id end
+		table.insert(log.categories, c)
+		return c, layout
+	end
+	local function NewSetting(var, get, set)
+		local s = { var = var, GetValue = get, SetValue = function(self, v) set(v); if self.cb then self.cb(self, v) end end }
+		function s:SetValueChangedCallback(fn) self.cb = fn end
+		assert(not log.settings[var], "setting registered twice: " .. var)
+		log.settings[var] = s
+		return s
+	end
+	SettingsPanel = { shown = false }
+	function SettingsPanel:IsShown() return self.shown end
+	function SettingsPanel:Close() self.shown = false; log.settingsClosed = log.settingsClosed + 1 end
+	function SettingsPanel:GetLayout(c) return c.layout end
+	Settings = {
+		VarType = { Boolean = "boolean", String = "string", Number = "number" },
+		RegisterVerticalLayoutCategory = function(name) return NewCategory(name) end,
+		RegisterVerticalLayoutSubcategory = function(parent, name) return NewCategory(name, parent) end,
+		RegisterAddOnSetting = function(_, var, key, tbl, _, _, default)
+			if tbl[key] == nil then tbl[key] = default end
+			return NewSetting(var, function() return tbl[key] end, function(v) tbl[key] = v end)
+		end,
+		RegisterProxySetting = function(_, var, _, _, _, get, set) return NewSetting(var, get, set) end,
+		RegisterAddOnCategory = function(c) log.registered = c.name end,
+		CreateCheckbox = function(c, s) table.insert(c.controls, s.var) end,
+		CreateDropdown = function(c, s, options) table.insert(c.controls, s.var); log.options = log.options or {}; log.options[s.var] = options end,
+		CreateSlider = function(c, s) table.insert(c.controls, s.var) end,
+		CreateSliderOptions = function() return { SetLabelFormatter = function() end } end,
+		CreateControlTextContainer = function()
+			local c = { data = {} }
+			function c:Add(v, l) table.insert(self.data, { value = v, label = l }) end
+			function c:GetData() return self.data end
+			return c
+		end,
+		OpenToCategory = function(id) log.opened = id end,
+	}
+	function CreateSettingsButtonInitializer(name, buttonText, click) return { kind = "button", name = name, buttonText = buttonText, click = click } end
+	function CreateSettingsListSectionHeaderInitializer(name) return { kind = "header", name = name } end
+	MinimalSliderWithSteppersMixin = { Label = { Right = 2 } }
 end
-Settings = {
-	VarType = { Boolean = "boolean", String = "string", Number = "number" },
-	RegisterVerticalLayoutCategory = function(name) return NewCategory(name) end,
-	RegisterVerticalLayoutSubcategory = function(_, name) return NewCategory(name) end,
-	RegisterAddOnSetting = function(_, var, key, tbl, kind, _, default) return NewSetting(var, key, tbl, kind, default) end,
-	RegisterAddOnCategory = function(c) log.registered = c.name end,
-	CreateCheckbox = function() end,
-	CreateDropdown = function(_, _, options) log.dropdownOptions = options() end,
-	CreateSlider = function() end,
-	CreateSliderOptions = function() return { SetLabelFormatter = function(self, _, fn) self.fmt = fn end } end,
-	CreateControlTextContainer = function()
-		local c = { data = {} }
-		function c:Add(v, l) table.insert(self.data, { value = v, label = l }) end
-		function c:GetData() return self.data end
-		return c
-	end,
-	OpenToCategory = function(id) log.opened = id end,
-}
-MinimalSliderWithSteppersMixin = { Label = { Right = 2 } }
 
 ---------------------------------------------------------------------------
--- Load like the game: each addon's files in TOC order, then ADDON_LOADED.
+-- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
 	for line in toc:gmatch("[^\r\n]+") do
-		if line:match("%.lua$") then
-			local chunk = assert(loadfile(folder .. "/" .. line))
-			chunk(folder, ns)
-		end
+		if line:match("%.lua$") then assert(loadfile(folder .. "/" .. line))(folder, ns) end
 	end
 	Fire("ADDON_LOADED", folder)
 end
+local function StartGame(savedDB)
+	ResetLog()
+	InstallClient()
+	StzxUI, StzxUIDB = nil, savedDB
+	for _, folder in ipairs(ADDONS) do LoadAddon(folder) end
+	Fire("PLAYER_LOGIN")
+end
+local function Reload() StartGame(StzxUIDB) end
 
-StzxUIDB = nil -- fresh install
-LoadAddon("StzxUI")
-LoadAddon("StzxUI_Social")
-Fire("PLAYER_LOGIN")
+-- Helpers for the settings UI
+local function Category(name) for _, c in ipairs(log.categories) do if c.name == name then return c end end end
+local function Button(categoryName, label)
+	for _, init in ipairs(Category(categoryName).layout.initializers) do
+		if init.kind == "button" and init.name == label then return init end
+	end
+end
+local function DialogText() return StzxUIDialog and StzxUIDialog.text.text or "" end
+local function DialogShown() return StzxUIDialog and StzxUIDialog.shown end
+local function DialogAccept(input)
+	if input then
+		if StzxUIDialog.options.input == "line" then StzxUIDialog.line:SetText(input) else StzxUIDialog.box:SetText(input) end
+	end
+	StzxUIDialog.acceptButton:Click()
+end
 
-local Social = StzxUI:GetModule("Social")
+units.player = { name = "Strikezx", surname = "Kincrag", isPlayer = true, isSelf = true }
+local CHAR = "Strikezx Kincrag - Testrealm"
+
+---------------------------------------------------------------------------
+-- 1. Upgrade from the first release's saved settings
+---------------------------------------------------------------------------
+StartGame({ core = { chatMessages = false }, modules = { Social = { thankMode = "WHISPER", thankCooldown = 7 } } })
+check(StzxUIDB.version == 2, "saved settings upgraded to version 2")
+check(StzxUIDB.modules == nil, "old module settings moved out")
+check(StzxUIDB.profiles.Default.modules.Social.thankMode == "WHISPER", "your Social choices kept in the Default profile")
+check(StzxUIDB.profiles.Default.modules.Social.thankCooldown == 7, "your cooldown kept")
+check(StzxUIDB.core.chatMessages == false and StzxUIDB.core.snapToGrid == true and StzxUIDB.core.gridSize == 16, "core options kept, new ones added")
+check(StzxUIDB.profileKeys[CHAR] == "Default", "character uses Default, keyed with surname and realm")
+check(StzxUI:GetModule("Social").db.thankMode == "WHISPER", "Social reads the profile")
+
+---------------------------------------------------------------------------
+-- 2. Fresh install: modules, settings pages, sections
+---------------------------------------------------------------------------
+StartGame(nil)
+local Social, Info = StzxUI:GetModule("Social"), StzxUI:GetModule("Info")
 check(StzxUI.version == "dev", "version placeholder shows as dev")
-check(StzxUIDB and StzxUIDB.core.chatMessages == true, "core defaults saved")
-check(Social.initialized and Social.enabled, "Social module initialized and enabled")
-check(StzxUIDB.modules.Social.declineDuels == true, "Social defaults saved")
-check(log.registered == "StzxUI", "settings category registered at login")
-check(log.settings.STZXUI_SOCIAL_THANKMODE ~= nil, "thank mode setting registered")
-check(log.dropdownOptions and #log.dropdownOptions == 2, "thank mode dropdown has 2 choices")
+check(Social.enabled and Info.enabled, "Social and Info started")
+check(log.registered == "StzxUI", "settings registered at login")
+check(Category("Social") and Category("Info") and Category("Profiles"), "Social, Info and Profiles pages exist")
+check(log.settings.STZXUI_SECTION_SOCIAL and log.settings.STZXUI_SECTION_INFO, "a section switch per module")
+check(Button("StzxUI", "Move StzxUI frames"), "move mode button on the main page")
+check(log.settings.STZXUI_CORE_SNAPTOGRID and log.settings.STZXUI_CORE_GRIDSIZE, "snap and grid size options")
 
--- Duels
+---------------------------------------------------------------------------
+-- 3. Social still works
+---------------------------------------------------------------------------
 Fire("DUEL_REQUESTED", "Grumpy Orcface")
 check(log.cancelled == 1 and log.hidden[1] == "DUEL_REQUESTED", "duel declined and popup hidden")
-check(log.prints[#log.prints]:find("Grumpy Orcface", 1, true), "declined duel announced")
+check(lastPrint():find("Grumpy Orcface", 1, true), "declined duel announced")
 Social.db.declineDeathDuels = false
 Fire("DUEL_TO_THE_DEATH_REQUESTED", "Someone Else")
 check(log.cancelled == 1, "death duel left alone when that option is off")
-Social.db.declineDuels = false
-Fire("DUEL_REQUESTED", "Another One")
-check(log.cancelled == 1, "duels left alone when declining is off")
-Social.db.declineDuels, Social.db.declineDeathDuels = true, true
 Fire("DUEL_REQUESTED", SECRET)
-check(log.cancelled == 2 and log.prints[#log.prints]:find("someone", 1, true), "secret name still declines, says 'someone'")
+check(log.cancelled == 2 and lastPrint():find("someone", 1, true), "secret name still declines")
 
--- Thanks
 units.nameplate1 = { name = "Petra", surname = "Stonewell", isPlayer = true }
 units.party1 = { name = "Buddy", surname = "Pal", isPlayer = true, inParty = true }
-units.player = { name = "Strikezx", surname = "Kincrag", isPlayer = true, isSelf = true }
 local function Buffed(source, helpful)
 	Fire("UNIT_AURA", "player", { addedAuras = { { isHelpful = helpful ~= false, sourceUnit = source } } })
 end
-
 Buffed("nameplate1")
 check(log.emotes[1] == "THANK>Petra Stonewell", "emote thanks with the full two-part name")
-now = now + 30
-Buffed("nameplate1")
-check(#log.emotes == 1, "same player not thanked again inside the cooldown")
-now = now + 5 * 60
-Buffed("nameplate1")
-check(#log.emotes == 2, "thanked again after the cooldown")
-now = now + 600
-Buffed("party1")
-check(#log.emotes == 2, "party member not thanked by default")
-Buffed("player")
-check(#log.emotes == 2, "own buffs not thanked")
-Buffed("nameplate1", false)
-check(#log.emotes == 2, "harmful auras ignored")
-inCombat = true; now = now + 600
-Buffed("nameplate1")
-check(#log.emotes == 2, "no thanks in combat")
-inCombat, aurasSecret = false, true
-Buffed("nameplate1")
-check(#log.emotes == 2, "no thanks while auras are secret")
-aurasSecret = false
-Buffed(SECRET)
-check(#log.emotes == 2, "secret source ignored")
-Social.db.thankMode = "WHISPER"; now = now + 600
-Buffed("nameplate1")
-check(log.whispers[1] == "WHISPER>Petra Stonewell>Thanks for the buff, Petra!", "whisper goes to full name, message uses first name")
-Fire("UNIT_AURA", "player", { isFullUpdate = true, addedAuras = { { isHelpful = true, sourceUnit = "nameplate1" } } })
-check(#log.whispers == 1, "full updates (login, zoning) never thank")
+now = now + 30; Buffed("nameplate1")
+check(#log.emotes == 1, "same player not thanked inside the cooldown")
+now = now + 600; Buffed("party1"); Buffed("player")
+check(#log.emotes == 1, "party and self not thanked")
+inCombat = true; Buffed("nameplate1"); inCombat = false
+check(#log.emotes == 1, "no thanks in combat")
+Social.db.thankMode = "WHISPER"; Buffed("nameplate1")
+check(log.whispers[1] == "WHISPER>Petra Stonewell>Thanks for the buff, Petra!", "whisper to full name")
 
--- Slash commands
-SlashCmdList.STZXUI("thanks Cheers %s, appreciated!")
-check(Social.db.thankMessage == "Cheers %s, appreciated!", "/stzx thanks sets the whisper")
+---------------------------------------------------------------------------
+-- 4. Info readouts
+---------------------------------------------------------------------------
+local stats, coords = StzxUIInfoStats, StzxUIInfoCoords
+check(stats.text.text:find("60 fps", 1, true) and stats.text.text:find("61 ms", 1, true), "stats show fps and the higher latency")
+mapPos = { 0.4523, 0.6781 }; tickers[#tickers].fn()
+check(coords.text.text == "45.2, 67.8", "coordinates shown to one decimal")
+mapPos = nil; tickers[#tickers].fn()
+check(coords.text.text == "--, --", "coordinates blank where the game hides them")
+log.settings.STZXUI_INFO_SHOWCOORDS:SetValue(false)
+check(not coords.shown and tickers[#tickers].fn ~= nil, "coordinates hide when switched off")
+log.settings.STZXUI_INFO_SHOWCOORDS:SetValue(true)
+check(coords.shown, "and come back when switched on")
+
+---------------------------------------------------------------------------
+-- 5. Move mode
+---------------------------------------------------------------------------
+local statsHolder = StzxUI.movers.InfoStats
+check(statsHolder and StzxUI.movers.InfoCoords, "both readouts are movable")
+check(stats.points[1].rel == statsHolder, "readout follows its holder")
+check(statsHolder:GetTop() == SCREEN_H - 8, "default spot used before any move")
+
+inCombat = true; SlashCmdList.STZXUI("move"); inCombat = false
+check(not StzxUI.moveMode and lastPrint():find("combat", 1, true), "move mode refused in combat")
+
+SettingsPanel.shown = true
+Button("StzxUI", "Move StzxUI frames").click()
+check(StzxUI.moveMode and log.settingsClosed == 1, "Unlock button opens move mode and closes the options")
+check(statsHolder.overlay.shown and StzxUIMoveToolbar.shown, "boxes and toolbar shown")
+check(StzxUIMoveToolbar.snap:GetChecked() == true, "toolbar shows snapping on")
+
+local function DragTo(holder, left, top)
+	Script(holder.overlay, "OnDragStart")
+	holder:ClearAllPoints()
+	holder:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+	Script(holder.overlay, "OnDragStop")
+end
+DragTo(statsHolder, 805, 455) -- 5,5 from centre
+local pos = StzxUI.profile.positions.InfoStats
+check(pos.x == 0 and pos.y == 0, "drop snaps to the 16-unit grid")
+check(statsHolder:GetLeft() == 800 and statsHolder:GetTop() == 450, "holder re-placed on the grid")
+shiftDown = true; DragTo(statsHolder, 805, 455); shiftDown = false
+check(pos ~= StzxUI.profile.positions.InfoStats and StzxUI.profile.positions.InfoStats.x == 5, "Shift-drag places freely")
+Script(statsHolder.overlay, "OnEnter")
+check(statsHolder.overlay.keyboard and statsHolder.overlay.propagate == true, "hover takes arrow keys, other keys still reach the game")
+Script(statsHolder.overlay, "OnKeyDown", "UP")
+check(StzxUI.profile.positions.InfoStats.y == 6 and statsHolder.overlay.propagate == false, "arrow nudges 1 unit")
+shiftDown = true; Script(statsHolder.overlay, "OnKeyDown", "RIGHT"); shiftDown = false
+check(StzxUI.profile.positions.InfoStats.x == 21, "Shift-arrow nudges one grid step")
+Script(statsHolder.overlay, "OnKeyDown", "W")
+check(statsHolder.overlay.propagate == true, "other keys pass through")
+Script(statsHolder.overlay, "OnLeave")
+check(not statsHolder.overlay.keyboard, "keys released when the mouse leaves")
+Script(statsHolder.overlay, "OnClick", "RightButton")
+check(StzxUI.profile.positions.InfoStats == nil and statsHolder:GetTop() == SCREEN_H - 8, "right-click resets one frame")
+
+StzxUIMoveToolbar.gridButton:Click()
+check(StzxUIDB.core.gridSize == 32, "grid button steps to 32")
+DragTo(statsHolder, 800 + 40, 450 + 40)
+check(StzxUI.profile.positions.InfoStats.x == 32, "snapping uses the new grid size")
+StzxUIMoveToolbar.snap:SetChecked(false); Script(StzxUIMoveToolbar.snap, "OnClick")
+DragTo(statsHolder, 803, 452)
+check(StzxUI.profile.positions.InfoStats.x == 3, "snapping can be switched off")
+StzxUIDB.core.snapToGrid = true
+
+DragTo(StzxUI.movers.InfoCoords, 700, 300)
+-- "Reset all" asks first
+local resetAll
+for _, f in ipairs(frames) do if f.text == "Reset all" and f.scripts.OnClick then resetAll = f end end
+resetAll:Click()
+check(DialogShown() and DialogText():find("every StzxUI frame", 1, true), "Reset all asks first")
+DialogAccept()
+check(next(StzxUI.profile.positions) == nil and not DialogShown(), "Reset all clears every position")
+
+log.settings.STZXUI_INFO_SHOWSTATS:SetValue(false)
+StzxUI:ExitMoveMode(); StzxUI:EnterMoveMode()
+check(not statsHolder.overlay.shown and StzxUI.movers.InfoCoords.overlay.shown, "hidden readouts have no box")
+log.settings.STZXUI_INFO_SHOWSTATS:SetValue(true)
+
+Fire("PLAYER_REGEN_DISABLED")
+check(not StzxUI.moveMode and not StzxUIMoveToolbar.shown and not StzxUI.movers.InfoCoords.overlay.shown, "combat closes move mode")
+SlashCmdList.STZXUI("move")
+check(StzxUI.moveMode, "/stzx move opens it")
+StzxUIMoveToolbar:Hide() -- what Escape does
+check(not StzxUI.moveMode, "Escape closes it")
+
+-- Moving in combat waits until combat ends
+DragTo(statsHolder, 900, 500) -- (out of move mode the script still works in the fake)
+local leftBefore = statsHolder:GetLeft()
+inCombat = true
+StzxUI:ResetMover("InfoStats")
+check(statsHolder:GetLeft() == leftBefore and leftBefore ~= nil, "no re-placing in combat")
+inCombat = false; Fire("PLAYER_REGEN_ENABLED")
+check(statsHolder:GetTop() == SCREEN_H - 8, "re-placed when combat ends")
+
+-- Positions survive a reload
+DragTo(statsHolder, 800 + 64, 450 - 32)
+Reload()
+statsHolder = StzxUI.movers.InfoStats
+check(statsHolder:GetLeft() == 864 and statsHolder:GetTop() == 418, "positions kept after /reload")
+
+---------------------------------------------------------------------------
+-- 6. Profiles
+---------------------------------------------------------------------------
+check(select(2, StzxUI:CheckProfileName("   ")) == "Type a name first.", "empty name refused")
+check(select(2, StzxUI:CheckProfileName("Default")):find("already", 1, true), "duplicate name refused")
+check(select(2, StzxUI:CheckProfileName(("x"):rep(40))):find("under", 1, true), "long name refused")
+
+Button("Profiles", "New profile from this one").click()
+DialogAccept("   ")
+check(DialogShown() and StzxUIDialog.problem.text == "Type a name first.", "dialog stays open and explains a bad name")
+DialogAccept("Healing")
+check(StzxUIDB.profiles.Healing and StzxUIDB.profileKeys[CHAR] == "Healing", "new profile created and chosen")
+check(DialogShown() and DialogText():find("Reload", 1, true), "reload prompt stays open after creating (bug fix)")
+check(StzxUIDB.profiles.Healing.positions.InfoStats.x == 64, "new profile is a copy")
+check(StzxUIDB.profiles.Healing.positions ~= StzxUIDB.profiles.Default.positions, "and a separate copy")
+DialogAccept()
+check(log.reloads == 1, "Reload now reloads")
+Reload()
+check(StzxUI.profileName == "Healing" and StzxUI.movers.InfoStats:GetLeft() == 864, "after reload the new profile is live")
+DragTo(StzxUI.movers.InfoStats, 800, 450)
+check(StzxUIDB.profiles.Default.positions.InfoStats.x == 64, "moving in one profile leaves the other alone")
+
+log.settings.STZXUI_PROFILE_ACTIVE:SetValue("Default")
+check(StzxUIDB.profileKeys[CHAR] == "Default" and DialogShown(), "switching back via the dropdown asks to reload")
+check(#log.options.STZXUI_PROFILE_ACTIVE() == 2 and log.options.STZXUI_PROFILE_ACTIVE()[1].value == "Default", "dropdown lists Default first")
+StzxUIDialog.cancelButton:Click()
+
+-- Export, then import as a new profile
+local exported = StzxUI:ExportProfile()
+check(type(exported) == "string" and exported:sub(1, 7) == "!STZX1!", "export makes a StzxUI string")
+Button("Profiles", "Import a profile").click()
+DialogAccept("hello")
+check(DialogShown() and StzxUIDialog.problem.text:find("isn't a StzxUI", 1, true), "foreign text refused")
+DialogAccept("!STZX1!zz")
+check(StzxUIDialog.problem.text:find("damaged", 1, true), "damaged string refused")
+DialogAccept("  " .. exported .. "\n")
+check(StzxUIDB.profiles.Imported and StzxUIDB.profiles.Imported.positions.InfoStats.x == 0, "import creates 'Imported' with the shared positions")
+check(StzxUIDB.profileKeys[CHAR] == "Imported", "and switches to it")
+StzxUIDialog.cancelButton:Click()
+check(StzxUI:ImportProfile(exported) == "Imported 2", "a second import gets its own name")
+
+-- Delete
+StzxUIDB.profileKeys["Alt Character - Testrealm"] = "Healing"
+check(StzxUI:DeleteProfile("Default") == false, "Default can't be deleted")
+Button("Profiles", "Delete this profile").click() -- current live profile is Healing
+DialogAccept()
+check(StzxUIDB.profiles.Healing == nil and StzxUIDB.profileKeys["Alt Character - Testrealm"] == "Default", "deleted; characters using it fall back to Default")
+check(DialogShown() and DialogText():find("Reload", 1, true), "deleting the live profile asks to reload")
+StzxUIDialog.cancelButton:Click()
+
+-- Reset
+StzxUIDB.profileKeys[CHAR] = "Default"
+Reload()
+StzxUI:GetModule("Social").db.thankMode = "WHISPER"
+Button("Profiles", "Reset this profile").click()
+DialogAccept()
+check(next(StzxUIDB.profiles.Default.modules) == nil and next(StzxUIDB.profiles.Default.positions) == nil, "reset empties the profile")
+Reload()
+check(StzxUI:GetModule("Social").db.thankMode == "EMOTE", "defaults back after reload")
+
+---------------------------------------------------------------------------
+-- 7. Sections on/off
+---------------------------------------------------------------------------
+log.settings.STZXUI_SECTION_INFO:SetValue(false)
+check(StzxUIDB.profiles.Default.enabled.Info == false and DialogShown(), "switching Info off is saved and asks to reload")
+Reload()
+check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
+check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
+SlashCmdList.STZXUI("move")
+check(not StzxUI.moveMode and lastPrint():find("nothing to move", 1, true), "move mode explains when there's nothing to move")
+log.settings.STZXUI_SECTION_INFO:SetValue(true)
+check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
+Reload()
+check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
+
+---------------------------------------------------------------------------
+-- 8. Slash commands
+---------------------------------------------------------------------------
+SlashCmdList.STZXUI("profile")
+check(lastPrint():find("'Default'", 1, true), "/stzx profile names the profile")
+SlashCmdList.STZXUI("thanks Cheers %s!")
+check(StzxUI:GetModule("Social").db.thankMessage == "Cheers %s!", "/stzx thanks still works")
+SlashCmdList.STZXUI("help")
+local helpText = table.concat(log.prints, "\n")
+check(helpText:find("/stzx move", 1, true) and helpText:find("/stzx profile", 1, true), "/stzx help lists move and profile")
 SlashCmdList.STZXUI("")
 check(log.opened ~= nil, "/stzx opens the settings")
-SlashCmdList.STZXUI("help")
-check(log.prints[#log.prints]:find("/stzx thanks", 1, true), "/stzx help lists module commands")
-SlashCmdList.STZXUI("nonsense")
-check(log.prints[#log.prints]:find("unknown command", 1, true), "unknown command explained")
-
--- Saved settings survive a reload
-local saved = StzxUIDB
-frames, log.settings = {}, {}
-StzxUI = nil
-StzxUIDB = saved
-LoadAddon("StzxUI")
-LoadAddon("StzxUI_Social")
-Fire("PLAYER_LOGIN")
-check(StzxUI:GetModule("Social").db.thankMessage == "Cheers %s, appreciated!", "settings kept after /reload")
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -23,8 +23,11 @@ Scott's personal UI suite for WoW: Forever. Scott is learning addon development 
 
 ## Layout
 
-- `StzxUI/` core: `Core.lua` (modules, saved settings, `/stzx`), `Settings.lua` (options page helpers).
-- `StzxUI_<Module>/` one folder per module, `## Dependencies: StzxUI`, registers with `StzxUI:NewModule(name, addonName, defaults)` and implements `OnInitialize` (build settings page) and `OnEnable` (register events).
+- `StzxUI/` core: `Core.lua` (modules, `/stzx`), `Profiles.lua` (StzxUIDB layout, profiles, export/import), `Dialog.lua` (StzxUI's own pop-up; don't use StaticPopup), `Settings.lua` (options page helpers, Sections, Profiles page), `Movers.lua` + `MoveMode.lua` (move mode).
+- `StzxUI_<Module>/` one folder per module, `## Dependencies: StzxUI`, registers with `StzxUI:NewModule(name, addonName, defaults, { title, description })` and implements `OnInitialize` (build settings page) and `OnEnable` (create frames, register events). Module settings live in the current profile (`module.db`).
+- Every visible frame is made movable with `StzxUI:RegisterMover(key, frame, { label, default, isShown })`. The frame is anchored to an insecure holder; positions are saved per profile and re-applied after combat if needed. Never move or re-anchor secure frames in combat.
+- Switching profiles or sections asks for a reload (`StzxUI:AskReload`) instead of swapping tables live.
+- Upgrading saved data: bump `DB_VERSION` in `Profiles.lua` and migrate in `LoadProfiles`, with a harness check that old data survives.
 - `tests/harness.lua` offline fake client.
 - `docs/` notes, not packaged.
 

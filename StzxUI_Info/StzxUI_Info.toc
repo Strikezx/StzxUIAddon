@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Info
+## Notes: Small movable info texts: FPS, latency and clock; map coordinates.
+## Author: Strikezx
+## Version: @project-version@
+## Dependencies: StzxUI
+
+Info.lua

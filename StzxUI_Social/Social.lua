@@ -18,6 +18,9 @@ local Social = StzxUI:NewModule("Social", ADDON_NAME, {
 	thankMessage = "Thanks for the buff, %s!", -- %s = their name
 	thankGroup = false,       -- also thank party/raid members
 	thankCooldown = 5,        -- minutes before thanking the same person again
+}, {
+	title = "Social",
+	description = "Declines duel requests and thanks players who buff you.",
 })
 ns.Social = Social
 

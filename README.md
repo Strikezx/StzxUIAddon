@@ -7,19 +7,40 @@ Built one module at a time; every module is its own addon folder, so any part ca
 
 | Folder | What it does |
 |---|---|
-| `StzxUI` | Core: settings page (Esc > Options > AddOns > StzxUI), saved settings, `/stzx` command |
+| `StzxUI` | Core: settings (Esc > Options > AddOns > StzxUI), profiles, move mode, section on/off switches, `/stzx` |
 | `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player) |
+| `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates |
+
+## Move mode
+
+`/stzx move` (or the Unlock button in StzxUI's options) dims the screen, draws a grid and puts a labelled box over every StzxUI frame.
+
+- Drag a box to move its frame. It snaps to the grid; hold **Shift** to place freely.
+- Hover a box and use the **arrow keys** to nudge 1 unit (Shift + arrow: one grid step).
+- **Right-click** a box to put that frame back where it started; **Reset all** does every frame.
+- The toolbar switches snapping and the grid size (8, 16, 32, 64). **Done**, **Escape** or entering combat closes it.
+
+Positions are saved in the current profile.
+
+## Profiles and sections
+
+- **StzxUI > Profiles**: each character picks a profile. Make a new one from the current one, reset it, delete it, or **export** it as a text string and **import** a string from someone else.
+- **StzxUI > Sections**: switch whole modules on or off for the profile (applies after a reload).
+- A profile holds module options, frame positions and which sections are on. The grid and chat-notice options are the same on every character.
+- When sharing a full setup, share two strings: the StzxUI profile, and your Blizzard **Edit Mode** layout (Edit Mode > Share) for the Blizzard frames StzxUI doesn't replace yet.
 
 ## Commands
 
 - `/stzx` opens the settings
 - `/stzx help` lists every command
+- `/stzx move` unlocks frames for moving (again to lock)
+- `/stzx profile` shows which profile this character uses
 - `/stzx thanks <message>` sets the thank-you whisper (`%s` = their first name)
 - `/stzx version`
 
 ## Installing for testing
 
-Copy the `StzxUI` and `StzxUI_Social` folders into:
+Copy the `StzxUI`, `StzxUI_Social` and `StzxUI_Info` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -32,6 +53,7 @@ Then restart the game (a brand-new addon folder needs a full restart; after that
 ```
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI" "C:\...\StzxUIAddon\StzxUI"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Social" "C:\...\StzxUIAddon\StzxUI_Social"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Info" "C:\...\StzxUIAddon\StzxUI_Info"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.

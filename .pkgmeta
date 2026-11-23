@@ -5,6 +5,7 @@ package-as: StzxUI
 move-folders:
   StzxUI/StzxUI: StzxUI
   StzxUI/StzxUI_Social: StzxUI_Social
+  StzxUI/StzxUI_Info: StzxUI_Info
 
 ignore:
   - docs

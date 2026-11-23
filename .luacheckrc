@@ -52,4 +52,22 @@ read_globals = {
 	-- Duels and popups
 	"CancelDuel",
 	"StaticPopup_Hide",
+	-- Frames, fonts, tooltips, keys
+	"UIParent",
+	"GameTooltip",
+	"UISpecialFrames",
+	"IsShiftKeyDown",
+	"SettingsPanel",
+	"CreateSettingsButtonInitializer",
+	"CreateSettingsListSectionHeaderInitializer",
+	-- Profiles and reload
+	"C_EncodingUtil",
+	"C_UI",
+	"GetRealmName",
+	-- Info module
+	"C_Map",
+	"C_Timer",
+	"GetFramerate",
+	"GetNetStats",
+	"date",
 }

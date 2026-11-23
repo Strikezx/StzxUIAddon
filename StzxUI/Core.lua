@@ -1,20 +1,32 @@
 -- StzxUI Core
--- The shared heart of StzxUI: the saved settings, the module list, the chat
--- printer and a few helpers every module uses. Each feature lives in its own
--- addon folder (StzxUI_Social, StzxUI_Frames, ...) and plugs in through
--- StzxUI:NewModule(), so any part can be switched off in the AddOns list.
+-- The shared heart of StzxUI: the module list, the chat printer and a few
+-- helpers every module uses. Each feature lives in its own addon folder
+-- (StzxUI_Social, StzxUI_Info, ...) and plugs in through StzxUI:NewModule().
+--
+-- Other core files:
+--   Profiles.lua  saved settings, per-character profiles, export/import
+--   Dialog.lua    the small StzxUI pop-up window (names, export strings, reload)
+--   Settings.lua  the StzxUI options pages
+--   Movers.lua    how a frame becomes movable
+--   MoveMode.lua  /stzx move: grid, toolbar, drag and drop
 
 local ADDON_NAME = ...
 
 local StzxUI = {
-	modules = {},      -- [name] = module table
-	moduleOrder = {},  -- names, in the order they registered
+	modules = {},       -- [name] = module table
+	moduleOrder = {},   -- names, in the order they registered
+	slashCommands = {}, -- [word] = { help = "...", run = function(rest) end }
 }
 _G.StzxUI = StzxUI
 
--- Defaults for the core's own settings. Modules bring their own defaults.
-local CORE_DEFAULTS = {
+-- StzxUI's accent colour (#4fc3f7), used by move mode and future frames.
+StzxUI.ACCENT = { r = 0.31, g = 0.76, b = 0.97 }
+
+-- Account-wide core settings (the same on every character).
+StzxUI.CORE_DEFAULTS = {
 	chatMessages = true, -- print StzxUI notices in the chat window
+	snapToGrid = true,   -- move mode snaps frames to the grid
+	gridSize = 16,       -- grid spacing in move mode
 }
 
 ---------------------------------------------------------------------------
@@ -25,11 +37,11 @@ local PREFIX = "|cff4fc3f7Stzx|rUI:"
 
 -- Print a notice in chat, unless the player turned notices off.
 function StzxUI:Print(...)
-	if self.db and not self.db.core.chatMessages then return end
+	if self.db and self.db.core and not self.db.core.chatMessages then return end
 	print(PREFIX, ...)
 end
 
--- Same, but always shows (for replies to slash commands).
+-- Same, but always shows (for replies to slash commands and warnings).
 function StzxUI:Say(...)
 	print(PREFIX, ...)
 end
@@ -71,22 +83,28 @@ end
 -- Modules
 ---------------------------------------------------------------------------
 -- A module file does:
---   local Social = StzxUI:NewModule("Social", "StzxUI_Social", { declineDuels = true })
+--   local Social = StzxUI:NewModule("Social", "StzxUI_Social", { declineDuels = true },
+--       { title = "Social", description = "Duels and thank-yous" })
 --   function Social:OnInitialize() ... end  -- settings are ready in self.db
 --   function Social:OnEnable() ... end      -- the player is in the world
 --
 -- The core sets the module up when the module's own addon has finished
 -- loading, and turns it on at login (or straight away if it loads later).
+-- A module switched off under StzxUI > Sections is loaded but never started.
 
-function StzxUI:NewModule(name, addonName, defaults)
+function StzxUI:NewModule(name, addonName, defaults, info)
 	assert(type(name) == "string", "StzxUI:NewModule needs a name")
 	assert(not self.modules[name], "StzxUI module registered twice: " .. name)
+	info = info or {}
 	local module = {
 		name = name,
+		title = info.title or name,
+		description = info.description,
 		addonName = addonName or ADDON_NAME,
 		defaults = defaults or {},
 		initialized = false,
-		enabled = false,
+		active = false,   -- switched on in this profile
+		enabled = false,  -- OnEnable has run
 	}
 	self.modules[name] = module
 	table.insert(self.moduleOrder, name)
@@ -95,6 +113,11 @@ end
 
 function StzxUI:GetModule(name)
 	return self.modules[name]
+end
+
+-- Is this section switched on in the current profile? (On unless switched off.)
+function StzxUI:IsModuleOn(name)
+	return not (self.profile and self.profile.enabled[name] == false)
 end
 
 local function SafeCall(module, method)
@@ -107,15 +130,19 @@ local function SafeCall(module, method)
 end
 
 function StzxUI:InitializeModule(module)
-	if module.initialized or not self.db then return end
-	self.db.modules[module.name] = ApplyDefaults(self.db.modules[module.name] or {}, module.defaults)
-	module.db = self.db.modules[module.name]
+	if module.initialized or not self.profile then return end
+	local saved = self.profile.modules
+	saved[module.name] = ApplyDefaults(saved[module.name] or {}, module.defaults)
+	module.db = saved[module.name]
 	module.initialized = true
-	SafeCall(module, "OnInitialize")
+	module.active = self:IsModuleOn(module.name)
+	if module.active then
+		SafeCall(module, "OnInitialize")
+	end
 end
 
 function StzxUI:EnableModule(module)
-	if module.enabled or not module.initialized then return end
+	if module.enabled or not module.initialized or not module.active then return end
 	module.enabled = true
 	SafeCall(module, "OnEnable")
 end
@@ -132,9 +159,8 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:SetScript("OnEvent", function(_, event, loadedName)
 	if event == "ADDON_LOADED" then
 		if loadedName == ADDON_NAME then
-			StzxUIDB = StzxUIDB or {}
-			StzxUI.db = ApplyDefaults(StzxUIDB, { core = CORE_DEFAULTS, modules = {} })
 			StzxUI.version = ReadVersion()
+			StzxUI:LoadProfiles()        -- Profiles.lua
 			StzxUI:CreateSettingsPanel() -- Settings.lua
 		end
 		-- Set up every module whose addon has now finished loading.
@@ -158,7 +184,16 @@ end)
 -- /stzx
 ---------------------------------------------------------------------------
 
-StzxUI.slashCommands = {} -- modules can add: StzxUI.slashCommands.word = function(rest) end
+StzxUI.slashCommands.move = {
+	help = "unlock StzxUI frames so you can drag them (same again to lock)",
+	run = function() StzxUI:ToggleMoveMode() end,
+}
+StzxUI.slashCommands.profile = {
+	help = "show which profile this character uses",
+	run = function()
+		StzxUI:Say(("this character uses the profile '%s'."):format(StzxUI.profileName or "?"))
+	end,
+}
 
 SLASH_STZXUI1 = "/stzx"
 SLASH_STZXUI2 = "/stzxui"
@@ -174,7 +209,11 @@ SlashCmdList.STZXUI = function(input)
 		StzxUI:Say("commands:")
 		print("  /stzx - open the settings")
 		print("  /stzx version - show the version")
-		for command, handler in pairs(StzxUI.slashCommands) do
+		local words = {}
+		for command in pairs(StzxUI.slashCommands) do table.insert(words, command) end
+		table.sort(words)
+		for _, command in ipairs(words) do
+			local handler = StzxUI.slashCommands[command]
 			if type(handler) == "table" and handler.help then
 				print(("  /stzx %s - %s"):format(command, handler.help))
 			end

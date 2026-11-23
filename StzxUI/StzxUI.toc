@@ -1,9 +1,13 @@
 ## Interface: 16001
 ## Title: |cff4fc3f7Stzx|rUI
-## Notes: Scott's personal UI for WoW: Forever. Core: settings, profiles and the /stzx command.
+## Notes: Scott's personal UI for WoW: Forever. Core: settings, profiles, move mode and the /stzx command.
 ## Author: Strikezx
 ## Version: @project-version@
 ## SavedVariables: StzxUIDB
 
 Core.lua
+Profiles.lua
+Dialog.lua
 Settings.lua
+Movers.lua
+MoveMode.lua
