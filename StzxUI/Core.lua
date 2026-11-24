@@ -19,14 +19,20 @@ local StzxUI = {
 }
 _G.StzxUI = StzxUI
 
--- StzxUI's accent colour (#4fc3f7), used by move mode and future frames.
+-- StzxUI's accent colour. StzxUI blue (#4fc3f7) unless the player picks
+-- "class colour" (see ApplyAccent below). Always changed in place, so files
+-- that keep a reference to this table see the new colour.
 StzxUI.ACCENT = { r = 0.31, g = 0.76, b = 0.97 }
+local STZX_BLUE = { r = 0.31, g = 0.76, b = 0.97 }
 
 -- Account-wide core settings (the same on every character).
 StzxUI.CORE_DEFAULTS = {
-	chatMessages = true, -- print StzxUI notices in the chat window
-	snapToGrid = true,   -- move mode snaps frames to the grid
-	gridSize = 16,       -- grid spacing in move mode
+	chatMessages = true,   -- print StzxUI notices in the chat window
+	accent = "STZX",       -- "STZX" (StzxUI blue) or "CLASS" (your class colour)
+	snapToGrid = true,     -- move mode snaps frames to the grid
+	snapToFrames = true,   -- move mode lines frames up with each other's edges
+	gridSize = 16,         -- grid spacing in move mode
+	hiddenCategories = {}, -- move mode: [category] = true to hide its boxes
 }
 
 ---------------------------------------------------------------------------
@@ -71,6 +77,18 @@ local function ApplyDefaults(target, defaults)
 	return target
 end
 StzxUI.ApplyDefaults = ApplyDefaults
+
+-- Set StzxUI.ACCENT from the "accent" option.
+function StzxUI:ApplyAccent()
+	local accent, colour = self.ACCENT, STZX_BLUE
+	if self.db and self.db.core.accent == "CLASS" then
+		local _, class = UnitClass("player")
+		class = StzxUI.Plain(class)
+		local classColour = class and C_ClassColor and C_ClassColor.GetClassColor(class)
+		if classColour then colour = classColour end
+	end
+	accent.r, accent.g, accent.b = colour.r, colour.g, colour.b
+end
 
 local function ReadVersion()
 	local version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")
@@ -161,6 +179,7 @@ events:SetScript("OnEvent", function(_, event, loadedName)
 		if loadedName == ADDON_NAME then
 			StzxUI.version = ReadVersion()
 			StzxUI:LoadProfiles()        -- Profiles.lua
+			StzxUI:ApplyAccent()
 			StzxUI:CreateSettingsPanel() -- Settings.lua
 		end
 		-- Set up every module whose addon has now finished loading.

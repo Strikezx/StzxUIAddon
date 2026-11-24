@@ -99,12 +99,18 @@ function StzxUI:CreateSettingsPanel()
 		"Shows every StzxUI frame with a label so you can drag it into place. Type /stzx move to do the same.")
 	self:AddCheckbox(category, core, "snapToGrid", "Snap to grid",
 		"Frames line up with the grid as you drop them. Hold Shift while dragging to place freely.")
+	self:AddCheckbox(category, core, "snapToFrames", "Snap to other frames",
+		"A frame dropped close to another lines up with its edges or centre. Hold Shift to place freely.")
 	self:AddSlider(category, core, "gridSize", "Grid size",
 		"Space between grid lines in move mode.", 8, 64, 8,
 		function(value) return ("%d px"):format(value) end,
 		function() self:RefreshGrid() end)
 
 	self:AddHeader(category, "General")
+	self:AddDropdown(category, core, "accent", "Accent colour",
+		"The colour of StzxUI's highlights: move mode, windows, frame rings. Changes apply after a reload.",
+		{ { "STZX", "StzxUI blue" }, { "CLASS", "My class colour" } },
+		function() self:AskReload("The accent colour changes after a reload.") end)
 	self:AddCheckbox(category, core, "chatMessages", "Show StzxUI notices in chat",
 		"Short messages such as \"Declined a duel from ...\". Replies to /stzx commands always show.")
 end

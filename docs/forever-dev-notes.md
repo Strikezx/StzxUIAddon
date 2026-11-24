@@ -21,6 +21,18 @@ Things the game client does that matter for StzxUI. Recheck after each patch.
 - **No WeakAuras on Forever.**
 - Some legacy globals exist only as deprecation shims (`DoEmote`, `IsSpellKnown`, `GetSpellInfo`...). Prefer the `C_` namespaced versions (`C_ChatInfo.PerformEmote`, `C_SpellBook.*`, `C_Spell.*`).
 
+## Showing combat values (checked against the 1.60.1.71037 API docs)
+
+| Need | Use | Why it works with secrets |
+|---|---|---|
+| Health/power bar | `bar:SetMinMaxValues(0, UnitHealthMax(u))`, `bar:SetValue(UnitHealth(u))` | `SetMinMaxValues`/`SetValue` accept secret arguments from addons |
+| Health number text | `AbbreviateLargeNumbers(UnitHealth(u))` into `SetText`/`SetFormattedText` | both accept secrets; returns a secret string |
+| Health percent | `UnitHealthPercent(u, false, CurveConstants.ScaleTo100)` | percent 0-100 without addon maths |
+| Cast bar with secret times | `bar:SetMinMaxValues(startMS, endMS)` then `bar:SetValue(GetTime() * 1000)` each frame | bar does the maths; countdown text can't be shown |
+| Anything you branch on | `StzxUI.Plain(v)` first | testing a secret raises an error |
+
+`UnitHealth` and `UnitHealthPercent` are marked `SecretReturns`; `UnitHealthMax`, `UnitPower`, `UnitCastingInfo` turn secret only in restricted situations. `StatusBar:SetTimerDuration` does **not** accept secret arguments from addons.
+
 ## Forever-specific quirks found in other addons' notes
 
 - **Names have surnames.** `UnitName(unit)` returns `first, surname` on Forever (a realm elsewhere). Whisper targets are the full two-word name.

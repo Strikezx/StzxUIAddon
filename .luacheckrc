@@ -70,4 +70,12 @@ read_globals = {
 	"GetFramerate",
 	"GetNetStats",
 	"date",
+	-- Unit frames
+	"UnitHealth", "UnitHealthMax", "UnitHealthPercent", "CurveConstants",
+	"UnitPower", "UnitPowerMax", "UnitPowerType",
+	"UnitClass", "UnitReaction", "UnitIsTapDenied", "UnitLevel", "UnitClassification",
+	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists",
+	"UnitCastingInfo", "UnitChannelInfo",
+	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
+	"SetPortraitTexture", "RegisterUnitWatch", "GameTooltip_SetDefaultAnchor",
 }

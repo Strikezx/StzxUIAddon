@@ -4,8 +4,9 @@
 -- Profiles can be copied, reset, deleted, and shared as a text string.
 --
 -- Saved layout (StzxUIDB, account-wide):
---   core        = { chatMessages, snapToGrid, gridSize }  same on every character
---   profiles    = { [name] = { modules = {}, positions = {}, enabled = {} } }
+--   core        = { chatMessages, accent, snapToGrid, snapToFrames, gridSize, hiddenCategories }
+--                 (same on every character)
+--   profiles    = { [name] = { modules = {}, positions = {}, scales = {}, enabled = {} } }
 --   profileKeys = { ["Strikezx Kincrag - Realm"] = "Default" }
 
 local StzxUI = _G.StzxUI
@@ -22,6 +23,7 @@ local function NewProfileData()
 	return {
 		modules = {},   -- [module name] = that module's settings
 		positions = {}, -- [mover key] = { x = , y = } top-left offset from screen centre
+		scales = {},    -- [mover key] = size (1 = normal), set with the mouse wheel in move mode
 		enabled = {},   -- [module name] = false when that section is switched off
 	}
 end

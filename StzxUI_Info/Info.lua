@@ -119,11 +119,13 @@ function Info:OnEnable()
 
 	StzxUI:RegisterMover("InfoStats", stats, {
 		label = "Info: stats",
+		category = "Info",
 		default = { "TOPRIGHT", "TOPRIGHT", -200, -8 },
 		isShown = function() return db.showStats end,
 	})
 	StzxUI:RegisterMover("InfoCoords", coords, {
 		label = "Info: coordinates",
+		category = "Info",
 		default = { "TOPRIGHT", "TOPRIGHT", -200, -28 },
 		isShown = function() return db.showCoords end,
 	})

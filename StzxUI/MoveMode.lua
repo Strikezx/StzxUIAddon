@@ -1,10 +1,12 @@
 -- StzxUI Move Mode  (/stzx move)
 -- Dims the screen, draws a grid from the screen centre, and shows a labelled
 -- box over every StzxUI frame. Drag a box to move its frame.
---   Left-drag          move (snaps to the grid when snapping is on)
+--   Left-drag          move (lines up with nearby frames, else snaps to the grid)
 --   Shift + drag       place freely, no snapping
---   Right-click        put that frame back where it started
+--   Mouse wheel        make the frame bigger or smaller
+--   Right-click        put that frame back where it started, at normal size
 --   Arrow keys         nudge 1 unit (Shift: one grid step) while hovering a box
+-- The toolbar's "Show" row hides whole groups of boxes (e.g. Info).
 -- Combat closes move mode straight away.
 
 local StzxUI = _G.StzxUI
@@ -47,8 +49,16 @@ function StzxUI:BuildMoverOverlay(holder)
 
 	local label = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	label:SetPoint("CENTER")
-	label:SetText(holder.label)
 	box.label = label
+	box.UpdateLabel = function()
+		local scale = StzxUI:GetMoverScale(holder)
+		if scale ~= 1 then
+			label:SetFormattedText("%s  |cffaaaaaa%d%%|r", holder.label, math.floor(scale * 100 + 0.5))
+		else
+			label:SetText(holder.label)
+		end
+	end
+	box:UpdateLabel()
 
 	box:RegisterForDrag("LeftButton")
 	box:RegisterForClicks("RightButtonUp")
@@ -58,7 +68,16 @@ function StzxUI:BuildMoverOverlay(holder)
 		StzxUI:SaveMoverPosition(holder, IsShiftKeyDown())
 	end)
 	box:SetScript("OnClick", function(_, button)
-		if button == "RightButton" then StzxUI:ResetMover(holder.key) end
+		if button == "RightButton" then
+			StzxUI:ResetMover(holder.key)
+			box:UpdateLabel()
+		end
+	end)
+	box:EnableMouseWheel(true)
+	box:SetScript("OnMouseWheel", function(_, delta)
+		if InCombatLockdown() or not holder.scalable then return end
+		StzxUI:ScaleMover(holder, delta > 0 and 0.05 or -0.05)
+		box:UpdateLabel()
 	end)
 
 	box:SetScript("OnEnter", function(button)
@@ -69,6 +88,9 @@ function StzxUI:BuildMoverOverlay(holder)
 		GameTooltip:AddLine(holder.label, A.r, A.g, A.b)
 		GameTooltip:AddLine("Drag to move. Shift-drag: no snapping.", 1, 1, 1)
 		GameTooltip:AddLine("Arrow keys: nudge. Right-click: reset.", 1, 1, 1)
+		if holder.scalable then
+			GameTooltip:AddLine("Mouse wheel: bigger or smaller.", 1, 1, 1)
+		end
 		GameTooltip:Show()
 	end)
 	box:SetScript("OnLeave", function(button)
@@ -91,8 +113,16 @@ function StzxUI:BuildMoverOverlay(holder)
 end
 
 local function ShowBox(holder)
-	local wanted = not holder.isShown or holder.isShown()
+	local wanted = (not holder.isShown or holder.isShown())
+		and not StzxUI.db.core.hiddenCategories[holder.category]
 	holder.overlay:SetShown(wanted)
+	if wanted then holder.overlay:UpdateLabel() end
+end
+
+local function ShowBoxes()
+	for _, key in ipairs(StzxUI.moverOrder) do
+		ShowBox(StzxUI.movers[key])
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -170,7 +200,7 @@ end
 
 local function BuildToolbar()
 	local bar = CreateFrame("Frame", "StzxUIMoveToolbar", UIParent)
-	bar:SetSize(520, 66)
+	bar:SetSize(600, 96)
 	bar:SetPoint("TOP", 0, -48)
 	bar:SetFrameStrata("FULLSCREEN_DIALOG")
 	bar:SetClampedToScreen(true)
@@ -197,23 +227,42 @@ local function BuildToolbar()
 
 	local hint = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	hint:SetPoint("LEFT", title, "RIGHT", 10, 0)
-	hint:SetText("Drag boxes. Shift: no snap. Right-click: reset. Arrows: nudge.")
+	hint:SetText("Drag boxes. Shift: free. Wheel: size. Right-click: reset. Arrows: nudge.")
 	hint:SetTextColor(0.8, 0.8, 0.8)
 
-	local snap = CreateFrame("CheckButton", nil, bar, "UICheckButtonTemplate")
-	snap:SetSize(24, 24)
-	snap:SetPoint("BOTTOMLEFT", 8, 8)
-	local snapLabel = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-	snapLabel:SetPoint("LEFT", snap, "RIGHT", 2, 0)
-	snapLabel:SetText("Snap to grid")
-	snap:SetScript("OnClick", function(self)
-		StzxUI.db.core.snapToGrid = self:GetChecked() and true or false
-	end)
-	bar.snap = snap
+	-- Row 1: snapping switches.
+	local function Switch(text, key, anchor)
+		local check = CreateFrame("CheckButton", nil, bar, "UICheckButtonTemplate")
+		check:SetSize(24, 24)
+		if anchor then
+			check:SetPoint("LEFT", anchor, "RIGHT", 12, 0)
+		else
+			check:SetPoint("TOPLEFT", 8, -30)
+		end
+		local label = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		label:SetPoint("LEFT", check, "RIGHT", 2, 0)
+		label:SetText(text)
+		check:SetScript("OnClick", function(button)
+			StzxUI.db.core[key] = button:GetChecked() and true or false
+		end)
+		check.key = key
+		return check, label
+	end
+	local snapLabel
+	bar.snap, snapLabel = Switch("Snap to grid", "snapToGrid")
+	bar.snapFrames = Switch("Snap to frames", "snapToFrames", snapLabel)
+
+	-- Row 2: "Show:" one switch per category, built when move mode opens.
+	local showLabel = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	showLabel:SetPoint("BOTTOMLEFT", 12, 14)
+	showLabel:SetText("Show:")
+	showLabel:SetTextColor(0.8, 0.8, 0.8)
+	bar.showLabel = showLabel
+	bar.filters = {}
 
 	local done = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
 	done:SetSize(80, 24)
-	done:SetPoint("BOTTOMRIGHT", -10, 8)
+	done:SetPoint("TOPRIGHT", -10, -30)
 	done:SetText("Done")
 	done:SetScript("OnClick", function() StzxUI:ExitMoveMode() end)
 
@@ -248,6 +297,38 @@ local function BuildToolbar()
 	return bar
 end
 
+-- One "Show" switch per category of frames, e.g. [x] Info  [x] Unit frames.
+local function RefreshFilters(bar)
+	local hidden = StzxUI.db.core.hiddenCategories
+	local anchor = bar.showLabel
+	for i, category in ipairs(StzxUI:GetMoverCategories()) do
+		local filter = bar.filters[i]
+		if not filter then
+			filter = CreateFrame("CheckButton", nil, bar, "UICheckButtonTemplate")
+			filter:SetSize(20, 20)
+			filter.label = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			filter.label:SetPoint("LEFT", filter, "RIGHT", 1, 0)
+			filter:SetScript("OnClick", function(button)
+				hidden[button.category] = (not button:GetChecked()) or nil
+				ShowBoxes()
+			end)
+			bar.filters[i] = filter
+		end
+		filter:ClearAllPoints()
+		filter:SetPoint("LEFT", anchor, "RIGHT", i == 1 and 6 or 8, 0)
+		filter.category = category
+		filter.label:SetText(category)
+		filter:SetChecked(not hidden[category])
+		filter:Show()
+		filter.label:Show()
+		anchor = filter.label
+	end
+	for i = #StzxUI:GetMoverCategories() + 1, #bar.filters do
+		bar.filters[i]:Hide()
+		bar.filters[i].label:Hide()
+	end
+end
+
 ---------------------------------------------------------------------------
 -- On and off
 ---------------------------------------------------------------------------
@@ -271,11 +352,11 @@ function StzxUI:EnterMoveMode()
 	grid:Show()
 	self:RefreshGrid()
 	toolbar.snap:SetChecked(self.db.core.snapToGrid and true or false)
+	toolbar.snapFrames:SetChecked(self.db.core.snapToFrames and true or false)
 	toolbar.gridButton:SetText(("Grid: %d"):format(self.db.core.gridSize or 16))
+	RefreshFilters(toolbar)
 	toolbar:Show()
-	for _, key in ipairs(self.moverOrder) do
-		ShowBox(self.movers[key])
-	end
+	ShowBoxes()
 end
 
 function StzxUI:ExitMoveMode()

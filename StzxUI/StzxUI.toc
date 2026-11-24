@@ -2,6 +2,8 @@
 ## Title: |cff4fc3f7Stzx|rUI
 ## Notes: Scott's personal UI for WoW: Forever. Core: settings, profiles, move mode and the /stzx command.
 ## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
 ## Version: @project-version@
 ## SavedVariables: StzxUIDB
 

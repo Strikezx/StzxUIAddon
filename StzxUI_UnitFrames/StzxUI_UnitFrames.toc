@@ -1,0 +1,14 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Unit Frames
+## Notes: StzxUI's player and target frames with cast bars.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+
+Style.lua
+Frame.lua
+CastBar.lua
+HideBlizzard.lua
+UnitFrames.lua

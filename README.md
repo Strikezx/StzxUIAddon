@@ -10,15 +10,17 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI` | Core: settings (Esc > Options > AddOns > StzxUI), profiles, move mode, section on/off switches, `/stzx` |
 | `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player) |
 | `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates |
+| `StzxUI_UnitFrames` | Player and target frames (class icon or portrait, health and power text) with their own cast bars; hides Blizzard's |
 
 ## Move mode
 
 `/stzx move` (or the Unlock button in StzxUI's options) dims the screen, draws a grid and puts a labelled box over every StzxUI frame.
 
-- Drag a box to move its frame. It snaps to the grid; hold **Shift** to place freely.
+- Drag a box to move its frame. It lines up with nearby frames' edges, otherwise snaps to the grid; hold **Shift** to place freely.
+- **Mouse wheel** over a box makes that frame bigger or smaller.
 - Hover a box and use the **arrow keys** to nudge 1 unit (Shift + arrow: one grid step).
 - **Right-click** a box to put that frame back where it started; **Reset all** does every frame.
-- The toolbar switches snapping and the grid size (8, 16, 32, 64). **Done**, **Escape** or entering combat closes it.
+- The toolbar switches grid and frame snapping, the grid size (8, 16, 32, 64), and has a **Show** row to hide groups of boxes (Info, Unit frames...). **Done**, **Escape** or entering combat closes it.
 
 Positions are saved in the current profile.
 
@@ -40,7 +42,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social` and `StzxUI_Info` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info` and `StzxUI_UnitFrames` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -54,6 +56,7 @@ Then restart the game (a brand-new addon folder needs a full restart; after that
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI" "C:\...\StzxUIAddon\StzxUI"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Social" "C:\...\StzxUIAddon\StzxUI_Social"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Info" "C:\...\StzxUIAddon\StzxUI_Info"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_UnitFrames" "C:\...\StzxUIAddon\StzxUI_UnitFrames"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.

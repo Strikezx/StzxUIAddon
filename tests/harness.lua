@@ -20,6 +20,10 @@ local now, inCombat, aurasSecret, shiftDown = 1000, false, false, false
 local units, mapPos = {}, nil
 local frames, tickers
 local SECRET = { __secret = true }
+local SECRET_TEXT = "<secret>"
+local unitState = {}   -- [unit] = fake unit data for the unit frames
+local casting = {}     -- [unit] = { name, texture, startMS, endMS, castID, notInterruptible, channel }
+local blizzard = {}
 local SCREEN_W, SCREEN_H = 1600, 900
 
 local function ResetLog()
@@ -110,10 +114,37 @@ function Frame:SetPropagateKeyboardInput(v) self.propagate = v end
 function Frame:GetStringHeight() return 14 end
 function Frame:HighlightText() self.highlighted = true end
 function Frame:SetFocus() self.focused = true end
+function Frame:SetFormattedText(fmt, ...)
+	local args, secret = { ... }, false
+	for i = 1, select("#", ...) do if issecretvalue(args[i]) then secret = true end end
+	if secret then self.text = SECRET_TEXT else self.text = fmt:format(...) end
+end
+function Frame:SetText(t) if issecretvalue(t) then self.text = SECRET_TEXT else self.text = t or "" end end
+function Frame:SetMinMaxValues(lo, hi) self.min, self.max = lo, hi end
+function Frame:SetValue(v) self.value = v end
+function Frame:GetValue() return self.value end
+function Frame:SetStatusBarColor(r, g, b) self.colour = { r, g, b } end
+function Frame:SetReverseFill(v) self.reverse = v end
+function Frame:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end
+function Frame:GetAttribute(k) return self.attributes and self.attributes[k] end
+function Frame:SetTexture(t) self.texture = t end
+function Frame:SetTexCoord(...) self.texCoord = { ... } end
+function Frame:SetAlpha(a) self.alpha = a end
+function Frame:GetAlpha() return self.alpha or 1 end
+function Frame:SetScale(sc) self.scale = sc end
+function Frame:GetScale() return self.scale or 1 end
+function Frame:GetFrameLevel() return self.level or 1 end
+function Frame:SetFrameLevel(l) self.level = l end
+function Frame:CreateMaskTexture() return NewFrame("MaskTexture", nil, self) end
+function Frame:AddMaskTexture(m) self.mask = m end
+function Frame:UnregisterAllEvents() self.events = {} end
+function Frame:SetParent(p) self.parent = p end
+function Frame:IsVisible() local f = self while f do if not f.shown then return false end f = f.parent end return true end
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture", "SetTextColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
-	"SetScrollChild", "SetOwner", "AddLine" }
+	"SetScrollChild", "SetOwner", "AddLine", "SetFont", "SetShadowColor", "SetWordWrap", "SetWidth",
+	"SetVertexColor", "SetStatusBarTexture", "EnableMouseWheel", "SetUnit" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
 local function Fire(event, ...)
@@ -155,6 +186,55 @@ local function InstallClient()
 		SendChatMessage = function(msg, kind, _, target) table.insert(log.whispers, kind .. ">" .. target .. ">" .. msg) end,
 	}
 	C_UI = { Reload = function() log.reloads = log.reloads + 1 end }
+	-- Unit frame APIs
+	local function U(unit) return unitState[unit] or {} end
+	function UnitExists(u) return unitState[u] ~= nil end
+	function UnitClass(u) return U(u).class and "Class", U(u).class end
+	function UnitHealth(u) return U(u).hp or 0 end
+	function UnitHealthMax(u) return U(u).hpMax or 1 end
+	CurveConstants = { ScaleTo100 = {} }
+	function UnitHealthPercent(u, _, curve)
+		local d = U(u)
+		if issecretvalue(d.hp) then return SECRET end
+		return (d.hp or 0) / (d.hpMax or 1) * (curve and 100 or 1)
+	end
+	function UnitPower(u) return U(u).power or 0 end
+	function UnitPowerMax(u) return U(u).powerMax or 0 end
+	function UnitPowerType(u) return 0, U(u).powerToken or "MANA" end
+	function UnitReaction(u) return U(u).reaction end
+	function UnitIsTapDenied(u) return U(u).tapped or false end
+	function UnitLevel(u) return U(u).level or 1 end
+	function UnitClassification(u) return U(u).classification or "normal" end
+	function UnitIsDeadOrGhost(u) return U(u).dead or false end
+	function UnitIsGhost(u) return U(u).ghost or false end
+	function UnitIsConnected(u) return U(u).offline ~= true end
+	function AbbreviateLargeNumbers(n)
+		if issecretvalue(n) then return SECRET end
+		if n >= 1000 then return (("%.1fK"):format(n / 1000)) end
+		return tostring(n)
+	end
+	C_ClassColor = { GetClassColor = function(class)
+		local c = ({ DRUID = { 1, 0.49, 0.04 }, SHAMAN = { 0, 0.44, 0.87 } })[class]
+		if c then return { r = c[1], g = c[2], b = c[3] } end
+	end }
+	CLASS_ICON_TCOORDS = { DRUID = { 0.75, 1, 0, 0.25 }, SHAMAN = { 0.25, 0.5, 0.25, 0.5 } }
+	STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+	function SetPortraitTexture(tex, unit) tex.portraitOf = unit end
+	function RegisterUnitWatch(frame) frame.unitWatch = true end
+	function GameTooltip_SetDefaultAnchor() end
+	local function Cast(u, wantChannel)
+		local c = casting[u]
+		if not c or (c.channel or false) ~= wantChannel then return nil end
+		if wantChannel then return c.name, c.name, c.texture, c.startMS, c.endMS, false, c.notInterruptible end
+		return c.name, c.name, c.texture, c.startMS, c.endMS, false, c.castID, c.notInterruptible
+	end
+	function UnitCastingInfo(u) return Cast(u, false) end
+	function UnitChannelInfo(u) return Cast(u, true) end
+	-- Blizzard's own frames that StzxUI hides
+	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "PlayerCastingBarFrame", "TargetFrameSpellBar" }) do
+		blizzard[name] = NewFrame("Frame", name)
+		blizzard[name].events.SOMETHING = true
+	end
 	function GetFramerate() return 59.6 end
 	function GetNetStats() return 0, 0, 42, 61 end
 	C_Map = {
@@ -240,7 +320,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -275,6 +355,7 @@ local function DialogAccept(input)
 end
 
 units.player = { name = "Strikezx", surname = "Kincrag", isPlayer = true, isSelf = true }
+unitState.player = { class = "SHAMAN", hp = 530, hpMax = 700, power = 18200, powerMax = 22000, level = 18 }
 local CHAR = "Strikezx Kincrag - Testrealm"
 
 ---------------------------------------------------------------------------
@@ -367,6 +448,7 @@ local function DragTo(holder, left, top)
 	holder:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
 	Script(holder.overlay, "OnDragStop")
 end
+StzxUIDB.core.snapToFrames = false -- grid only for these checks
 DragTo(statsHolder, 805, 455) -- 5,5 from centre
 local pos = StzxUI.profile.positions.InfoStats
 check(pos.x == 0 and pos.y == 0, "drop snaps to the 16-unit grid")
@@ -394,6 +476,44 @@ StzxUIMoveToolbar.snap:SetChecked(false); Script(StzxUIMoveToolbar.snap, "OnClic
 DragTo(statsHolder, 803, 452)
 check(StzxUI.profile.positions.InfoStats.x == 3, "snapping can be switched off")
 StzxUIDB.core.snapToGrid = true
+
+-- Snap to other frames: the target frame's left edge is at 985.
+StzxUIDB.core.snapToFrames = true
+DragTo(statsHolder, 808, 600) -- right edge lands at 978, 7 short of 985
+check(statsHolder:GetLeft() + statsHolder:GetWidth() == 985, "right edge lines up with a nearby frame's edge")
+check(StzxUI.profile.positions.InfoStats.y % 16 == 0, "the other direction still snaps to the grid")
+local playerHolder = StzxUI.movers.PlayerFrame
+DragTo(StzxUI.movers.PlayerCastBar, playerHolder:GetLeft() + 4, playerHolder:GetTop() - playerHolder:GetHeight() - 3)
+check(StzxUI.movers.PlayerCastBar:GetLeft() == playerHolder:GetLeft()
+	and StzxUI.movers.PlayerCastBar:GetTop() == playerHolder:GetTop() - playerHolder:GetHeight(),
+	"cast bar dropped under the player frame lines up with it")
+shiftDown = true; DragTo(statsHolder, 808, 600); shiftDown = false
+check(statsHolder:GetLeft() == 808, "Shift ignores frame snapping too")
+
+-- Mouse wheel resizes
+local frameHolder = StzxUI.movers.PlayerFrame
+local topBefore, leftBefore = frameHolder:GetTop(), frameHolder:GetLeft()
+Script(frameHolder.overlay, "OnMouseWheel", 1)
+Script(frameHolder.overlay, "OnMouseWheel", 1)
+check(StzxUI.profile.scales.PlayerFrame == 1.1 and StzxUIPlayerFrame.scale == 1.1, "mouse wheel up makes the frame 10% bigger")
+check(math.abs(frameHolder:GetWidth() - 230 * 1.1) < 0.01, "its box grows with it")
+check(frameHolder:GetTop() == topBefore and frameHolder:GetLeft() == leftBefore, "top-left corner stays put")
+check(frameHolder.overlay.label.text:find("110%", 1, true), "box shows the new size")
+for _ = 1, 30 do Script(frameHolder.overlay, "OnMouseWheel", -1) end
+check(StzxUI.profile.scales.PlayerFrame == 0.5, "can't shrink below half size")
+Script(frameHolder.overlay, "OnClick", "RightButton")
+check(StzxUI.profile.scales.PlayerFrame == nil and StzxUIPlayerFrame.scale == 1, "right-click also resets the size")
+
+-- "Show" filter on the toolbar
+local filters = {}
+for _, f in ipairs(StzxUIMoveToolbar.filters) do if f.shown then filters[f.category] = f end end
+check(filters.Info and filters["Unit frames"], "a Show switch for Info and for Unit frames")
+filters.Info:SetChecked(false); Script(filters.Info, "OnClick")
+check(not statsHolder.overlay.shown and frameHolder.overlay.shown, "unticking Info hides only Info's boxes")
+check(StzxUIDB.core.hiddenCategories.Info == true, "the choice is remembered")
+filters.Info:SetChecked(true); Script(filters.Info, "OnClick")
+check(statsHolder.overlay.shown and StzxUIDB.core.hiddenCategories.Info == nil, "ticking brings them back")
+StzxUI:ResetMover("InfoStats"); StzxUI:ResetMover("PlayerCastBar")
 
 DragTo(StzxUI.movers.InfoCoords, 700, 300)
 -- "Reset all" asks first
@@ -496,15 +616,171 @@ check(StzxUI:GetModule("Social").db.thankMode == "EMOTE", "defaults back after r
 ---------------------------------------------------------------------------
 log.settings.STZXUI_SECTION_INFO:SetValue(false)
 check(StzxUIDB.profiles.Default.enabled.Info == false and DialogShown(), "switching Info off is saved and asks to reload")
+log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
 SlashCmdList.STZXUI("move")
 check(not StzxUI.moveMode and lastPrint():find("nothing to move", 1, true), "move mode explains when there's nothing to move")
 log.settings.STZXUI_SECTION_INFO:SetValue(true)
+log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(true)
 check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
 Reload()
 check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
+
+---------------------------------------------------------------------------
+-- 9. Unit frames
+---------------------------------------------------------------------------
+StartGame(nil)
+local UF = StzxUI:GetModule("UnitFrames")
+local P, T = StzxUIPlayerFrame, StzxUITargetFrame
+check(UF.enabled and P and T, "player and target frames built")
+check(P.attributes.unit == "player" and P.attributes["*type1"] == "target" and P.attributes["*type2"] == "togglemenu",
+	"player frame: left-click targets, right-click opens the menu")
+check(T.unitWatch and not P.unitWatch, "target frame shows only while you have a target")
+check(Category("Unit Frames") and log.settings.STZXUI_UNITFRAMESPLAYER_HEALTHTEXT, "Unit Frames settings page")
+for _, key in ipairs({ "PlayerFrame", "PlayerCastBar", "TargetFrame", "TargetCastBar" }) do
+	check(StzxUI.movers[key] and StzxUI.movers[key].category == "Unit frames", key .. " is movable under Unit frames")
+end
+
+-- Player frame contents
+check(P.nameText.text == "Strikezx Kincrag", "name with surname")
+check(P.healthText.text == "530 | 76%", "health shows number and percent")
+check(P.health.max == 700 and P.health.value == 530, "health bar filled from health")
+check(P.powerText.text == "18.2K / 22.0K", "power shows current / maximum")
+check(P.portrait.badge.text.text == "18", "level badge")
+check(P.portrait.icon.shown and not P.portrait.face.shown and P.portrait.icon.texCoord[1] == 0.25, "class icon portrait")
+check(P.health.colour[1] == 0 and P.health.colour[3] == 0.87, "health in class colour")
+check(not P.health.reverse and T.health.reverse, "target mirrors the player frame")
+
+log.settings.STZXUI_UNITFRAMESPLAYER_HEALTHTEXT:SetValue("NUMBER")
+check(P.healthText.text == "530", "health text: number")
+log.settings.STZXUI_UNITFRAMESPLAYER_HEALTHTEXT:SetValue("PERCENT")
+check(P.healthText.text == "76%", "health text: percent")
+log.settings.STZXUI_UNITFRAMESPLAYER_HEALTHTEXT:SetValue("NONE")
+check(P.healthText.text == "", "health text: none")
+log.settings.STZXUI_UNITFRAMESPLAYER_HEALTHTEXT:SetValue("BOTH")
+log.settings.STZXUI_UNITFRAMESPLAYER_PORTRAIT:SetValue("PORTRAIT")
+check(P.portrait.face.shown and P.portrait.face.portraitOf == "player" and P.portrait.face.mask, "character portrait, round")
+log.settings.STZXUI_UNITFRAMESPLAYER_PORTRAIT:SetValue("NONE")
+check(not P.portrait.shown, "portrait can be switched off")
+log.settings.STZXUI_UNITFRAMESPLAYER_PORTRAIT:SetValue("ICON")
+log.settings.STZXUI_UNITFRAMESPLAYER_POWERTEXT:SetValue(false)
+check(P.powerText.text == "", "power numbers can be switched off")
+log.settings.STZXUI_UNITFRAMES_HEALTHCOLOUR:SetValue("GREEN")
+check(P.health.colour[2] == 0.76, "health colour: green")
+log.settings.STZXUI_UNITFRAMES_HEALTHCOLOUR:SetValue("CLASS")
+
+-- Live updates and secret values (combat)
+unitState.player.hp = 350; Fire("UNIT_HEALTH", "player")
+check(P.healthText.text == "350 | 50%", "health text updates on UNIT_HEALTH")
+unitState.player.hp = SECRET; Fire("UNIT_HEALTH", "player")
+check(P.health.value == SECRET and P.healthText.text == SECRET_TEXT, "secret health goes straight to the bar and text, no errors")
+unitState.player.hp = 530
+unitState.player.dead = true; Fire("UNIT_HEALTH", "player")
+check(P.healthText.text == "Dead" and P.health.colour[1] == 0.4, "dead shows Dead, grey")
+unitState.player.dead = false; Fire("UNIT_HEALTH", "player")
+
+-- Target: an elite hostile NPC
+units.target = { name = "Murloc Raider", isPlayer = false }
+unitState.target = { hp = 120, hpMax = 480, reaction = 2, level = 17, classification = "elite", power = 0, powerMax = 0 }
+Fire("PLAYER_TARGET_CHANGED")
+check(T.nameText.text == "Murloc Raider", "target name without surname")
+check(T.healthText.text == "120 | 25%" and T.health.colour[1] == 0.85, "hostile target in red")
+check(T.portrait.badge.text.text == "17+", "elite level badge")
+check(T.portrait.face.shown and T.portrait.face.portraitOf == "target", "NPCs show their face even in icon mode")
+check(T.powerText.text == "", "no power numbers when the unit has no power")
+unitState.target.tapped = true; Fire("UNIT_FLAGS", "target")
+check(T.health.colour[1] == 0.55, "tapped target turns grey")
+unitState.target.level = -1; Fire("UNIT_LEVEL", "target")
+check(T.portrait.badge.text.text == "??+", "skull-level target shows ??")
+units.target = { name = "Wrenzx", surname = SECRET, isPlayer = true }
+unitState.target = { class = "DRUID", hp = 100, hpMax = 100, level = 18 }
+Fire("PLAYER_TARGET_CHANGED")
+check(T.nameText.text == SECRET_TEXT, "a secret surname is shown, not tested")
+check(T.portrait.icon.shown and T.health.colour[1] == 1, "player target: class icon and class colour")
+
+-- Cast bars
+local PC, TC = StzxUIPlayerFrameCastBar, StzxUITargetFrameCastBar
+local function Updates(seconds) local steps = math.floor(seconds / 0.1 + 0.5) for _ = 1, steps do now = now + 0.1 if PC.shown then PC.scripts.OnUpdate(PC, 0.1) end if TC.shown then TC.scripts.OnUpdate(TC, 0.1) end end end
+casting.player = { name = "Healing Wave", texture = 136052, startMS = now * 1000, endMS = (now + 2) * 1000, castID = "cast-1" }
+Fire("UNIT_SPELLCAST_START", "player", "cast-1")
+check(PC.shown and PC.text.text == "Healing Wave" and PC.icon.texture == 136052, "player cast bar shows the spell")
+Updates(0.5)
+check(math.abs(PC.bar.value - 0.5) < 0.01 and PC.time.text == "1.5", "fills and counts down")
+Fire("UNIT_SPELLCAST_STOP", "player", "old-cast")
+check(PC.active, "the stop of an older cast is ignored")
+casting.player = nil
+Fire("UNIT_SPELLCAST_STOP", "player", "cast-1")
+check(not PC.active and PC.shown, "cast done: starts fading")
+Updates(0.5)
+check(not PC.shown, "and is gone after the fade")
+Fire("UNIT_SPELLCAST_FAILED", "player", "cast-2")
+check(not PC.shown, "a failed attempt with no cast running shows nothing")
+
+casting.player = { name = "Tranquility", startMS = now * 1000, endMS = (now + 4) * 1000, channel = true }
+Fire("UNIT_SPELLCAST_CHANNEL_START", "player")
+Updates(1)
+check(math.abs(PC.bar.value - 3) < 0.01, "channels drain")
+Fire("UNIT_SPELLCAST_INTERRUPTED", "player")
+check(PC.text.text == "Interrupted" and PC.bar.colour[1] == 0.85, "interrupted: red with the reason")
+Updates(1.2)
+check(not PC.shown, "then fades")
+
+casting.target = { name = "Shadow Bolt", startMS = SECRET, endMS = SECRET, castID = SECRET, notInterruptible = SECRET }
+Fire("UNIT_SPELLCAST_START", "target", SECRET)
+check(TC.shown and TC.bar.min == SECRET and TC.time.text == "", "secret cast times: bar still fills, no countdown")
+Updates(0.3)
+check(type(TC.bar.value) == "number", "bar is fed the clock")
+Fire("UNIT_SPELLCAST_STOP", "target", SECRET)
+check(not TC.active, "secret cast ends on its stop event")
+casting.target = nil
+
+log.settings.STZXUI_UNITFRAMESPLAYER_CASTBAR:SetValue(false)
+casting.player = { name = "Healing Wave", startMS = now * 1000, endMS = (now + 2) * 1000, castID = "c3" }
+Fire("UNIT_SPELLCAST_START", "player", "c3")
+check(not PC.shown, "cast bar switched off stays hidden")
+StzxUI:EnterMoveMode()
+check(not StzxUI.movers.PlayerCastBar.overlay.shown and StzxUI.movers.PlayerFrame.overlay.shown, "and has no box in move mode")
+StzxUI:ExitMoveMode()
+log.settings.STZXUI_UNITFRAMESPLAYER_CASTBAR:SetValue(true)
+casting.player = nil
+
+-- Blizzard's frames
+check(blizzard.PlayerFrame.parent ~= UIParent and not blizzard.PlayerFrame:IsVisible() and next(blizzard.PlayerFrame.events) == nil,
+	"Blizzard's player frame hidden and silenced")
+check(not blizzard.TargetFrame:IsVisible() and not blizzard.PlayerCastingBarFrame:IsVisible(), "Blizzard's target frame and cast bar hidden")
+
+StzxUIDB.profiles.Default.modules.UnitFrames.hideBlizzard = false
+Reload()
+check(blizzard.PlayerFrame:IsVisible(), "with the option off, Blizzard's frames stay")
+StzxUIDB.profiles.Default.modules.UnitFrames.hideBlizzard = true
+
+-- Switching off the target frame (after reload) leaves Blizzard's target alone
+StzxUIDB.profiles.Default.modules.UnitFrames.target.enabled = false
+Reload()
+check(StzxUITargetFrame == nil or not StzxUI.movers.TargetFrame, "no StzxUI target frame")
+check(blizzard.TargetFrame:IsVisible() and not blizzard.PlayerFrame:IsVisible(), "Blizzard's target frame kept, player still hidden")
+StzxUIDB.profiles.Default.modules.UnitFrames.target.enabled = true
+
+-- Logging in mid-fight: frames wait for combat to end
+inCombat = true
+Reload()
+check(StzxUI.movers.PlayerFrame == nil and lastPrint():find("combat ends", 1, true), "in combat: frames wait")
+inCombat = false; Fire("PLAYER_REGEN_ENABLED")
+check(StzxUI.movers.PlayerFrame and StzxUIPlayerFrame.shown, "built when combat ends")
+
+---------------------------------------------------------------------------
+-- 10. Accent colour
+---------------------------------------------------------------------------
+check(StzxUI.ACCENT.b == 0.97, "StzxUI blue by default")
+log.settings.STZXUI_CORE_ACCENT:SetValue("CLASS")
+check(DialogShown() and DialogText():find("after a reload", 1, true), "changing the accent asks to reload")
+Reload()
+check(StzxUI.ACCENT.r == 0 and StzxUI.ACCENT.b == 0.87, "class accent: Shaman blue")
+StzxUIDB.core.accent = "STZX"
+Reload()
+check(StzxUI.ACCENT.r == 0.31, "back to StzxUI blue")
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
