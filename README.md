@@ -11,6 +11,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player) |
 | `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates |
 | `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars, plus party and raid frames (a separate Party & Raid section); hides Blizzard's |
+| `StzxUI_Quests` | Tints quests that are new to WoW: Forever (glow on the quest parchment, colour and strength adjustable) and keeps the loot sparkle on quest items; `/stzx quest` says whether the open quest is new |
 
 ## Optional: JiberishUI Icons
 
@@ -46,7 +47,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info` and `StzxUI_UnitFrames` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames` and `StzxUI_Quests` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -61,6 +62,7 @@ mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI" "C:\...\S
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Social" "C:\...\StzxUIAddon\StzxUI_Social"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Info" "C:\...\StzxUIAddon\StzxUI_Info"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_UnitFrames" "C:\...\StzxUIAddon\StzxUI_UnitFrames"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Quests" "C:\...\StzxUIAddon\StzxUI_Quests"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.

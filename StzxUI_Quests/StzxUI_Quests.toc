@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Quests
+## Notes: Tints quests that are new to WoW: Forever, and keeps the sparkle on quest items.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+
+Quests.lua

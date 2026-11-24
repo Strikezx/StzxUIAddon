@@ -7,6 +7,7 @@ move-folders:
   StzxUI/StzxUI_Social: StzxUI_Social
   StzxUI/StzxUI_Info: StzxUI_Info
   StzxUI/StzxUI_UnitFrames: StzxUI_UnitFrames
+  StzxUI/StzxUI_Quests: StzxUI_Quests
 
 ignore:
   - docs

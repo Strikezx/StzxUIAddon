@@ -77,7 +77,8 @@ read_globals = {
 	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists",
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
-	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "UnitInRange", "UnitIsGroupLeader",
+	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "C_CVar", "CreateColor", "GetQuestID", "QuestFrame",
+	"QuestMapFrame", "QuestMapFrame_CloseQuestDetails", "QuestMapFrame_ShowQuestDetails", "hooksecurefunc", "UnitInRange", "UnitIsGroupLeader",
 	"GetRaidTargetIndex", "SetRaidTargetIconTexture", "GameTooltip_SetDefaultAnchor",
 	"Enum", "C_UnitAuras",
 }

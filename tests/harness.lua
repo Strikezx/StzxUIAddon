@@ -28,6 +28,8 @@ local auraState = {}   -- [unit] = list of fake auras { auraInstanceID, icon, du
 local realmName = "Testrealm"
 local group = { kind = nil, units = {} } -- fake roster: kind "party"/"raid", units in order
 local rangeOf = {}     -- [unit] = { inRange, checked }
+local questID = 0      -- the quest open in the quest giver window
+local cvars = {}
 local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
 
@@ -139,6 +141,7 @@ function Frame:HookScript(name, fn)
 	local old = self.scripts[name]
 	self.scripts[name] = old and function(...) old(...); fn(...) end or fn
 end
+function Frame:SetGradient(_, from, to) self.gradient = { from = from, to = to } end
 function Frame:SetAlphaFromBoolean(v, yes, no)
 	self.alpha = issecretvalue(v) and "secret" or (v and yes or no)
 end
@@ -234,6 +237,32 @@ local function InstallClient()
 		end
 		return f
 	end
+	-- Quest windows: three quest giver pages and the quest log's detail page,
+	-- each with its parchment texture (.Bg).
+	for _, name in ipairs({ "QuestFrameDetailPanel", "QuestFrameProgressPanel", "QuestFrameRewardPanel" }) do
+		local panel = NewFrame("Frame", name)
+		panel.Bg = panel:CreateTexture()
+		panel.Bg:SetSize(300, 400)
+		panel.shown = false
+	end
+	QuestFrame = NewFrame("Frame", "QuestFrame")
+	QuestFrame.shown = false
+	QuestMapFrame = NewFrame("Frame", "QuestMapFrame")
+	QuestMapFrame.DetailsFrame = NewFrame("Frame", nil, QuestMapFrame)
+	QuestMapFrame.DetailsFrame.Bg = QuestMapFrame.DetailsFrame:CreateTexture()
+	QuestMapFrame.DetailsFrame.Bg:SetSize(280, 500)
+	function QuestMapFrame_ShowQuestDetails(id) QuestMapFrame.DetailsFrame.questID = id end
+	function QuestMapFrame_CloseQuestDetails() QuestMapFrame.DetailsFrame.questID = nil end
+	function hooksecurefunc(name, fn)
+		local old = _G[name]
+		_G[name] = function(...) local a, b = old(...); fn(...); return a, b end
+	end
+	function GetQuestID() return questID end
+	function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
+	C_CVar = {
+		GetCVar = function(k) return cvars[k] end,
+		SetCVar = function(k, v) cvars[k] = tostring(v); log.cvarSets = (log.cvarSets or 0) + 1 end,
+	}
 	function RegisterStateDriver(frame, state, condition) frame.stateDriver = { state = state, condition = condition } end
 	function UnitInRange(u) local r = rangeOf[u]; if r then return r[1], r[2] end return true, true end
 	function UnitIsGroupLeader(u) local d = unitState[u]; return d and d.leader or false end
@@ -426,7 +455,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -1122,6 +1151,56 @@ for i = 1, 12 do units["raid" .. i], unitState["raid" .. i] = nil, nil end
 units.party1, units.party2, unitState.party1, unitState.party2, auraState.party1 = nil, nil, nil, nil, nil
 units.target = nil
 rangeOf = {}
+
+---------------------------------------------------------------------------
+-- 16. Quests: Forever tint and quest item sparkles
+---------------------------------------------------------------------------
+cvars.outlineModeShowLootEffectWhenDisabled = "0"
+StartGame(nil)
+local Q = StzxUI:GetModule("Quests")
+check(Q.enabled and Category("Quests"), "Quests module and options page")
+check(Q.IsNewToForever(27146) == true and Q.IsNewToForever(9665) == false and Q.IsNewToForever(176) == false
+	and Q.IsNewToForever(0) == nil, "new to Forever: above the last original Classic quest ID")
+check(cvars.outlineModeShowLootEffectWhenDisabled == "1", "quest item sparkles switched on at login")
+cvars.outlineModeShowLootEffectWhenDisabled = "0" -- a graphics preset turns it off
+Fire("CVAR_UPDATE", "outlineModeShowLootEffectWhenDisabled")
+check(cvars.outlineModeShowLootEffectWhenDisabled == "1", "...and back on after a graphics change")
+
+local detail = QuestFrameDetailPanel
+local glow = (function() for _, f in ipairs(frames) do if f.parent == detail and f.page == detail.Bg then return f end end end)()
+questID = 27146
+detail:Show()
+check(glow and glow.shown and glow.gradient.from.a == 0.45 and glow.gradient.to.a == 0 and glow.h == 400 * 0.7,
+	"new quest: glow on the parchment, fading upwards")
+detail:Hide(); questID = 176; detail:Show()
+check(not glow.shown, "original Classic quest: plain parchment")
+questID = 27147
+Fire("QUEST_DETAIL")
+check(glow.shown, "updates when the quest giver shows another quest")
+
+local logGlow = (function() for _, f in ipairs(frames) do if f.page == QuestMapFrame.DetailsFrame.Bg then return f end end end)()
+QuestMapFrame_ShowQuestDetails(30000)
+check(logGlow.shown, "quest log detail page tinted too")
+QuestMapFrame_ShowQuestDetails(100)
+check(not logGlow.shown, "...and not for Classic quests")
+
+Q.db.tintColour = "GOLD"
+log.settings.STZXUI_QUESTS_TINTSTRENGTH:SetValue(80)
+check(glow.gradient.from.r == 1 and glow.gradient.from.a == 0.8, "colour and strength apply straight away")
+log.settings.STZXUI_QUESTS_TINT:SetValue(false)
+check(not glow.shown, "tint can be switched off")
+
+QuestFrame.shown = true
+SlashCmdList.STZXUI("quest")
+check(lastPrint():find("27147 is new to Forever", 1, true), "/stzx quest says what it is")
+QuestFrame.shown = false
+
+log.settings.STZXUI_QUESTS_SPARKLES:SetValue(false)
+check(cvars.outlineModeShowLootEffectWhenDisabled == "0" and DialogShown() and DialogText():find("restart", 1, true),
+	"switching sparkles off says it needs a game restart")
+Fire("CVAR_UPDATE", "outlineModeShowLootEffectWhenDisabled")
+check(cvars.outlineModeShowLootEffectWhenDisabled == "0", "...and stops turning them back on")
+questID = 0
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
