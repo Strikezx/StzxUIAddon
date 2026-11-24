@@ -1,12 +1,14 @@
 ## Interface: 16001
 ## Title: |cff4fc3f7Stzx|rUI - Social
-## Notes: Declines duel requests and thanks players who buff you.
+## Notes: Declines duel requests, thanks players who buff you, and remembers who you mail.
 ## Author: Strikezx
 ## Category: |cff4fc3f7Stzx|rUI
 ## Group: StzxUI
 ## Version: @project-version@
 ## Dependencies: StzxUI
+## SavedVariables: StzxUISocialDB
 
 Social.lua
 Duels.lua
 Thanks.lua
+Mail.lua

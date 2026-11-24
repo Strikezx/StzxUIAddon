@@ -8,7 +8,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | Folder | What it does |
 |---|---|
 | `StzxUI` | Core: settings (Esc > Options > AddOns > StzxUI), profiles, move mode, section on/off switches, `/stzx` |
-| `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player) |
+| `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player); recent mail names and your own characters beside Send Mail |
 | `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates; levelling pace (XP per hour, time to level) |
 | `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars, plus party and raid frames (a separate Party & Raid section); hides Blizzard's |
 | `StzxUI_Quests` | Tints quests that are new to WoW: Forever (glow on the quest parchment, colour and strength adjustable) and keeps the loot sparkle on quest items; `/stzx quest` says whether the open quest is new; a party panel shows who's on the open quest, with Share and Share all |

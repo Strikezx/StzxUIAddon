@@ -31,6 +31,7 @@ local rangeOf = {}     -- [unit] = { inRange, checked }
 local questID = 0      -- the quest open in the quest giver window
 local questLog, questOffers = {}, {}
 local instance, money, lootWindow = nil, 0, {}
+local mailLoaded = true
 local afters = {}
 local function RunAfters() local list = afters; afters = {}; for _, fn in ipairs(list) do fn() end end
 local function TickAll(list)
@@ -143,6 +144,7 @@ function Frame:SetPropagateKeyboardInput(v) self.propagate = v end
 function Frame:GetStringHeight() return 14 end
 function Frame:HighlightText() self.highlighted = true end
 function Frame:SetFocus() self.focused = true end
+function Frame:SetCursorPosition(n) self.cursor = n end
 function Frame:SetFormattedText(fmt, ...)
 	local args, secret = { ... }, false
 	for i = 1, select("#", ...) do if issecretvalue(args[i]) then secret = true end end
@@ -308,6 +310,17 @@ local function InstallClient()
 	function date(fmt, t) return os.date(fmt, t) end
 	function wipe(t) for k in pairs(t) do t[k] = nil end return t end
 	function GetMoney() return money end
+	function strtrim(t) return (t:gsub("^%s+", ""):gsub("%s+$", "")) end
+	-- The mail window (Blizzard_MailFrame): made when "mailLoaded" is set.
+	if mailLoaded then
+		MailFrame = NewFrame("Frame", "MailFrame")
+		SendMailFrame = NewFrame("Frame", "SendMailFrame", MailFrame)
+		SendMailNameEditBox = NewFrame("EditBox", "SendMailNameEditBox", SendMailFrame)
+		SendMailSubjectEditBox = NewFrame("EditBox", "SendMailSubjectEditBox", SendMailFrame)
+		function SendMailFrame_SendMail() log.mailSent = SendMailNameEditBox:GetText() end
+	else
+		MailFrame, SendMailFrame, SendMailNameEditBox, SendMailFrame_SendMail = nil, nil, nil, nil
+	end
 	function GetNumLootItems() return #lootWindow end
 	function GetLootSlotLink(i) return lootWindow[i] and lootWindow[i].link end
 	function GetLootSlotInfo(i) local l = lootWindow[i]; if l then return nil, l.link, 1, nil, l.quality end end
@@ -1525,6 +1538,60 @@ Runs.db.keep = 50
 StzxUIRunsWindow:Hide()
 unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, nil
 money, lootWindow = 0, {}
+
+---------------------------------------------------------------------------
+-- 21. Social: recent mail names
+---------------------------------------------------------------------------
+StzxUISocialDB = { characters = { ["Sorchawyn Ashvale"] = { class = "WARLOCK" } } }
+StartGame(nil)
+local Mail = StzxUISocialDB and StzxUIMailNames
+check(Mail and Mail.parent == SendMailFrame, "mail names panel on the Send Mail tab")
+check(StzxUISocialDB.characters["Strikezx Kincrag"], "this character is noted for your others to mail")
+check(log.settings.STZXUI_SOCIAL_MAILRECENT and log.settings.STZXUI_SOCIAL_MAILKEEP, "Mail options on the Social page")
+SendMailFrame:Hide(); SendMailFrame:Show() -- open the Send Mail tab
+check(Mail.shown and Mail.altsTitle.shown and not Mail.recentTitle.shown and Mail.buttons[1].text.text == "Sorchawyn Ashvale"
+	and not Mail.buttons[2], "first time: just your other characters")
+
+local function Send(name, ok)
+	SendMailNameEditBox:SetText(name)
+	SendMailFrame_SendMail()
+	SendMailNameEditBox:SetText("") -- Blizzard clears the box after sending
+	Fire(ok == false and "MAIL_FAILED" or "MAIL_SEND_SUCCESS")
+end
+Send("Liala Brightwood")
+Send("Gorr")
+Send("Nobody", false)
+Send("liala brightwood ")
+local names = {}
+for i, b in ipairs(Mail.buttons) do if b.shown then names[i] = b.text.text end end
+check(names[1] == "liala brightwood" and names[2] == "Gorr" and names[3] == "Sorchawyn Ashvale" and #names == 3,
+	"newest first, no repeats, failed mail not kept, your characters below")
+Mail.buttons[2]:Click()
+check(SendMailNameEditBox.text == "Gorr" and SendMailSubjectEditBox.focused, "click a name: fills the To box")
+Mail.buttons[2]:Click("RightButton")
+check(Mail.buttons[2].text.text == "Sorchawyn Ashvale" and #StzxUISocialDB.recentMail == 1, "right-click forgets a recent name")
+Mail.buttons[2]:Click("RightButton")
+check(StzxUISocialDB.characters["Sorchawyn Ashvale"], "...but never your own characters")
+
+StzxUI:GetModule("Social").db.mailKeep = 5
+for i = 1, 8 do Send("Friend" .. i) end
+check(#StzxUISocialDB.recentMail == 5 and StzxUISocialDB.recentMail[1] == "Friend8", "keeps the newest few")
+log.settings.STZXUI_SOCIAL_MAILRECENT:SetValue(false)
+check(not Mail.shown, "can be switched off")
+log.settings.STZXUI_SOCIAL_MAILRECENT:SetValue(true)
+
+-- Mail window loading later than StzxUI.
+mailLoaded = false
+Reload()
+check(not StzxUIMailNames or StzxUIMailNames.parent ~= SendMailFrame, "no mail window yet: waits")
+mailLoaded = true
+MailFrame = NewFrame("Frame", "MailFrame")
+SendMailFrame = NewFrame("Frame", "SendMailFrame", MailFrame)
+SendMailNameEditBox = NewFrame("EditBox", "SendMailNameEditBox", SendMailFrame)
+function SendMailFrame_SendMail() end
+Fire("ADDON_LOADED", "Blizzard_MailFrame")
+check(StzxUIMailNames and StzxUIMailNames.parent == SendMailFrame, "...and joins it when it loads")
+StzxUISocialDB = nil
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

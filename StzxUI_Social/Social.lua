@@ -18,9 +18,13 @@ local Social = StzxUI:NewModule("Social", ADDON_NAME, {
 	thankMessage = "Thanks for the buff, %s!", -- %s = their name
 	thankGroup = false,       -- also thank party/raid members
 	thankCooldown = 5,        -- minutes before thanking the same person again
+
+	-- Mail
+	mailRecent = true,        -- recent names and your characters beside Send Mail
+	mailKeep = 10,            -- recent names kept
 }, {
 	title = "Social",
-	description = "Declines duel requests and thanks players who buff you.",
+	description = "Declines duel requests, thanks players who buff you, and remembers who you mail.",
 })
 ns.Social = Social
 
@@ -44,11 +48,19 @@ function Social:OnInitialize()
 	StzxUI:AddSlider(page, self, "thankCooldown", "Wait before thanking the same player",
 		"Minutes before the same player is thanked again.", 1, 30, 1,
 		function(value) return ("%d min"):format(value) end)
+
+	StzxUI:AddHeader(page, "Mail")
+	StzxUI:AddCheckbox(page, self, "mailRecent", "Recent names beside Send Mail",
+		"The people you mailed last, and your own characters, beside the Send Mail tab. "
+		.. "Click a name to fill in the To box; right-click a recent name to forget it.",
+		function() ns.Mail.Refresh() end)
+	StzxUI:AddSlider(page, self, "mailKeep", "Recent names to keep", nil, 5, 20, 1)
 end
 
 function Social:OnEnable()
 	ns.EnableDuels()
 	ns.EnableThanks()
+	ns.EnableMail()
 end
 
 -- /stzx thanks <message>  (sets the whisper text; there is no text box in
