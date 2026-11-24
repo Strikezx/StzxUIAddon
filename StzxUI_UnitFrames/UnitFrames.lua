@@ -12,6 +12,11 @@ local FRAME_DEFAULTS = {
 	healthText = "BOTH",   -- "BOTH" 530 | 76%, "NUMBER", "PERCENT", "NONE"
 	powerText = true,
 	castBar = true,
+	showBuffs = true,
+	showDebuffs = true,
+	onlyMine = false,       -- target: only debuffs you cast
+	auraSize = 22,
+	auraPosition = "ABOVE", -- "ABOVE" or "BELOW" the frame
 }
 
 local UnitFrames = StzxUI:NewModule("UnitFrames", ADDON_NAME, {
@@ -69,6 +74,18 @@ local function AddFrameOptions(page, unit, title)
 		"Mana, rage or energy as current / maximum.", RefreshAll)
 	StzxUI:AddCheckbox(page, owner, "castBar", "Show the " .. title:lower() .. " cast bar",
 		"A separate bar you can move on its own in move mode.", RefreshAll)
+	StzxUI:AddCheckbox(page, owner, "showDebuffs", "Show debuffs",
+		"Small debuff icons, bordered by type: blue magic, purple curse, brown disease, green poison.", RefreshAll)
+	if unit == "target" then
+		StzxUI:AddCheckbox(page, owner, "onlyMine", "Only my debuffs",
+			"Only debuffs you put on the target, e.g. to watch your own DoTs.", RefreshAll)
+	end
+	StzxUI:AddCheckbox(page, owner, "showBuffs", "Show buffs",
+		"Small buff icons after the debuffs. Hover an icon for its tooltip.", RefreshAll)
+	StzxUI:AddSlider(page, owner, "auraSize", "Buff and debuff size",
+		"Icon size.", 16, 36, 2, function(value) return ("%d px"):format(value) end, RefreshAll)
+	StzxUI:AddDropdown(page, owner, "auraPosition", "Buffs and debuffs go",
+		"Above or below the frame.", { { "ABOVE", "Above the frame" }, { "BELOW", "Below the frame" } }, RefreshAll)
 end
 
 function UnitFrames:OnInitialize()

@@ -10,6 +10,7 @@
 
 Style.lua
 Jiberish.lua
+Auras.lua
 Frame.lua
 CastBar.lua
 HideBlizzard.lua

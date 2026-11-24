@@ -78,4 +78,5 @@ read_globals = {
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
 	"SetPortraitTexture", "RegisterUnitWatch", "GameTooltip_SetDefaultAnchor",
+	"Enum", "C_UnitAuras",
 }

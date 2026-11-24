@@ -31,6 +31,11 @@ Things the game client does that matter for StzxUI. Recheck after each patch.
 | Cast bar with secret times | `bar:SetMinMaxValues(startMS, endMS)` then `bar:SetValue(GetTime() * 1000)` each frame | bar does the maths; countdown text can't be shown |
 | Anything you branch on | `StzxUI.Plain(v)` first | testing a secret raises an error |
 
+| Aura list | `C_UnitAuras.GetUnitAuras(unit, "HARMFUL|PLAYER", max, Enum.UnitAuraSortRule.Expiration)` | the game filters; the list's contents may be secret |
+| Aura icon | `texture:SetTexture(aura.icon)` | `SetTexture` accepts secrets |
+| Aura swipe | plain: `cooldown:SetCooldown(exp - dur, dur)`; secret: `cooldown:SetCooldownFromDurationObject(C_UnitAuras.GetAuraDuration(unit, aura.auraInstanceID))` (in `pcall`) | duration object, no addon maths |
+| Aura stacks | `C_UnitAuras.GetAuraApplicationDisplayCount(unit, id, 2, 99)` into `SetText` | returns the game's own text |
+
 `UnitHealth` and `UnitHealthPercent` are marked `SecretReturns`; `UnitHealthMax`, `UnitPower`, `UnitCastingInfo` turn secret only in restricted situations. `StatusBar:SetTimerDuration` does **not** accept secret arguments from addons.
 
 ## Forever-specific quirks found in other addons' notes

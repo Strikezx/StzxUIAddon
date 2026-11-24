@@ -24,6 +24,7 @@ local SECRET_TEXT = "<secret>"
 local unitState = {}   -- [unit] = fake unit data for the unit frames
 local casting = {}     -- [unit] = { name, texture, startMS, endMS, castID, notInterruptible, channel }
 local blizzard = {}
+local auraState = {}   -- [unit] = list of fake auras { auraInstanceID, icon, duration, expirationTime, applications, dispelName, harmful, mine }
 local realmName = "Testrealm"
 local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
@@ -141,12 +142,15 @@ function Frame:CreateMaskTexture() return NewFrame("MaskTexture", nil, self) end
 function Frame:AddMaskTexture(m) self.mask = m end
 function Frame:UnregisterAllEvents() self.events = {} end
 function Frame:SetParent(p) self.parent = p end
+function Frame:SetCooldown(start, duration) self.cooldownStart, self.cooldownDuration, self.durationObject = start, duration, nil end
+function Frame:SetCooldownFromDurationObject(d) self.durationObject, self.cooldownStart = d, nil end
+function Frame:Clear() self.cooldownStart, self.durationObject = nil, nil end
 function Frame:IsVisible() local f = self while f do if not f.shown then return false end f = f.parent end return true end
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture", "SetTextColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
 	"SetScrollChild", "SetOwner", "AddLine", "SetFont", "SetShadowColor", "SetWordWrap", "SetWidth",
-	"SetVertexColor", "SetStatusBarTexture", "EnableMouseWheel", "SetUnit" }
+	"SetVertexColor", "SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
 local function Fire(event, ...)
@@ -232,6 +236,24 @@ local function InstallClient()
 	end
 	function UnitCastingInfo(u) return Cast(u, false) end
 	function UnitChannelInfo(u) return Cast(u, true) end
+	-- Auras
+	Enum = { UnitAuraSortRule = { Expiration = 3 } }
+	C_UnitAuras = {
+		GetUnitAuras = function(unit, filter, maxCount)
+			local list = {}
+			for _, a in ipairs(auraState[unit] or {}) do
+				local wantHarmful = filter:find("HARMFUL", 1, true) ~= nil
+				local onlyMine = filter:find("PLAYER", 1, true) ~= nil
+				if (a.harmful or false) == wantHarmful and (not onlyMine or a.mine) and #list < (maxCount or 99) then
+					table.insert(list, a)
+				end
+			end
+			return list
+		end,
+		GetAuraDuration = function(unit, id) return { durationOf = id } end,
+		GetAuraApplicationDisplayCount = function(unit, id) return SECRET end,
+	}
+	function GameTooltip:SetUnitAuraByAuraInstanceID(unit, id) self.auraShown = id end
 	-- The optional JiberishUI Icons addon (only its public table)
 	if jiberishInstalled then
 		local JI = { mergedStylePacks = {
@@ -843,6 +865,59 @@ check(StzxUI.charKey == "Strikezx Kincrag - Forever" and StzxUI.profileName == "
 realmName = "Testrealm"
 StzxUIDB.profileKeys = {}
 Reload()
+
+---------------------------------------------------------------------------
+-- 13. Buffs and debuffs on the frames
+---------------------------------------------------------------------------
+units.target = { name = "Murloc Raider", isPlayer = false }
+unitState.target = { hp = 100, hpMax = 100, reaction = 2, level = 12 }
+auraState.player = {
+	{ auraInstanceID = 1, icon = 135932, duration = 1800, expirationTime = now + 1200, applications = 0 },
+	{ auraInstanceID = 2, icon = 136048, duration = 0, expirationTime = 0, applications = 0 },
+}
+auraState.target = {
+	{ auraInstanceID = 11, icon = 136207, duration = 18, expirationTime = now + 9, applications = 3, dispelName = "Magic", harmful = true, mine = true },
+	{ auraInstanceID = 12, icon = 132100, duration = 30, expirationTime = now + 20, applications = 1, harmful = true, mine = false },
+	{ auraInstanceID = 13, icon = 135987, duration = 0, expirationTime = 0, applications = 0, harmful = false },
+}
+Reload()
+local PA, TA = StzxUIPlayerFrame.auraContainer.buttons, StzxUITargetFrame.auraContainer.buttons
+local function Shown(buttons) local n = 0 for _, b in ipairs(buttons) do if b.shown then n = n + 1 end end return n end
+Fire("PLAYER_TARGET_CHANGED")
+check(Shown(PA) == 2 and PA[1].icon.texture == 135932, "player buffs shown")
+check(PA[1].cooldown.cooldownDuration == 1800 and PA[1].cooldown.cooldownStart == now + 1200 - 1800, "buff swipe from its duration")
+check(not PA[2].cooldown.shown, "no swipe on a buff with no duration")
+check(Shown(TA) == 3 and TA[1].icon.texture == 136207 and TA[3].icon.texture == 135987, "target: debuffs first, then buffs")
+check(TA[1].count.text == 3 and TA[2].count.text == "", "stack count shown from 2 up")
+check(TA[3].points[1].point == "BOTTOMRIGHT" and TA[3].points[1].y > 0, "target buffs start a new row, growing from the right")
+log.settings.STZXUI_UNITFRAMESTARGET_ONLYMINE:SetValue(true)
+check(Shown(TA) == 2 and TA[1].auraInstanceID == 11 and TA[2].auraInstanceID == 13, "only my debuffs (buffs still shown)")
+log.settings.STZXUI_UNITFRAMESTARGET_ONLYMINE:SetValue(false)
+log.settings.STZXUI_UNITFRAMESTARGET_SHOWBUFFS:SetValue(false)
+check(Shown(TA) == 2, "buffs can be hidden")
+log.settings.STZXUI_UNITFRAMESTARGET_SHOWDEBUFFS:SetValue(false)
+check(Shown(TA) == 0, "debuffs can be hidden too")
+log.settings.STZXUI_UNITFRAMESTARGET_SHOWBUFFS:SetValue(true)
+log.settings.STZXUI_UNITFRAMESTARGET_SHOWDEBUFFS:SetValue(true)
+log.settings.STZXUI_UNITFRAMESPLAYER_AURASIZE:SetValue(30)
+check(PA[1].w == 30, "icon size option")
+log.settings.STZXUI_UNITFRAMESPLAYER_AURAPOSITION:SetValue("BELOW")
+check(StzxUIPlayerFrame.auraContainer.points[1].point == "TOPLEFT" and PA[1].points[1].point == "TOPLEFT", "auras can go below the frame")
+log.settings.STZXUI_UNITFRAMESPLAYER_AURAPOSITION:SetValue("ABOVE")
+
+-- A new debuff arrives in combat with every detail secret
+table.insert(auraState.target, 1, { auraInstanceID = 14, icon = SECRET, duration = SECRET, expirationTime = SECRET,
+	applications = SECRET, dispelName = SECRET, harmful = true })
+Fire("UNIT_AURA", "target")
+check(Shown(TA) == 4 and TA[1].icon.texture == SECRET, "secret aura still shows its icon")
+check(TA[1].cooldown.durationObject and TA[1].cooldown.durationObject.durationOf == 14 and TA[1].cooldown.shown,
+	"secret aura: swipe from the game's duration object")
+check(TA[1].count.text == SECRET_TEXT, "secret aura: the game's own stack text")
+Script(TA[1], "OnEnter")
+check(GameTooltip.auraShown == 14, "hovering an icon shows the aura tooltip")
+auraState.player, auraState.target = {}, {}
+Fire("UNIT_AURA", "player"); Fire("UNIT_AURA", "target")
+check(Shown(PA) == 0 and Shown(TA) == 0, "icons cleared when auras go")
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

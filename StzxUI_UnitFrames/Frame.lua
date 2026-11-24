@@ -1,5 +1,6 @@
 -- StzxUI Unit Frames: one unit frame (player or target)
 --
+--        [debuff][debuff]  [buff][buff][buff]     (Auras.lua)
 --        (portrait)  Name Surname
 --        (  icon  )  [=========== health ======== 530 | 76% ]
 --        (  (18)  )  [====== power ====== 18.2K / 22K ]
@@ -223,6 +224,7 @@ function ns.UpdateUnitFrame(frame)
 	UpdatePortrait(frame)
 	UpdateHealth(frame)
 	UpdatePower(frame)
+	ns.UpdateAuras(frame)
 end
 
 ---------------------------------------------------------------------------
@@ -243,6 +245,8 @@ local function OnEvent(frame, event)
 		UpdateLevel(frame)
 	elseif event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
 		UpdatePortrait(frame)
+	elseif event == "UNIT_AURA" then
+		ns.UpdateAuras(frame)
 	elseif event == "UNIT_FACTION" or event == "UNIT_FLAGS" then
 		UpdateHealth(frame) -- colour may change (e.g. tapped, hostile)
 	else
@@ -292,6 +296,7 @@ function ns.CreateUnitFrame(unit, globalName, side, settings)
 	frame.powerText = Style.Text(frame.power, 9)
 	frame.nameText = Style.Text(frame, 12)
 	frame.portrait = CreatePortrait(frame)
+	ns.CreateAuraContainer(frame) -- buffs and debuffs (Auras.lua)
 
 	-- Events for this unit only.
 	for event in pairs(HEALTH_EVENTS) do frame:RegisterUnitEvent(event, unit) end
