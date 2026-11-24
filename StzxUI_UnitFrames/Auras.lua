@@ -15,7 +15,6 @@
 local _, ns = ...
 local StzxUI = _G.StzxUI
 local Plain = StzxUI.Plain
-local Style = ns.Style
 
 local MAX_EACH = 16 -- most buffs / debuffs shown per frame
 local SPACING = 2
@@ -121,7 +120,7 @@ function ns.UpdateAuras(frame)
 	local size = settings.auraSize or 22
 	local left = frame.side == "LEFT"
 	local above = settings.auraPosition ~= "BELOW"
-	local perRow = math.max(1, math.floor((Style.WIDTH + SPACING) / (size + SPACING)))
+	local perRow = math.max(1, math.floor((frame.dims.width + SPACING) / (size + SPACING)))
 
 	-- Where the icons start: just outside the frame, on the portrait's side.
 	container:ClearAllPoints()
@@ -177,7 +176,7 @@ end
 
 function ns.CreateAuraContainer(frame)
 	local container = CreateFrame("Frame", nil, frame)
-	container:SetSize(Style.WIDTH, 1)
+	container:SetSize(frame.dims.width, 1)
 	container.buttons = {}
 	frame.auraContainer = container
 	frame:RegisterUnitEvent("UNIT_AURA", frame.unit)

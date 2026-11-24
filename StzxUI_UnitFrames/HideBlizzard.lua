@@ -33,7 +33,7 @@ events:SetScript("OnEvent", function()
 	end
 end)
 
--- which: "player" or "target"
+-- which: "player", "target", "focus", "pet" or "targettarget"
 function ns.HideBlizzardFrames(which)
 	if which == "player" then
 		Tuck(_G.PlayerFrame)
@@ -41,5 +41,12 @@ function ns.HideBlizzardFrames(which)
 	elseif which == "target" then
 		Tuck(_G.TargetFrame)
 		Tuck(_G.TargetFrameSpellBar)
+	elseif which == "focus" then
+		Tuck(_G.FocusFrame)
+		Tuck(_G.FocusFrameSpellBar)
+	elseif which == "pet" then
+		Tuck(_G.PetFrame)
+	elseif which == "targettarget" then
+		Tuck(_G.TargetFrameToT)
 	end
 end

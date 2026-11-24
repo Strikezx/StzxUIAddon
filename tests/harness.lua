@@ -269,7 +269,8 @@ local function InstallClient()
 		JiberishIcons = nil
 	end
 	-- Blizzard's own frames that StzxUI hides
-	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "PlayerCastingBarFrame", "TargetFrameSpellBar" }) do
+	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "PlayerCastingBarFrame", "TargetFrameSpellBar",
+		"FocusFrame", "FocusFrameSpellBar", "PetFrame", "TargetFrameToT" }) do
 		blizzard[name] = NewFrame("Frame", name)
 		blizzard[name].events.SOMETHING = true
 	end
@@ -918,6 +919,46 @@ check(GameTooltip.auraShown == 14, "hovering an icon shows the aura tooltip")
 auraState.player, auraState.target = {}, {}
 Fire("UNIT_AURA", "player"); Fire("UNIT_AURA", "target")
 check(Shown(PA) == 0 and Shown(TA) == 0, "icons cleared when auras go")
+
+---------------------------------------------------------------------------
+-- 14. Focus, target-of-target and pet frames
+---------------------------------------------------------------------------
+Reload()
+local F, TT, PET = StzxUIFocusFrame, StzxUITargetTargetFrame, StzxUIPetFrame
+check(F and TT and PET and F.unitWatch and TT.unitWatch and PET.unitWatch, "focus, target-of-target and pet frames, shown only when the unit exists")
+check(StzxUIFocusFrameCastBar and StzxUI.movers.FocusCastBar and not StzxUI.movers.TargetTargetCastBar, "focus has a cast bar; small frames don't")
+check(TT.w == 130 and F.w == 230, "target-of-target is compact")
+check(log.settings.STZXUI_UNITFRAMESFOCUS_ONLYMINE and not log.settings.STZXUI_UNITFRAMESPET_CASTBAR, "per-frame options fit each frame")
+check(not TT.portrait.shown and TT.healthText.text ~= nil, "small frames start without a portrait")
+units.focus = { name = "Defias Pillager", isPlayer = false }
+unitState.focus = { hp = 300, hpMax = 600, reaction = 2, level = 15 }
+Fire("PLAYER_FOCUS_CHANGED")
+check(F.nameText.text == "Defias Pillager" and F.healthText.text == "300 | 50%", "focus frame fills in")
+casting.focus = { name = "Fireball", startMS = now * 1000, endMS = (now + 3) * 1000, castID = "f1" }
+Fire("UNIT_SPELLCAST_START", "focus", "f1")
+check(StzxUIFocusFrameCastBar.shown and StzxUIFocusFrameCastBar.text.text == "Fireball", "focus cast bar")
+casting.focus = nil
+units.targettarget = { name = "Strikezx", surname = "Kincrag", isPlayer = true }
+unitState.targettarget = { class = "SHAMAN", hp = 50, hpMax = 100 }
+TT.scripts.OnUpdate(TT, 0.3)
+check(TT.nameText.text == "Strikezx Kincrag" and TT.healthText.text == "50%", "target-of-target updates by itself")
+unitState.targettarget.hp = 25
+TT.scripts.OnUpdate(TT, 0.1)
+check(TT.healthText.text == "50%", "...but not every frame")
+TT.scripts.OnUpdate(TT, 0.2)
+check(TT.healthText.text == "25%", "...a few times a second")
+units.pet = { name = "Wolf", isPlayer = false }
+unitState.pet = { hp = 80, hpMax = 100, reaction = 5, level = 18 }
+Fire("UNIT_PET", "player")
+check(PET.nameText.text == "Wolf" and PET.health.colour[2] == 0.76, "pet frame fills in, friendly green")
+check(not blizzard.FocusFrame:IsVisible() and not blizzard.PetFrame:IsVisible() and not blizzard.TargetFrameToT:IsVisible(),
+	"Blizzard's focus, pet and target-of-target frames hidden")
+StzxUIDB.profiles.Default.modules.UnitFrames.focus.enabled = false
+Reload()
+check(not StzxUI.movers.FocusFrame and blizzard.FocusFrame:IsVisible(), "focus switched off: Blizzard's stays")
+StzxUIDB.profiles.Default.modules.UnitFrames.focus.enabled = true
+units.focus, units.targettarget, units.pet = nil, nil, nil
+unitState.focus, unitState.targettarget, unitState.pet = nil, nil, nil
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

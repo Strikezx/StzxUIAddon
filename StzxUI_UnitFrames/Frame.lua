@@ -26,7 +26,7 @@ local FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 -- The round portrait: accent ring, dark disc, then the class icon or the
 -- character's face, and a small level badge.
 local function CreatePortrait(frame)
-	local size = Style.PORTRAIT
+	local size = frame.dims.portrait
 	local p = CreateFrame("Frame", nil, frame)
 	p:SetSize(size, size)
 	p:SetFrameLevel(frame:GetFrameLevel() + 5)
@@ -156,7 +156,7 @@ local function UpdatePortrait(frame)
 		return
 	end
 	p:Show()
-	local size = Style.PORTRAIT
+	local size = frame.dims.portrait
 
 	-- Jiberish icon styles (if that addon is installed). NPCs have no class
 	-- icon, so they fall back to their face below.
@@ -193,17 +193,18 @@ local function ApplyLayout(frame)
 	local left = frame.side == "LEFT"
 	local hasPortrait = frame.settings.portrait ~= "NONE"
 	local p = frame.portrait
+	p:SetShown(hasPortrait)
 	p:ClearAllPoints()
 	p:SetPoint("CENTER", frame.body, left and "LEFT" or "RIGHT", left and 2 or -2, 0)
 	p.badge:ClearAllPoints()
 	p.badge:SetPoint("CENTER", p, left and "BOTTOMLEFT" or "BOTTOMRIGHT", left and 6 or -6, 6)
 
-	local outer = hasPortrait and (Style.PORTRAIT / 2 + 8) or 6
+	local outer = hasPortrait and (frame.dims.portrait / 2 + 8) or 6
 	frame.nameText:ClearAllPoints()
 	frame.nameText:SetPoint(left and "BOTTOMLEFT" or "BOTTOMRIGHT", frame.body, left and "TOPLEFT" or "TOPRIGHT",
 		left and outer or -outer, 3)
 	frame.nameText:SetJustifyH(left and "LEFT" or "RIGHT")
-	frame.nameText:SetWidth(Style.WIDTH - outer - 4)
+	frame.nameText:SetWidth(frame.dims.width - outer - 4)
 
 	-- Numbers sit on the inner end, away from the portrait.
 	frame.healthText:ClearAllPoints()
@@ -258,13 +259,28 @@ end
 -- Building
 ---------------------------------------------------------------------------
 
--- unit: "player" or "target". side: "LEFT" puts the portrait on the left.
-function ns.CreateUnitFrame(unit, globalName, side, settings)
-	local height = Style.NAME_HEIGHT + Style.HEALTH_HEIGHT + Style.GAP + Style.POWER_HEIGHT
+-- Sizes: the full frames (player, target, focus) and a compact one
+-- (target-of-target, pet).
+ns.SIZES = {
+	full = { width = Style.WIDTH, name = Style.NAME_HEIGHT, health = Style.HEALTH_HEIGHT, power = Style.POWER_HEIGHT,
+		portrait = Style.PORTRAIT, healthFont = 14, nameFont = 12, powerFont = 9 },
+	compact = { width = 130, name = 14, health = 18, power = 5, portrait = 30, healthFont = 11, nameFont = 10, powerFont = 8 },
+}
+
+-- These units have no events of their own for every change, so the frame
+-- checks them a few times a second while shown.
+local POLLED = { targettarget = true, focustarget = true }
+local POLL_EVERY = 0.25
+
+-- unit: "player", "target", "focus", "targettarget" or "pet".
+-- side: "LEFT" puts the portrait on the left. size: ns.SIZES.full / compact.
+function ns.CreateUnitFrame(unit, globalName, side, settings, size)
+	local dims = size or ns.SIZES.full
+	local height = dims.name + dims.health + Style.GAP + dims.power
 	local frame = CreateFrame("Button", globalName, UIParent, "SecureUnitButtonTemplate")
-	frame:SetSize(Style.WIDTH, height)
+	frame:SetSize(dims.width, height)
 	frame:SetFrameStrata("LOW")
-	frame.unit, frame.side, frame.settings = unit, side, settings
+	frame.unit, frame.side, frame.settings, frame.dims = unit, side, settings, dims
 
 	-- Clicks: left targets, right opens the unit's menu (works in combat).
 	frame:SetAttribute("unit", unit)
@@ -280,21 +296,21 @@ function ns.CreateUnitFrame(unit, globalName, side, settings)
 
 	-- Bars sit below a row for the name.
 	local body = CreateFrame("Frame", nil, frame)
-	body:SetPoint("TOPLEFT", 0, -Style.NAME_HEIGHT)
+	body:SetPoint("TOPLEFT", 0, -dims.name)
 	body:SetPoint("BOTTOMRIGHT")
 	Style.Panel(body)
 	frame.body = body
 
-	frame.health = Style.Bar(body, Style.HEALTH_HEIGHT)
+	frame.health = Style.Bar(body, dims.health)
 	frame.health:SetPoint("TOPLEFT")
 	frame.health:SetPoint("TOPRIGHT")
-	frame.power = Style.Bar(body, Style.POWER_HEIGHT)
+	frame.power = Style.Bar(body, dims.power)
 	frame.power:SetPoint("TOPLEFT", frame.health, "BOTTOMLEFT", 0, -Style.GAP)
 	frame.power:SetPoint("TOPRIGHT", frame.health, "BOTTOMRIGHT", 0, -Style.GAP)
 
-	frame.healthText = Style.Text(frame.health, 14)
-	frame.powerText = Style.Text(frame.power, 9)
-	frame.nameText = Style.Text(frame, 12)
+	frame.healthText = Style.Text(frame.health, dims.healthFont)
+	frame.powerText = Style.Text(frame.power, dims.powerFont)
+	frame.nameText = Style.Text(frame, dims.nameFont)
 	frame.portrait = CreatePortrait(frame)
 	ns.CreateAuraContainer(frame) -- buffs and debuffs (Auras.lua)
 
@@ -306,12 +322,29 @@ function ns.CreateUnitFrame(unit, globalName, side, settings)
 		frame:RegisterUnitEvent(event, unit)
 	end
 	frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-	if unit == "target" then
+	if unit == "target" or unit == "targettarget" then
 		frame:RegisterEvent("PLAYER_TARGET_CHANGED")
-		RegisterUnitWatch(frame) -- shows the frame only while you have a target
+		frame:RegisterUnitEvent("UNIT_TARGET", "target")
+	elseif unit == "focus" or unit == "focustarget" then
+		frame:RegisterEvent("PLAYER_FOCUS_CHANGED")
+	elseif unit == "pet" then
+		frame:RegisterUnitEvent("UNIT_PET", "player")
+	end
+	if unit ~= "player" then
+		RegisterUnitWatch(frame) -- shows the frame only while the unit exists
 	end
 	frame:SetScript("OnEvent", OnEvent)
 	frame:SetScript("OnShow", ns.UpdateUnitFrame)
+	if POLLED[unit] then
+		local wait = 0
+		frame:SetScript("OnUpdate", function(self, elapsed)
+			wait = wait - elapsed
+			if wait <= 0 then
+				wait = POLL_EVERY
+				ns.UpdateUnitFrame(self)
+			end
+		end)
+	end
 
 	ns.UpdateUnitFrame(frame)
 	return frame

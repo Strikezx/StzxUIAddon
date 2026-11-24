@@ -123,7 +123,7 @@ end
 
 local function OnEvent(bar, event, unit, castID)
 	if not bar.enabled() then return end
-	if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
+	if event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
 		ns.RefreshCastBar(bar)
 	elseif event == "UNIT_SPELLCAST_START" then
 		Begin(bar, false)
@@ -192,6 +192,7 @@ function ns.CreateCastBar(unit, globalName, enabled)
 	end
 	bar:RegisterEvent("PLAYER_ENTERING_WORLD")
 	if unit == "target" then bar:RegisterEvent("PLAYER_TARGET_CHANGED") end
+	if unit == "focus" then bar:RegisterEvent("PLAYER_FOCUS_CHANGED") end
 	bar:SetScript("OnEvent", OnEvent)
 	bar:SetScript("OnUpdate", OnUpdate)
 	return bar

@@ -1,6 +1,7 @@
 -- StzxUI Unit Frames: the module
--- Player and target frames, each with its own cast bar, all movable and
--- resizable in move mode. Settings: StzxUI > Unit Frames.
+-- Player, target and focus frames (each with its own cast bar), plus small
+-- target-of-target and pet frames. All movable and resizable in move mode.
+-- Settings: StzxUI > Unit Frames.
 
 local ADDON_NAME, ns = ...
 local StzxUI = _G.StzxUI
@@ -19,14 +20,46 @@ local FRAME_DEFAULTS = {
 	auraPosition = "ABOVE", -- "ABOVE" or "BELOW" the frame
 }
 
+-- The small frames start simpler: no portrait, percent only, no auras.
+local SMALL_DEFAULTS = {
+	enabled = true,
+	portrait = "NONE",
+	healthText = "PERCENT",
+	powerText = false,
+	castBar = false,
+	showBuffs = false,
+	showDebuffs = false,
+	onlyMine = false,
+	auraSize = 18,
+	auraPosition = "ABOVE",
+}
+
+-- Every frame StzxUI can show. `small` frames use the compact size and
+-- have no cast bar; `cast` frames get their own movable cast bar.
+local SPECS = {
+	{ unit = "player", key = "Player", title = "Player", side = "LEFT", cast = true,
+		at = { -300, -150 }, castAt = { -300, -200 } },
+	{ unit = "target", key = "Target", title = "Target", side = "RIGHT", cast = true,
+		at = { 300, -150 }, castAt = { 300, -200 } },
+	{ unit = "focus", key = "Focus", title = "Focus", side = "RIGHT", cast = true,
+		at = { 520, 20 }, castAt = { 520, -30 } },
+	{ unit = "targettarget", key = "TargetTarget", title = "Target of target", side = "RIGHT", small = true,
+		at = { 510, -150 } },
+	{ unit = "pet", key = "Pet", title = "Pet", side = "LEFT", small = true,
+		at = { -510, -150 } },
+}
+
 local UnitFrames = StzxUI:NewModule("UnitFrames", ADDON_NAME, {
-	hideBlizzard = true,   -- hide Blizzard's player and target frames
+	hideBlizzard = true,   -- hide Blizzard's frames where StzxUI shows its own
 	healthColour = "CLASS", -- "CLASS" (class / reaction colour) or "GREEN"
 	player = FRAME_DEFAULTS,
 	target = FRAME_DEFAULTS,
+	focus = FRAME_DEFAULTS,
+	targettarget = SMALL_DEFAULTS,
+	pet = SMALL_DEFAULTS,
 }, {
 	title = "Unit Frames",
-	description = "StzxUI's player and target frames with cast bars.",
+	description = "StzxUI's player, target, focus, target-of-target and pet frames, with cast bars.",
 })
 ns.module = UnitFrames
 
@@ -53,9 +86,11 @@ end
 -- Settings page
 ---------------------------------------------------------------------------
 
-local function AddFrameOptions(page, unit, title)
-	-- A small "owner" so the settings helpers write into db.player / db.target.
-	local owner = { name = "UnitFrames" .. title, db = UnitFrames.db[unit], defaults = FRAME_DEFAULTS }
+local function AddFrameOptions(page, spec)
+	local unit, title = spec.unit, spec.title
+	-- A small "owner" so the settings helpers write into db.player / db.target ...
+	local owner = { name = "UnitFrames" .. spec.key, db = UnitFrames.db[unit],
+		defaults = spec.small and SMALL_DEFAULTS or FRAME_DEFAULTS }
 	StzxUI:AddHeader(page, title .. " frame")
 	StzxUI:AddCheckbox(page, owner, "enabled", "Show the " .. title:lower() .. " frame",
 		"Turning a frame on or off applies after a reload.",
@@ -72,11 +107,13 @@ local function AddFrameOptions(page, unit, title)
 		"What the health bar shows.", HEALTH_TEXTS, RefreshAll)
 	StzxUI:AddCheckbox(page, owner, "powerText", "Show power numbers",
 		"Mana, rage or energy as current / maximum.", RefreshAll)
-	StzxUI:AddCheckbox(page, owner, "castBar", "Show the " .. title:lower() .. " cast bar",
-		"A separate bar you can move on its own in move mode.", RefreshAll)
+	if spec.cast then
+		StzxUI:AddCheckbox(page, owner, "castBar", "Show the " .. title:lower() .. " cast bar",
+			"A separate bar you can move on its own in move mode.", RefreshAll)
+	end
 	StzxUI:AddCheckbox(page, owner, "showDebuffs", "Show debuffs",
 		"Small debuff icons, bordered by type: blue magic, purple curse, brown disease, green poison.", RefreshAll)
-	if unit == "target" then
+	if unit == "target" or unit == "focus" then
 		StzxUI:AddCheckbox(page, owner, "onlyMine", "Only my debuffs",
 			"Only debuffs you put on the target, e.g. to watch your own DoTs.", RefreshAll)
 	end
@@ -102,8 +139,7 @@ function UnitFrames:OnInitialize()
 		{ { "CLASS", "Class and reaction" }, { "GREEN", "Green" } }, RefreshAll)
 	StzxUI:AddButton(page, "Place the frames", "Move mode",
 		function() StzxUI:EnterMoveMode() end, "Drag, resize (mouse wheel) and line up the frames.")
-	AddFrameOptions(page, "player", "Player")
-	AddFrameOptions(page, "target", "Target")
+	for _, spec in ipairs(SPECS) do AddFrameOptions(page, spec) end
 end
 
 ---------------------------------------------------------------------------
@@ -112,45 +148,36 @@ end
 
 function UnitFrames:HideBlizzard()
 	if not self.db.hideBlizzard then return end
-	for _, unit in ipairs({ "player", "target" }) do
-		if self.db[unit].enabled then ns.HideBlizzardFrames(unit) end
+	for _, spec in ipairs(SPECS) do
+		if self.db[spec.unit].enabled then ns.HideBlizzardFrames(spec.unit) end
 	end
 end
 
--- Default spots: player left of centre, target mirrored on the right,
--- cast bars just under each frame.
-local DEFAULTS = {
-	player = { "CENTER", "CENTER", -300, -150 },
-	target = { "CENTER", "CENTER", 300, -150 },
-	playerCast = { "CENTER", "CENTER", -300, -200 },
-	targetCast = { "CENTER", "CENTER", 300, -200 },
-}
-
 local function Build(self)
 	local db = self.db
-	local specs = {
-		{ unit = "player", name = "StzxUIPlayerFrame", side = "LEFT", title = "Player" },
-		{ unit = "target", name = "StzxUITargetFrame", side = "RIGHT", title = "Target" },
-	}
-	for _, spec in ipairs(specs) do
+	for _, spec in ipairs(SPECS) do
 		local settings = db[spec.unit]
 		if settings.enabled then
-			local frame = ns.CreateUnitFrame(spec.unit, spec.name, spec.side, settings)
+			local name = "StzxUI" .. spec.key .. "Frame"
+			local size = spec.small and ns.SIZES.compact or ns.SIZES.full
+			local frame = ns.CreateUnitFrame(spec.unit, name, spec.side, settings, size)
 			frames[spec.unit] = frame
-			StzxUI:RegisterMover(spec.title .. "Frame", frame, {
+			StzxUI:RegisterMover(spec.key .. "Frame", frame, {
 				label = spec.title,
 				category = "Unit frames",
-				default = DEFAULTS[spec.unit],
+				default = { "CENTER", "CENTER", spec.at[1], spec.at[2] },
 			})
 
-			local bar = ns.CreateCastBar(spec.unit, spec.name .. "CastBar", function() return settings.castBar end)
-			castBars[spec.unit] = bar
-			StzxUI:RegisterMover(spec.title .. "CastBar", bar, {
-				label = spec.title .. " cast bar",
-				category = "Unit frames",
-				default = DEFAULTS[spec.unit .. "Cast"],
-				isShown = function() return settings.castBar end,
-			})
+			if spec.cast then
+				local bar = ns.CreateCastBar(spec.unit, name .. "CastBar", function() return settings.castBar end)
+				castBars[spec.unit] = bar
+				StzxUI:RegisterMover(spec.key .. "CastBar", bar, {
+					label = spec.title .. " cast bar",
+					category = "Unit frames",
+					default = { "CENTER", "CENTER", spec.castAt[1], spec.castAt[2] },
+					isShown = function() return settings.castBar end,
+				})
+			end
 		end
 	end
 	self:HideBlizzard()
