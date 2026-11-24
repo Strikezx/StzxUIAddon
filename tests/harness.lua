@@ -258,6 +258,9 @@ local function InstallClient()
 		_G[name] = function(...) local a, b = old(...); fn(...); return a, b end
 	end
 	function GetQuestID() return questID end
+	function UnitXP() return unitState.player.xp or 0 end
+	function UnitXPMax() return unitState.player.xpMax or 1000 end
+	function GetMaxLevelForPlayerExpansion() return 60 end
 	function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 	C_CVar = {
 		GetCVar = function(k) return cvars[k] end,
@@ -1201,6 +1204,29 @@ check(cvars.outlineModeShowLootEffectWhenDisabled == "0" and DialogShown() and D
 Fire("CVAR_UPDATE", "outlineModeShowLootEffectWhenDisabled")
 check(cvars.outlineModeShowLootEffectWhenDisabled == "0", "...and stops turning them back on")
 questID = 0
+
+---------------------------------------------------------------------------
+-- 17. Info: levelling pace
+---------------------------------------------------------------------------
+unitState.player.xp, unitState.player.xpMax = 4500, 10000
+StartGame(nil)
+local InfoMod = StzxUI:GetModule("Info")
+check(StzxUIInfoLevelling and StzxUI.movers.InfoLevelling and InfoMod.XPText() == "Lv 18  45%  -- xp/h",
+	"levelling readout: level and progress, no pace yet")
+now = now + 600
+unitState.player.xp = 6500
+Fire("PLAYER_XP_UPDATE", "player")
+check(InfoMod.XPText() == "Lv 18  65%  12.0k xp/h  17m", "2000 XP in 10 minutes: 12k an hour, 17 minutes to go")
+now = now + 600
+unitState.player.level, unitState.player.xp, unitState.player.xpMax = 19, 500, 11000
+Fire("PLAYER_XP_UPDATE", "player")
+check(InfoMod.XPText():find("Lv 19  4%  ", 1, true) and InfoMod.XPText():find("18.0k xp/h", 1, true), -- 2000 + 3500 + 500 in 20 min
+	"a level-up counts the XP on both sides of it")
+SlashCmdList.STZXUI("xp")
+check(InfoMod.XPText() == "Lv 19  4%  -- xp/h", "/stzx xp starts again")
+unitState.player.level = 60
+check(InfoMod.XPText() == nil, "hidden at max level")
+unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, nil
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

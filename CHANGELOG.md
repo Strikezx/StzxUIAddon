@@ -5,6 +5,7 @@
 ### Added
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
+- Info: levelling pace readout, "Lv 18  45%  12.3k xp/h  1h 05m": XP per hour this session and the time to the next level at that pace. Movable, hidden at max level; `/stzx xp` restarts the count.
 - Quests (new section): quests new to WoW: Forever get a glow on the parchment (quest giver window and quest log detail page); colour, strength and height adjustable. Quest item sparkles stay on after graphics presets. `/stzx quest` tells you whether the open quest is new.
 - Party & Raid (new section): StzxUI party and raid frames. Health, name, debuffs (all, or only ones you can remove), range fading, target highlight, leader crown and raid markers; left-click targets, right-click opens the menu, in combat too. Size, spacing, growth and power bar are adjustable live, and each has a mover. Blizzard's party and raid frames are hidden while StzxUI's are on.
 - Unit Frames: focus frame (with its own cast bar), and small target-of-target and pet frames. Each can be switched off; Blizzard's versions are hidden where StzxUI shows its own.
