@@ -29,13 +29,24 @@ local realmName = "Testrealm"
 local group = { kind = nil, units = {} } -- fake roster: kind "party"/"raid", units in order
 local rangeOf = {}     -- [unit] = { inRange, checked }
 local questID = 0      -- the quest open in the quest giver window
+local questLog, questOffers = {}, {}
+local afters = {}
+local function RunAfters() local list = afters; afters = {}; for _, fn in ipairs(list) do fn() end end
+local function TickAll(list)
+	for _, t in ipairs(list) do
+		if not t.cancelled and (t.left == nil or t.left > 0) then
+			if t.left then t.left = t.left - 1 end
+			t.fn(t)
+		end
+	end
+end
 local editMode = { active = false, gridShown = true, spacing = 20 }
 local cvars = {}
 local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
 
 local function ResetLog()
-	log = { prints = {}, emotes = {}, whispers = {}, cancelled = 0, hidden = {}, settings = {},
+	log = { pushed = {}, prints = {}, emotes = {}, whispers = {}, cancelled = 0, hidden = {}, settings = {},
 		reloads = 0, categories = {}, settingsClosed = 0 }
 end
 ResetLog()
@@ -168,6 +179,7 @@ function Frame:CreateMaskTexture() return NewFrame("MaskTexture", nil, self) end
 function Frame:AddMaskTexture(m) self.mask = m end
 function Frame:UnregisterAllEvents() self.events = {} end
 function Frame:SetParent(p) self.parent = p end
+function Frame:GetParent() return self.parent end
 function Frame:SetCooldown(start, duration) self.cooldownStart, self.cooldownDuration, self.durationObject = start, duration, nil end
 function Frame:SetCooldownFromDurationObject(d) self.durationObject, self.cooldownStart = d, nil end
 function Frame:Clear() self.cooldownStart, self.durationObject = nil, nil end
@@ -408,12 +420,28 @@ local function InstallClient()
 		GetBestMapForUnit = function() return 1429 end,
 		GetPlayerMapPosition = function() if mapPos then return { GetXY = function() return mapPos[1], mapPos[2] end } end end,
 	}
-	C_Timer = { NewTicker = function(_, fn)
-		local t = { fn = fn }
-		function t:Cancel() self.cancelled = true end
-		table.insert(tickers, t)
-		return t
-	end }
+	C_Timer = {
+		NewTicker = function(_, fn, iterations)
+			local t = { fn = fn, left = iterations }
+			function t:Cancel() self.cancelled = true end
+			table.insert(tickers, t)
+			return t
+		end,
+		After = function(_, fn) table.insert(afters, fn) end,
+	}
+	-- Quest log and party: questLog = list of { questID, pushable, onQuest = { [unit] = bool } }
+	C_QuestLog = {
+		GetNumQuestLogEntries = function() return #questLog end,
+		GetInfo = function(i) local q = questLog[i]; return q and { questID = q.questID, isHeader = q.header } end,
+		GetLogIndexForQuestID = function(id) for i, q in ipairs(questLog) do if q.questID == id then return i end end end,
+		IsPushableQuest = function(id) for _, q in ipairs(questLog) do if q.questID == id then return q.pushable end end return false end,
+		IsUnitOnQuest = function(unit, id)
+			for _, q in ipairs(questLog) do if q.questID == id then return (q.onQuest or {})[unit] or false end end
+			return (questOffers[id] or {})[unit] or false
+		end,
+	}
+	function QuestLogPushQuest(index) table.insert(log.pushed, questLog[index].questID) end
+	function IsInGroup() return group.kind ~= nil end
 	-- Profile strings: a tiny stand-in for CBOR/compress/base64 that round-trips Lua tables.
 	local function Ser(v)
 		if type(v) == "table" then
@@ -1314,6 +1342,81 @@ OpenEditMode()
 check(not StzxUI.moveMode, "never in combat")
 inCombat = false
 CloseEditMode()
+
+---------------------------------------------------------------------------
+-- 19. Quests: party quest status
+---------------------------------------------------------------------------
+StartGame(nil)
+local logPanel, giverPanel = StzxUIPartyQuestslog, StzxUIPartyQuestsgiver
+check(logPanel and giverPanel and logPanel.parent == QuestMapFrame.DetailsFrame and giverPanel.parent == QuestFrame,
+	"party panels beside the quest log page and the quest giver window")
+check(log.settings.STZXUI_QUESTS_PARTYSTATUS, "setting: Show who in my party is on a quest")
+
+questLog = {
+	{ questID = 100, pushable = true, onQuest = { party1 = true } },
+	{ questID = 200, header = true },
+	{ questID = 300, pushable = false },
+	{ questID = 400, pushable = true },
+}
+units.party1 = { name = "Liala", isPlayer = true }
+unitState.party1 = { class = "DRUID" }
+units.party2 = { name = "Gorr", isPlayer = true }
+unitState.party2 = { class = "SHAMAN" }
+units.party3 = { name = "Tamsin", isPlayer = true }
+unitState.party3 = { class = "MAGE", offline = true }
+
+-- Solo: no panel.
+QuestMapFrame.shown, QuestMapFrame.DetailsFrame.shown = true, true
+QuestMapFrame_ShowQuestDetails(100)
+check(not logPanel.shown, "solo: no panel")
+
+group.kind, group.units = "party", { "party1", "party2", "party3" }
+QuestMapFrame_ShowQuestDetails(100)
+check(logPanel.shown and logPanel.rows[1].name.text == "Liala" and logPanel.rows[1].status.text == "On it",
+	"party member on the quest")
+check(logPanel.rows[2].status.text == "Not on it" and logPanel.rows[3].status.text == "Offline" and not logPanel.rows[4].name.shown,
+	"...one who isn't, one offline, no empty rows")
+check(logPanel.share.enabled == true and logPanel.h == 30 + 3 * 16 + 28, "Share button on, panel sized to fit")
+Script(logPanel.share, "OnClick")
+check(log.pushed[1] == 100, "Share offers the quest to the party")
+QuestMapFrame_ShowQuestDetails(300)
+check(logPanel.share.enabled == false, "quests that can't be shared: button off")
+
+-- Someone picks the quest up: refreshes on the event (after a short wait).
+questLog[3].onQuest = { party2 = true }
+Fire("UNIT_QUEST_LOG_CHANGED", "party2")
+check(logPanel.rows[2].status.text == "Not on it", "waits a moment (events come in bursts)...")
+RunAfters()
+check(logPanel.rows[2].status.text == "On it", "...then updates")
+
+-- Share all: every shareable quest, one a second.
+log.pushed = {}
+Script(logPanel.shareAll, "OnClick")
+check(#log.pushed == 1 and log.pushed[1] == 100 and lastPrint():find("sharing 2 quests", 1, true), "Share all starts at once")
+TickAll(tickers)
+TickAll(tickers)
+check(#log.pushed == 2 and log.pushed[2] == 400, "...then one a second, skipping headers and unshareable quests")
+
+-- Quest giver: a quest you're being offered.
+questOffers[500] = { party2 = true }
+questID = 500
+QuestFrame.shown = true
+Fire("QUEST_DETAIL")
+RunAfters()
+check(giverPanel.shown and giverPanel.rows[2].status.text == "On it" and not giverPanel.share,
+	"quest giver: shows who already has the quest you're offered")
+
+log.settings.STZXUI_QUESTS_PARTYSTATUS:SetValue(false)
+check(not logPanel.shown and not giverPanel.shown, "can be switched off")
+log.settings.STZXUI_QUESTS_PARTYSTATUS:SetValue(true)
+
+group.kind = nil
+SlashCmdList.STZXUI("shareall")
+check(lastPrint():find("join a party", 1, true), "/stzx shareall needs a party")
+QuestFrame.shown, questID, questLog, questOffers = false, 0, {}, {}
+QuestMapFrame.shown = false
+group.units = {}
+for i = 1, 3 do units["party" .. i], unitState["party" .. i] = nil, nil end
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

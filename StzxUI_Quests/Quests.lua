@@ -10,7 +10,7 @@
 -- example, are 27146 and up), so anything above 9665 counts as new. No quest
 -- list is needed, so nothing is copied from other addons.
 
-local ADDON_NAME = ...
+local ADDON_NAME, ns = ...
 local StzxUI = _G.StzxUI
 
 local LAST_CLASSIC_QUEST = 9665
@@ -22,10 +22,12 @@ local Quests = StzxUI:NewModule("Quests", ADDON_NAME, {
 	tintStrength = 45,    -- % opacity at the bottom of the page
 	tintHeight = 70,      -- % of the page the glow reaches up
 	sparkles = true,
+	partyStatus = true,   -- party panel beside the open quest
 }, {
 	title = "Quests",
-	description = "Tints quests that are new to WoW: Forever; keeps quest items sparkling.",
+	description = "Tints quests that are new to WoW: Forever; keeps quest items sparkling; shows who in your party is on a quest.",
 })
+ns.Quests = Quests
 
 local COLOURS = {
 	TEAL = { 0.25, 0.85, 0.80 },   -- the Forever logo's teal
@@ -164,6 +166,11 @@ function Quests:OnInitialize()
 		10, 90, 5, function(v) return v .. "%" end, Repaint)
 	StzxUI:AddSlider(page, self, "tintHeight", "Height", "How far up the page the glow reaches.",
 		20, 100, 5, function(v) return v .. "%" end, Repaint)
+	StzxUI:AddHeader(page, "Party quest status")
+	StzxUI:AddCheckbox(page, self, "partyStatus", "Show who in my party is on a quest",
+		"A small panel beside the quest giver's window and the quest log's detail page, while you're in a party. "
+		.. "The quest log one has Share and Share all buttons. /stzx shareall shares every quest you can.",
+		function() if ns.PartyQuests then ns.PartyQuests.RefreshAll() end end)
 	StzxUI:AddHeader(page, "Quest item sparkles")
 	StzxUI:AddCheckbox(page, self, "sparkles", "Keep quest items sparkling",
 		"Graphics presets switch the loot sparkle off; this keeps it on. Quest givers sparkle too: the game uses one setting for both.",
@@ -172,6 +179,7 @@ end
 
 function Quests:OnEnable()
 	SetUpTint()
+	ns.PartyQuests.SetUp()
 	KeepSparkles()
 	local events = CreateFrame("Frame")
 	for _, event in ipairs({ "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "CVAR_UPDATE" }) do

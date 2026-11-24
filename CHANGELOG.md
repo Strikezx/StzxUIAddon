@@ -5,6 +5,7 @@
 ### Added
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
+- Quests: party quest status. A small panel beside the quest giver window and the quest log's detail page lists your party and whether each is on that quest (On it / Not on it / Offline). The quest log panel has Share and Share all (one quest a second); `/stzx shareall` does the same.
 - Move mode works alongside Blizzard's Edit Mode: opening Edit Mode opens move mode too (and closes it again), the toolbar moves to the top-left out of Edit Mode's way, StzxUI uses Edit Mode's grid size while its grid is showing, and StzxUI frames snap to the edges of Blizzard's frames (action bars, minimap, chat...). Setting: "Open with Edit Mode".
 - Info: levelling pace readout, "Lv 18  45%  12.3k xp/h  1h 05m": XP per hour this session and the time to the next level at that pace. Movable, hidden at max level; `/stzx xp` restarts the count.
 - Quests (new section): quests new to WoW: Forever get a glow on the parchment (quest giver window and quest log detail page); colour, strength and height adjustable. Quest item sparkles stay on after graphics presets. `/stzx quest` tells you whether the open quest is new.
