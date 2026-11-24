@@ -1,0 +1,11 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Fishing
+## Notes: A lure timer while you hold a fishing pole, and a log of what you catch in each zone.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+## SavedVariables: StzxUIFishingDB
+
+Fishing.lua

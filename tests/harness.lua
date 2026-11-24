@@ -32,6 +32,7 @@ local questID = 0      -- the quest open in the quest giver window
 local questLog, questOffers = {}, {}
 local instance, money, lootWindow = nil, 0, {}
 local mailLoaded = true
+local fishing = { pole = false, lureMS = nil, zone = "Elwynn Forest", fishingLoot = false }
 local afters = {}
 local function RunAfters() local list = afters; afters = {}; for _, fn in ipairs(list) do fn() end end
 local function TickAll(list)
@@ -48,7 +49,7 @@ local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
 
 local function ResetLog()
-	log = { pushed = {}, prints = {}, emotes = {}, whispers = {}, cancelled = 0, hidden = {}, settings = {},
+	log = { sounds = {}, pushed = {}, prints = {}, emotes = {}, whispers = {}, cancelled = 0, hidden = {}, settings = {},
 		reloads = 0, categories = {}, settingsClosed = 0 }
 end
 ResetLog()
@@ -145,6 +146,7 @@ function Frame:GetStringHeight() return 14 end
 function Frame:HighlightText() self.highlighted = true end
 function Frame:SetFocus() self.focused = true end
 function Frame:SetCursorPosition(n) self.cursor = n end
+function Frame:SetTextColor(r, g, b) self.color = { r, g, b } end
 function Frame:SetFormattedText(fmt, ...)
 	local args, secret = { ... }, false
 	for i = 1, select("#", ...) do if issecretvalue(args[i]) then secret = true end end
@@ -188,7 +190,7 @@ function Frame:SetCooldownFromDurationObject(d) self.durationObject, self.cooldo
 function Frame:Clear() self.cooldownStart, self.durationObject = nil, nil end
 function Frame:IsVisible() local f = self while f do if not f.shown then return false end f = f.parent end return true end
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
-	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture", "SetTextColor",
+	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
 	"SetScrollChild", "SetOwner", "AddLine", "SetFont", "SetShadowColor", "SetWordWrap", "SetWidth",
 	"SetVertexColor", "SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
@@ -384,7 +386,20 @@ local function InstallClient()
 	function UnitCastingInfo(u) return Cast(u, false) end
 	function UnitChannelInfo(u) return Cast(u, true) end
 	-- Auras
-	Enum = { UnitAuraSortRule = { Expiration = 3 }, EditModeAccountSetting = { ShowGrid = 0, GridSpacing = 1 } }
+	Enum = { UnitAuraSortRule = { Expiration = 3 }, EditModeAccountSetting = { ShowGrid = 0, GridSpacing = 1 },
+		WeaponSlot = { MainHand = 0, OffHand = 1, Ranged = 2 } }
+	-- Fishing: a pole in the main hand (item 6256), an optional lure on it.
+	function GetInventoryItemID(_, slot) if slot == 16 then return fishing.pole and 6256 or 2131 end end
+	C_Item = {
+		GetItemInfoInstant = function(id) if id == 6256 then return id, "Weapon", "Fishing Poles", "INVTYPE_2HWEAPON", 1, 2, 20 end return id, "Weapon", "Daggers", "INVTYPE_WEAPON", 1, 2, 15 end,
+		GetWeaponEnchantInfo = function(slot)
+			if slot == 0 and fishing.lureMS then return { { hasEnchant = true, timeLeft = fishing.lureMS, charges = 0 } } end
+			return {}
+		end,
+	}
+	function GetRealZoneText() return fishing.zone end
+	function IsFishingLoot() return fishing.fishingLoot end
+	function PlaySound(id) table.insert(log.sounds, id) end
 	-- Edit Mode: Blizzard's callback registry and its manager frame, with one
 	-- system frame (an action bar at half scale) to snap to.
 	local callbacks = {}
@@ -541,7 +556,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -840,6 +855,7 @@ check(StzxUIDB.profiles.Default.enabled.Info == false and DialogShown(), "switch
 log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_RUNS:SetValue(false)
+log.settings.STZXUI_SECTION_FISHING:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -849,6 +865,7 @@ log.settings.STZXUI_SECTION_INFO:SetValue(true)
 log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_RUNS:SetValue(true)
+log.settings.STZXUI_SECTION_FISHING:SetValue(true)
 check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
 Reload()
 check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
@@ -1592,6 +1609,56 @@ function SendMailFrame_SendMail() end
 Fire("ADDON_LOADED", "Blizzard_MailFrame")
 check(StzxUIMailNames and StzxUIMailNames.parent == SendMailFrame, "...and joins it when it loads")
 StzxUISocialDB = nil
+
+---------------------------------------------------------------------------
+-- 22. Fishing: lure timer and catch log
+---------------------------------------------------------------------------
+StzxUIFishingDB = nil
+StartGame(nil)
+local Fish = StzxUI:GetModule("Fishing")
+local readout = StzxUIFishing
+check(Fish.enabled and Category("Fishing") and StzxUI.movers.Fishing, "Fishing section, options page and a mover")
+check(not readout.shown, "no pole: no readout")
+fishing.pole = true
+Fire("PLAYER_EQUIPMENT_CHANGED")
+check(readout.shown and readout.text.text == "No lure", "pole in hand: 'No lure'")
+fishing.lureMS = 272000
+Fire("UNIT_INVENTORY_CHANGED", "player")
+check(readout.text.text == "Lure 4:32", "lure time left")
+fishing.lureMS = 25000
+TickAll(tickers)
+check(readout.text.text == "Lure 0:25" and readout.text.color and readout.text.color[1] == 1 and readout.text.color[2] == 0.3,
+	"last 30 seconds: red")
+fishing.lureMS = nil
+TickAll(tickers)
+check(readout.text.text == "No lure" and #log.sounds == 1, "lure ran out: a chime")
+TickAll(tickers)
+check(#log.sounds == 1, "...only once")
+
+-- Catches.
+fishing.fishingLoot = true
+lootWindow = { { link = "[Raw Brilliant Smallfish]", quality = 1 }, { link = "[Sealed Crate]", quality = 1 } }
+Fire("LOOT_READY")
+lootWindow = { { link = "[Raw Brilliant Smallfish]", quality = 1 } }
+Fire("LOOT_READY")
+fishing.fishingLoot = false
+lootWindow = { { link = "[Linen Cloth]", quality = 1 } }
+Fire("LOOT_READY")
+local list, total = Fish.Catches()
+check(total == 3 and list[1].name == "Raw Brilliant Smallfish" and list[1].count == 2 and list[1].percent == 67,
+	"fishing loot counted per zone (other loot isn't)")
+check(readout.text.text == "No lure  3 caught here", "readout shows catches here")
+SlashCmdList.STZXUI("fishing")
+check(lastPrint():find("Sealed Crate", 1, true), "/stzx fishing lists them")
+fishing.zone = "Westfall"
+Fire("ZONE_CHANGED_NEW_AREA")
+check(readout.text.text == "No lure" and select(2, Fish.Catches()) == 0, "each zone has its own log")
+fishing.pole = false
+Fire("PLAYER_EQUIPMENT_CHANGED")
+check(not readout.shown, "pole put away: readout hides")
+Reload()
+check(select(2, Fish.Catches("Elwynn Forest")) == 3, "the log is kept")
+fishing.zone, lootWindow, StzxUIFishingDB = "Elwynn Forest", {}, nil
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

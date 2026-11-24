@@ -13,6 +13,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars, plus party and raid frames (a separate Party & Raid section); hides Blizzard's |
 | `StzxUI_Quests` | Tints quests that are new to WoW: Forever (glow on the quest parchment, colour and strength adjustable) and keeps the loot sparkle on quest items; `/stzx quest` says whether the open quest is new; a party panel shows who's on the open quest, with Share and Share all |
 | `StzxUI_Runs` | Dungeon and raid run history: time, XP, gold, bosses, deaths and the loot you picked up, per character; a movable run timer while inside; `/stzx runs` opens the history |
+| `StzxUI_Fishing` | Lure timer while you hold a fishing pole (red in the last 30 s, chime when it runs out) and a catch log per zone for all your characters; hover the timer or `/stzx fishing` to see this zone's catches |
 
 ## Optional: JiberishUI Icons
 
@@ -48,7 +49,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests` and `StzxUI_Runs` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs` and `StzxUI_Fishing` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -65,6 +66,7 @@ mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Info" "C:\
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_UnitFrames" "C:\...\StzxUIAddon\StzxUI_UnitFrames"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Quests" "C:\...\StzxUIAddon\StzxUI_Quests"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Runs" "C:\...\StzxUIAddon\StzxUI_Runs"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Fishing" "C:\...\StzxUIAddon\StzxUI_Fishing"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.
