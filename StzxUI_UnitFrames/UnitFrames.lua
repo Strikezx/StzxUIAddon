@@ -7,7 +7,8 @@ local StzxUI = _G.StzxUI
 
 local FRAME_DEFAULTS = {
 	enabled = true,
-	portrait = "ICON",     -- "ICON" class icon, "PORTRAIT" character portrait, "NONE"
+	portrait = "ICON",     -- "ICON" class icon, "PORTRAIT" character portrait, "NONE",
+	                       -- or "JI:<style>" with the JiberishUI Icons addon
 	healthText = "BOTH",   -- "BOTH" 530 | 76%, "NUMBER", "PERCENT", "NONE"
 	powerText = true,
 	castBar = true,
@@ -55,7 +56,13 @@ local function AddFrameOptions(page, unit, title)
 		"Turning a frame on or off applies after a reload.",
 		function() StzxUI:AskReload(("The %s frame changes after a reload."):format(title:lower())) end)
 	StzxUI:AddDropdown(page, owner, "portrait", "Portrait",
-		"Round class icon or the character's face. NPCs always show their face.", PORTRAITS, RefreshAll)
+		"Round class icon or the character's face. With the JiberishUI Icons addon installed, its styles are listed too. NPCs always show their face.",
+		function()
+			local list = {}
+			for _, choice in ipairs(PORTRAITS) do table.insert(list, choice) end
+			for _, choice in ipairs(ns.JiberishStyles()) do table.insert(list, choice) end
+			return list
+		end, RefreshAll)
 	StzxUI:AddDropdown(page, owner, "healthText", "Health text",
 		"What the health bar shows.", HEALTH_TEXTS, RefreshAll)
 	StzxUI:AddCheckbox(page, owner, "powerText", "Show power numbers",

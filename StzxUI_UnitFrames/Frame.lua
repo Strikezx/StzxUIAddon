@@ -155,6 +155,22 @@ local function UpdatePortrait(frame)
 		return
 	end
 	p:Show()
+	local size = Style.PORTRAIT
+
+	-- Jiberish icon styles (if that addon is installed). NPCs have no class
+	-- icon, so they fall back to their face below.
+	local jiberish = ns.JiberishStyleOf(mode)
+	if jiberish then
+		if ns.ApplyJiberishIcon(p.icon, unit, jiberish) then
+			p.icon:SetSize(size, size)
+			p.icon:Show()
+			p.face:Hide()
+			return
+		end
+		mode = "ICON"
+	end
+
+	p.icon:SetSize(size - 4, size - 4)
 	local _, class = UnitClass(unit)
 	class = Plain(class)
 	local coords = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]

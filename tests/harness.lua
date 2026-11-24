@@ -24,6 +24,8 @@ local SECRET_TEXT = "<secret>"
 local unitState = {}   -- [unit] = fake unit data for the unit frames
 local casting = {}     -- [unit] = { name, texture, startMS, endMS, castID, notInterruptible, channel }
 local blizzard = {}
+local realmName = "Testrealm"
+local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
 
 local function ResetLog()
@@ -178,7 +180,7 @@ local function InstallClient()
 	function UnitIsUnit(a, b) if b == "player" then local d = units[a]; return d and d.isSelf or false end return a == b end
 	function UnitInParty(u) local d = units[u]; return d and d.inParty or false end
 	function UnitInRaid() return nil end
-	function GetRealmName() return "Testrealm" end
+	function GetRealmName() return realmName end
 	function CancelDuel() log.cancelled = log.cancelled + 1 end
 	function StaticPopup_Hide(which) table.insert(log.hidden, which) end
 	C_ChatInfo = {
@@ -230,6 +232,20 @@ local function InstallClient()
 	end
 	function UnitCastingInfo(u) return Cast(u, false) end
 	function UnitChannelInfo(u) return Cast(u, true) end
+	-- The optional JiberishUI Icons addon (only its public table)
+	if jiberishInstalled then
+		local JI = { mergedStylePacks = {
+			class = { styles = { fabled = { name = "Fabled" }, fabledrealm = { name = "Fabled Realm" } } },
+			race = { styles = { fabledazeroth = { name = "Fabled Azeroth" } } },
+		} }
+		function JI:GetUnitIcon(unit, style)
+			if not (unitState[unit] and unitState[unit].class) or not UnitIsPlayer(unit) then return end
+			return { texCoords = { 0.125, 0.125, 0.125, 0.25, 0.25, 0.125, 0.25, 0.25 } }, "Interface\\AddOns\\JiberishIcons\\Media\\Class\\" .. style, 1024
+		end
+		JiberishIcons = { JI }
+	else
+		JiberishIcons = nil
+	end
 	-- Blizzard's own frames that StzxUI hides
 	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "PlayerCastingBarFrame", "TargetFrameSpellBar" }) do
 		blizzard[name] = NewFrame("Frame", name)
@@ -781,6 +797,52 @@ check(StzxUI.ACCENT.r == 0 and StzxUI.ACCENT.b == 0.87, "class accent: Shaman bl
 StzxUIDB.core.accent = "STZX"
 Reload()
 check(StzxUI.ACCENT.r == 0.31, "back to StzxUI blue")
+
+---------------------------------------------------------------------------
+-- 11. JiberishUI Icons (optional addon)
+---------------------------------------------------------------------------
+local function PortraitChoices()
+	local values = {}
+	for _, o in ipairs(log.options.STZXUI_UNITFRAMESPLAYER_PORTRAIT()) do values[o.value] = o.label end
+	return values
+end
+check(PortraitChoices()["JI:fabled"] == nil and PortraitChoices().ICON, "without Jiberish: only StzxUI's portrait choices")
+StzxUIDB.profiles.Default.modules.UnitFrames.player.portrait = "JI:fabledrealm"
+Reload()
+check(StzxUIPlayerFrame.portrait.icon.shown and StzxUIPlayerFrame.portrait.icon.texCoord[1] == 0.25,
+	"a saved Jiberish style with the addon gone falls back to the class icon")
+jiberishInstalled = true
+Reload()
+local choices = PortraitChoices()
+check(choices["JI:fabled"] == "Jiberish: Fabled" and choices["JI:fabledrealm"] and choices["JI:fabledazeroth"] == "Jiberish: Fabled Azeroth (race)",
+	"with Jiberish: its class and race styles are listed")
+local icon = StzxUIPlayerFrame.portrait.icon
+check(icon.shown and icon.texture:find("fabledrealm", 1, true) and #icon.texCoord == 8, "player shows the Jiberish icon")
+units.target = { name = "Murloc Raider", isPlayer = false }
+unitState.target = { hp = 10, hpMax = 10, reaction = 2, level = 12 }
+log.settings.STZXUI_UNITFRAMESTARGET_PORTRAIT:SetValue("JI:fabled")
+Fire("PLAYER_TARGET_CHANGED")
+check(StzxUITargetFrame.portrait.face.shown and not StzxUITargetFrame.portrait.icon.shown, "NPC target falls back to its face")
+log.settings.STZXUI_UNITFRAMESPLAYER_PORTRAIT:SetValue("ICON")
+check(StzxUIPlayerFrame.portrait.icon.texture:find("UI%-Classes%-Circles"), "back to the plain class icon")
+log.settings.STZXUI_UNITFRAMESTARGET_PORTRAIT:SetValue("ICON")
+jiberishInstalled = false
+
+---------------------------------------------------------------------------
+-- 12. Character key without a realm name (Forever returns "")
+---------------------------------------------------------------------------
+StzxUIDB.profiles.Old = { modules = {}, positions = {}, scales = {}, enabled = {} }
+StzxUIDB.profileKeys = { ["Strikezx Kincrag - "] = "Old" } -- how version 2 saved it on Forever
+realmName = ""
+Reload()
+check(StzxUI.charKey == "Strikezx Kincrag", "no realm: the key is just the name")
+check(StzxUI.profileName == "Old" and StzxUIDB.profileKeys["Strikezx Kincrag - "] == nil, "old 'Name - ' key carried over")
+realmName = "Forever"
+Reload()
+check(StzxUI.charKey == "Strikezx Kincrag - Forever" and StzxUI.profileName == "Old", "if a realm name appears later, the choice follows")
+realmName = "Testrealm"
+StzxUIDB.profileKeys = {}
+Reload()
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

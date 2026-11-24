@@ -12,6 +12,10 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates |
 | `StzxUI_UnitFrames` | Player and target frames (class icon or portrait, health and power text) with their own cast bars; hides Blizzard's |
 
+## Optional: JiberishUI Icons
+
+If the separate [Jiberish Fabled Icons](https://www.curseforge.com/wow/addons/jiberish-fabled-icons) addon is installed, its class and race icon styles appear in StzxUI > Unit Frames > Portrait. StzxUI doesn't include or copy those icons; it asks the installed addon for them. JiberishUI Icons is © JiberishUI, LLC, and each style belongs to its artist (see that addon's LICENSE.md).
+
 ## Move mode
 
 `/stzx move` (or the Unlock button in StzxUI's options) dims the screen, draws a grid and puts a labelled box over every StzxUI frame.

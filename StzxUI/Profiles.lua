@@ -28,12 +28,18 @@ local function NewProfileData()
 	}
 end
 
--- "Strikezx Kincrag - RealmName". Forever names have a surname.
+-- "Strikezx Kincrag - RealmName", or just "Strikezx Kincrag" when the game
+-- gives no realm name (Forever returns an empty one). Also returns the bare
+-- name, used to find a key saved in an older format.
 local function CharacterKey()
 	local name, surname = UnitName("player")
 	name, surname = Plain(name) or "Unknown", Plain(surname)
 	if surname and surname ~= "" then name = name .. " " .. surname end
-	return name .. " - " .. (GetRealmName() or "?")
+	local realm = Plain(GetRealmName())
+	if type(realm) == "string" and realm ~= "" then
+		return name .. " - " .. realm, name
+	end
+	return name, name
 end
 
 -- Copy a saved table, keeping only plain data (text, numbers, true/false,
@@ -88,8 +94,19 @@ function StzxUI:LoadProfiles()
 	end
 
 	self.db = db
-	self.charKey = CharacterKey()
-	local name = db.profileKeys[self.charKey]
+	local key, bareName = CharacterKey()
+	self.charKey = key
+	-- Keys saved by earlier versions: "Name - " (empty realm) or just "Name".
+	if db.profileKeys[key] == nil then
+		for _, old in ipairs({ bareName .. " - ", bareName }) do
+			if old ~= key and db.profileKeys[old] ~= nil then
+				db.profileKeys[key] = db.profileKeys[old]
+				db.profileKeys[old] = nil
+				break
+			end
+		end
+	end
+	local name = db.profileKeys[key]
 	if type(name) ~= "string" or not db.profiles[name] then name = DEFAULT_PROFILE end
 	db.profileKeys[self.charKey] = name
 	self.profileName = name

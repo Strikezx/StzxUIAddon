@@ -6,8 +6,10 @@
 ## Group: StzxUI
 ## Version: @project-version@
 ## Dependencies: StzxUI
+## OptionalDeps: JiberishIcons
 
 Style.lua
+Jiberish.lua
 Frame.lua
 CastBar.lua
 HideBlizzard.lua

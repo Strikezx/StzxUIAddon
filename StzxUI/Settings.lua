@@ -48,7 +48,8 @@ function StzxUI:AddCheckbox(page, owner, key, label, tooltip, onChange)
 	return setting
 end
 
--- Pick-one option. `choices` is a list of { value, label } pairs.
+-- Pick-one option. `choices` is a list of { value, label } pairs, or a
+-- function returning one (for lists that depend on what's installed).
 function StzxUI:AddDropdown(page, owner, key, label, tooltip, choices, onChange)
 	local setting = Settings.RegisterAddOnSetting(page, VariableName(owner, key), key, owner.db,
 		Settings.VarType.String, label, owner.defaults[key])
@@ -57,7 +58,8 @@ function StzxUI:AddDropdown(page, owner, key, label, tooltip, choices, onChange)
 	end
 	local function Options()
 		local container = Settings.CreateControlTextContainer()
-		for _, choice in ipairs(choices) do
+		local list = type(choices) == "function" and choices() or choices
+		for _, choice in ipairs(list) do
 			container:Add(choice[1], choice[2])
 		end
 		return container:GetData()
