@@ -33,7 +33,21 @@ events:SetScript("OnEvent", function()
 	end
 end)
 
--- which: "player", "target", "focus", "pet" or "targettarget"
+-- Blizzard's raid frames live in a load-on-demand addon, so they may not
+-- exist yet: hide them as soon as that addon loads.
+local hideRaidWhenLoaded = false
+local function TuckRaid()
+	Tuck(_G.CompactRaidFrameManager)
+	Tuck(_G.CompactRaidFrameContainer)
+end
+events:RegisterEvent("ADDON_LOADED")
+events:HookScript("OnEvent", function(_, event, name)
+	if event == "ADDON_LOADED" and name == "Blizzard_CompactRaidFrames" and hideRaidWhenLoaded then
+		TuckRaid()
+	end
+end)
+
+-- which: "player", "target", "focus", "pet", "targettarget", "party" or "raid"
 function ns.HideBlizzardFrames(which)
 	if which == "player" then
 		Tuck(_G.PlayerFrame)
@@ -48,5 +62,11 @@ function ns.HideBlizzardFrames(which)
 		Tuck(_G.PetFrame)
 	elseif which == "targettarget" then
 		Tuck(_G.TargetFrameToT)
+	elseif which == "party" then
+		-- The raid-style party frames (CompactPartyFrame) sit inside PartyFrame.
+		Tuck(_G.PartyFrame)
+	elseif which == "raid" then
+		hideRaidWhenLoaded = true
+		TuckRaid()
 	end
 end

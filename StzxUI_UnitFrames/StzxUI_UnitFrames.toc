@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: |cff4fc3f7Stzx|rUI - Unit Frames
-## Notes: StzxUI's player and target frames with cast bars.
+## Notes: StzxUI's unit frames (player, target, focus, target-of-target, pet) and party and raid frames.
 ## Author: Strikezx
 ## Category: |cff4fc3f7Stzx|rUI
 ## Group: StzxUI
@@ -15,3 +15,5 @@ Frame.lua
 CastBar.lua
 HideBlizzard.lua
 UnitFrames.lua
+Group.lua
+GroupFrames.lua

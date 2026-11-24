@@ -101,7 +101,9 @@ local function UpdateHealth(frame)
 		text:SetText(offline and "Offline" or (Plain(UnitIsGhost(unit)) and "Ghost" or "Dead"))
 		return
 	end
-	bar:SetColor(ns.module.db.healthColour == "GREEN" and Style.GREEN or Style.UnitColour(unit))
+	-- Group frames carry their own colour choice; the big frames share one.
+	local colourMode = settings.healthColour or ns.module.db.healthColour
+	bar:SetColor(colourMode == "GREEN" and Style.GREEN or Style.UnitColour(unit))
 
 	local mode = settings.healthText
 	if mode == "NUMBER" then
@@ -140,6 +142,9 @@ local function UpdateName(frame)
 		frame.nameText:SetText(name or "")
 	end
 end
+
+-- Shared with the party and raid frames (Group.lua).
+ns.UpdateHealth, ns.UpdatePower, ns.UpdateName = UpdateHealth, UpdatePower, UpdateName
 
 local function UpdateLevel(frame)
 	local level = Plain(UnitLevel(frame.unit))

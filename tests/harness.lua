@@ -26,6 +26,8 @@ local casting = {}     -- [unit] = { name, texture, startMS, endMS, castID, notI
 local blizzard = {}
 local auraState = {}   -- [unit] = list of fake auras { auraInstanceID, icon, duration, expirationTime, applications, dispelName, harmful, mine }
 local realmName = "Testrealm"
+local group = { kind = nil, units = {} } -- fake roster: kind "party"/"raid", units in order
+local rangeOf = {}     -- [unit] = { inRange, checked }
 local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
 
@@ -128,7 +130,18 @@ function Frame:SetValue(v) self.value = v end
 function Frame:GetValue() return self.value end
 function Frame:SetStatusBarColor(r, g, b) self.colour = { r, g, b } end
 function Frame:SetReverseFill(v) self.reverse = v end
-function Frame:SetAttribute(k, v) self.attributes = self.attributes or {}; self.attributes[k] = v end
+function Frame:SetAttribute(k, v)
+	self.attributes = self.attributes or {}
+	self.attributes[k] = v
+	if self.scripts.OnAttributeChanged then self.scripts.OnAttributeChanged(self, k, v) end
+end
+function Frame:HookScript(name, fn)
+	local old = self.scripts[name]
+	self.scripts[name] = old and function(...) old(...); fn(...) end or fn
+end
+function Frame:SetAlphaFromBoolean(v, yes, no)
+	self.alpha = issecretvalue(v) and "secret" or (v and yes or no)
+end
 function Frame:GetAttribute(k) return self.attributes and self.attributes[k] end
 function Frame:SetTexture(t) self.texture = t end
 function Frame:SetTexCoord(...) self.texCoord = { ... } end
@@ -172,7 +185,60 @@ local function InstallClient()
 	GameTooltip = NewFrame("GameTooltip", "GameTooltip")
 	UISpecialFrames = {}
 	SlashCmdList = {}
-	function CreateFrame(kind, name, parent) return NewFrame(kind, name, parent or UIParent) end
+	-- The secure group header: rebuilds its buttons from the fake roster
+	-- whenever it's shown or an attribute changes, like Blizzard's.
+	local function HeaderUnits(h)
+		local a = h.attributes or {}
+		if group.kind == "raid" and a.showRaid then return group.units end
+		if group.kind == "party" and a.showParty then
+			local list = {}
+			if a.showPlayer then list[1] = "player" end
+			for _, u in ipairs(group.units) do list[#list + 1] = u end
+			return list
+		end
+		if group.kind == nil and a.showSolo then return { "player" } end
+		return {}
+	end
+	local function HeaderUpdate(h)
+		if not h:IsVisible() or (h.attributes and h.attributes._ignore) then return end
+		local list = HeaderUnits(h)
+		local start = h:GetAttribute("startingIndex") or 1
+		local shown = #list - (start - 1)
+		for i = 1, math.max(1, shown) do
+			if not h[i] then
+				h[i] = NewFrame("Button", h.name .. "UnitButton" .. i, h)
+				h[i].template = h:GetAttribute("template")
+				h[i].configCode = h:GetAttribute("initialConfigFunction")
+			end
+		end
+		local i = 1
+		while h[i] do
+			local unit = (i <= shown) and list[start + i - 1] or nil
+			if h[i]:GetAttribute("unit") ~= unit then h[i]:SetAttribute("unit", unit) end
+			h[i].shown = unit ~= nil
+			i = i + 1
+		end
+		log.headerUpdates = (log.headerUpdates or 0) + 1
+	end
+	function CreateFrame(kind, name, parent, template)
+		local f = NewFrame(kind, name, parent or UIParent)
+		if template and template:find("Header") then
+			f.shown = false
+			f.attributes = {
+				showParty = template == "SecurePartyHeaderTemplate" or nil,
+				showRaid = template == "SecureRaidGroupHeaderTemplate" or nil,
+			}
+			f.scripts.OnShow = HeaderUpdate
+			f.scripts.OnAttributeChanged = function(h, k) if k ~= "_ignore" then HeaderUpdate(h) end end
+			f.headerUpdate = HeaderUpdate
+		end
+		return f
+	end
+	function RegisterStateDriver(frame, state, condition) frame.stateDriver = { state = state, condition = condition } end
+	function UnitInRange(u) local r = rangeOf[u]; if r then return r[1], r[2] end return true, true end
+	function UnitIsGroupLeader(u) local d = unitState[u]; return d and d.leader or false end
+	function GetRaidTargetIndex(u) local d = unitState[u]; return d and d.marker end
+	function SetRaidTargetIconTexture(tex, index) tex.markerIndex = index end
 	C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
 	function GetTime() return now end
 	function InCombatLockdown() return inCombat end
@@ -270,7 +336,8 @@ local function InstallClient()
 	end
 	-- Blizzard's own frames that StzxUI hides
 	for _, name in ipairs({ "PlayerFrame", "TargetFrame", "PlayerCastingBarFrame", "TargetFrameSpellBar",
-		"FocusFrame", "FocusFrameSpellBar", "PetFrame", "TargetFrameToT" }) do
+		"FocusFrame", "FocusFrameSpellBar", "PetFrame", "TargetFrameToT", "PartyFrame",
+		"CompactRaidFrameManager", "CompactRaidFrameContainer" }) do
 		blizzard[name] = NewFrame("Frame", name)
 		blizzard[name].events.SOMETHING = true
 	end
@@ -518,7 +585,7 @@ StzxUIDB.core.snapToGrid = true
 
 -- Snap to other frames: the target frame's left edge is at 985.
 StzxUIDB.core.snapToFrames = true
-DragTo(statsHolder, 808, 600) -- right edge lands at 978, 7 short of 985
+DragTo(statsHolder, 808, 760) -- right edge lands at 978, 7 short of 985 (height clear of the group frames)
 check(statsHolder:GetLeft() + statsHolder:GetWidth() == 985, "right edge lines up with a nearby frame's edge")
 check(StzxUI.profile.positions.InfoStats.y % 16 == 0, "the other direction still snaps to the grid")
 local playerHolder = StzxUI.movers.PlayerFrame
@@ -656,6 +723,7 @@ check(StzxUI:GetModule("Social").db.thankMode == "EMOTE", "defaults back after r
 log.settings.STZXUI_SECTION_INFO:SetValue(false)
 check(StzxUIDB.profiles.Default.enabled.Info == false and DialogShown(), "switching Info off is saved and asks to reload")
 log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(false)
+log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -663,6 +731,7 @@ SlashCmdList.STZXUI("move")
 check(not StzxUI.moveMode and lastPrint():find("nothing to move", 1, true), "move mode explains when there's nothing to move")
 log.settings.STZXUI_SECTION_INFO:SetValue(true)
 log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(true)
+log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
 check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
 Reload()
 check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
@@ -959,6 +1028,100 @@ check(not StzxUI.movers.FocusFrame and blizzard.FocusFrame:IsVisible(), "focus s
 StzxUIDB.profiles.Default.modules.UnitFrames.focus.enabled = true
 units.focus, units.targettarget, units.pet = nil, nil, nil
 unitState.focus, unitState.targettarget, unitState.pet = nil, nil, nil
+
+---------------------------------------------------------------------------
+-- 15. Party and raid frames
+---------------------------------------------------------------------------
+StartGame(nil)
+local PH, RH = StzxUIPartyHeader, StzxUIRaidHeader
+check(PH and RH and StzxUI.movers.PartyFrames and StzxUI.movers.RaidFrames, "party and raid frames, each with a mover")
+check(PH[5] and not PH[6] and RH[40] and not RH[41], "every button made up front, out of combat (5 party, 40 raid)")
+check(PH[1].stzxStyled and RH[40].stzxStyled and PH[1].art, "every button styled")
+check(PH.stateDriver.condition:find("[group:party] show", 1, true) and RH.stateDriver.condition == "[group:raid] show; hide",
+	"party shows in a party, raid in a raid")
+check(PH[1].configCode:find("SetWidth(150)", 1, true) and PH[1].configCode:find("togglemenu", 1, true),
+	"buttons get their size and click actions in secure code")
+check(PH.parent == StzxUIPartyFrames and StzxUIPartyFrames.h == 5 * 36 + 4 * 6, "header sits in a movable box sized for a full party")
+check(Category("Party & Raid") and log.settings.STZXUI_GROUPPARTY_ONLYDISPELLABLE, "Party & Raid options page")
+check(not blizzard.PartyFrame:IsVisible(), "Blizzard's party frames hidden")
+
+-- Join a party.
+units.party1 = { name = "Liala", surname = "Brightwood", isPlayer = true }
+unitState.party1 = { class = "DRUID", hp = 300, hpMax = 400, power = 50, powerMax = 100, leader = true, marker = 8 }
+units.party2 = { name = "Gorr", isPlayer = true }
+unitState.party2 = { class = "SHAMAN", hp = 0, hpMax = 500, dead = true }
+group.kind, group.units = "party", { "party1", "party2" }
+PH:Show()
+PH.headerUpdate(PH)
+local me, liala, gorr = PH[1], PH[2], PH[3]
+check(me.unit == "player" and liala.unit == "party1" and gorr.unit == "party2" and not PH[4].shown, "you first, then the party")
+check(liala.nameText.text == "Liala Brightwood" and liala.healthText.text == "75%", "name with surname, health percent")
+check(liala.health.colour[1] == 1 and liala.leader.shown and liala.marker.markerIndex == 8, "class colour, leader crown, raid marker")
+check(gorr.healthText.text == "Dead", "dead members say so")
+check(me.power.shown and me.power.max == 22000, "thin power bar")
+unitState.party1.hp = 100
+Fire("UNIT_HEALTH", "party1")
+check(liala.healthText.text == "25%", "health updates by event")
+auraState.party1 = {
+	{ auraInstanceID = 71, icon = 136, duration = 10, expirationTime = now + 5, applications = 0, dispelName = "Magic", harmful = true },
+	{ auraInstanceID = 72, icon = 137, duration = 0, expirationTime = 0, applications = 2, harmful = true },
+	{ auraInstanceID = 73, icon = 138, duration = 0, expirationTime = 0, applications = 0, harmful = true },
+	{ auraInstanceID = 74, icon = 139, duration = 0, expirationTime = 0, applications = 0, harmful = true },
+}
+Fire("UNIT_AURA", "party1")
+check(liala.debuffs[1].shown and liala.debuffs[3].shown and not (liala.debuffs[4] and liala.debuffs[4].shown),
+	"up to 3 debuffs on a party member")
+check(liala.debuffs[1].auraInstanceID == 71 and liala.debuffs[2].count.text == 2, "debuff icons with stacks")
+rangeOf.party1 = { false, true }
+for _, f in ipairs(frames) do if f.scripts.OnUpdate and f.events.GROUP_ROSTER_UPDATE then f.scripts.OnUpdate(f, 1) end end
+check(liala.art.alpha == 0.4 and me.art.alpha == 1, "out-of-range members fade (you never do)")
+rangeOf.party1 = { SECRET, SECRET }
+for _, f in ipairs(frames) do if f.scripts.OnUpdate and f.events.GROUP_ROSTER_UPDATE then f.scripts.OnUpdate(f, 1) end end
+check(liala.art.alpha == "secret", "in combat the secret range check fades without being compared")
+units.target = units.party1
+function UnitIsUnit(a, b) return (a == "party1" and b == "target") or a == b end
+Fire("PLAYER_TARGET_CHANGED")
+check(liala.highlight.shown and not me.highlight.shown, "your target is highlighted")
+unitState.party1.hp = SECRET
+Fire("UNIT_HEALTH", "party1")
+check(liala.healthText.text == "<secret>", "secret health is shown, not compared")
+
+-- Settings apply straight away, out of combat.
+local partyDB = StzxUIDB.profiles.Default.modules.GroupFrames.party
+partyDB.width, partyDB.growth = 120, "RIGHT"
+log.settings.STZXUI_GROUPPARTY_WIDTH:SetValue(120)
+check(liala.w == 120 and PH:GetAttribute("point") == "LEFT" and StzxUIPartyFrames.w == 5 * 120 + 4 * 6,
+	"width and growth change live")
+inCombat = true
+log.settings.STZXUI_GROUPPARTY_SPACING:SetValue(10)
+check(PH:GetAttribute("xOffset") == 6, "...but wait while in combat")
+inCombat = false
+Fire("PLAYER_REGEN_ENABLED")
+check(PH:GetAttribute("xOffset") == 10, "...and catch up after")
+
+-- A raid.
+group.kind, group.units = "raid", {}
+for i = 1, 12 do
+	local u = "raid" .. i
+	units[u] = { name = "Raider" .. i, isPlayer = true }
+	unitState[u] = { class = "SHAMAN", hp = 50, hpMax = 100 }
+	group.units[i] = u
+end
+RH:Show()
+RH.headerUpdate(RH)
+check(RH[12].unit == "raid12" and not RH[13].shown and RH[12].healthText.text == "50%", "raid cells fill in")
+check(RH:GetAttribute("groupBy") == "GROUP" and RH:GetAttribute("unitsPerColumn") == 5, "raid sorted by group, 5 per column")
+check(not RH[1].power.shown, "raid cells have no power bar by default")
+
+StzxUIDB.profiles.Default.modules.GroupFrames.raid.enabled = false
+Reload()
+check(StzxUIPartyHeader and not StzxUI.movers.RaidFrames, "raid frames can be switched off on their own")
+StzxUIDB.profiles.Default.modules.GroupFrames.raid.enabled = true
+group.kind, group.units = nil, {}
+for i = 1, 12 do units["raid" .. i], unitState["raid" .. i] = nil, nil end
+units.party1, units.party2, unitState.party1, unitState.party2, auraState.party1 = nil, nil, nil, nil, nil
+units.target = nil
+rangeOf = {}
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

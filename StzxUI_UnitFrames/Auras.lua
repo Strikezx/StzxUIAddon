@@ -107,11 +107,23 @@ end
 ---------------------------------------------------------------------------
 
 -- The unit's auras for a filter, or an empty list if the game says no.
-local function GetAuras(unit, filter)
+local function GetAuras(unit, filter, max)
 	if not (C_UnitAuras and C_UnitAuras.GetUnitAuras) then return {} end
-	local ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, MAX_EACH, SORT)
+	local ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, max or MAX_EACH, SORT)
 	if ok and type(list) == "table" then return list end
 	return {}
+end
+
+-- Shared with the party and raid frames (Group.lua).
+ns.GetAuras = GetAuras
+ns.CreateAuraButton = CreateButton
+function ns.SetAuraButton(button, unit, aura, harmful)
+	button.unit, button.auraInstanceID = unit, aura.auraInstanceID
+	button.icon:SetTexture(aura.icon)
+	SetBorder(button, harmful, aura)
+	SetSwipe(button, unit, aura)
+	SetCount(button, unit, aura)
+	button:Show()
 end
 
 function ns.UpdateAuras(frame)
@@ -151,7 +163,6 @@ function ns.UpdateAuras(frame)
 				button = CreateButton(container)
 				container.buttons[used] = button
 			end
-			button.unit, button.auraInstanceID = unit, aura.auraInstanceID
 			button:SetSize(size, size)
 			button:ClearAllPoints()
 			local x, y = col * (size + SPACING) * direction, row * (size + SPACING)
@@ -160,11 +171,7 @@ function ns.UpdateAuras(frame)
 			else
 				button:SetPoint("TOP" .. side, container, "TOP" .. side, x, -y)
 			end
-			button.icon:SetTexture(aura.icon)
-			SetBorder(button, group.harmful, aura)
-			SetSwipe(button, unit, aura)
-			SetCount(button, unit, aura)
-			button:Show()
+			ns.SetAuraButton(button, unit, aura, group.harmful)
 			col = col + 1
 			if col >= perRow then row, col = row + 1, 0 end
 		end

@@ -10,7 +10,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI` | Core: settings (Esc > Options > AddOns > StzxUI), profiles, move mode, section on/off switches, `/stzx` |
 | `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player) |
 | `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates |
-| `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars; hides Blizzard's |
+| `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars, plus party and raid frames (a separate Party & Raid section); hides Blizzard's |
 
 ## Optional: JiberishUI Icons
 
