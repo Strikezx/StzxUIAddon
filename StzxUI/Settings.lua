@@ -103,6 +103,9 @@ function StzxUI:CreateSettingsPanel()
 		"Frames line up with the grid as you drop them. Hold Shift while dragging to place freely.")
 	self:AddCheckbox(category, core, "snapToFrames", "Snap to other frames",
 		"A frame dropped close to another lines up with its edges or centre. Hold Shift to place freely.")
+	self:AddCheckbox(category, core, "withEditMode", "Open with Edit Mode",
+		"Opening Blizzard's Edit Mode opens StzxUI move mode too, so you can place both at once. "
+		.. "While both are open, StzxUI uses Edit Mode's grid size and its frames snap to Blizzard's.")
 	self:AddSlider(category, core, "gridSize", "Grid size",
 		"Space between grid lines in move mode.", 8, 64, 8,
 		function(value) return ("%d px"):format(value) end,

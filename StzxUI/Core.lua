@@ -33,6 +33,7 @@ StzxUI.CORE_DEFAULTS = {
 	snapToFrames = true,   -- move mode lines frames up with each other's edges
 	gridSize = 16,         -- grid spacing in move mode
 	hiddenCategories = {}, -- move mode: [category] = true to hide its boxes
+	withEditMode = true,   -- opening Blizzard's Edit Mode opens move mode too
 }
 
 ---------------------------------------------------------------------------

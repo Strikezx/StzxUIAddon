@@ -140,8 +140,37 @@ local function BuildGrid()
 	return grid
 end
 
+---------------------------------------------------------------------------
+-- Edit Mode
+---------------------------------------------------------------------------
+
+local function EditModeActive()
+	local manager = _G.EditModeManagerFrame
+	return manager and manager.IsEditModeActive and manager:IsEditModeActive() or false
+end
+StzxUI.EditModeActive = EditModeActive
+
+-- Edit Mode's grid spacing while Edit Mode is open with its grid showing, else nil.
+function StzxUI:EditModeGridSize()
+	if not EditModeActive() then return nil end
+	local manager = _G.EditModeManagerFrame
+	if not (manager.Grid and manager.Grid:IsShown()) then return nil end
+	local ok, spacing = pcall(manager.GetAccountSettingValue, manager, Enum.EditModeAccountSetting.GridSpacing)
+	spacing = ok and tonumber(spacing)
+	return spacing and spacing > 0 and spacing or nil
+end
+
 function StzxUI:RefreshGrid()
-	if not grid or not grid:IsShown() then return end
+	if not grid or not self.moveMode then return end
+	-- Edit Mode draws its own grid from the screen centre, like ours: show only one.
+	local editGrid = self:EditModeGridSize()
+	grid:SetShown(not editGrid)
+	if toolbar then
+		toolbar.gridButton:SetText(editGrid and ("Grid: %d (Edit Mode)"):format(editGrid)
+			or ("Grid: %d"):format(self.db.core.gridSize or 16))
+		toolbar.gridButton:SetEnabled(not editGrid)
+	end
+	if editGrid then return end
 	for _, line in ipairs(gridLines) do line:Hide() end
 
 	local step = math.max(4, self.db.core.gridSize or 16)
@@ -350,13 +379,25 @@ function StzxUI:EnterMoveMode()
 	self.moveMode = true
 
 	grid:Show()
-	self:RefreshGrid()
 	toolbar.snap:SetChecked(self.db.core.snapToGrid and true or false)
 	toolbar.snapFrames:SetChecked(self.db.core.snapToFrames and true or false)
-	toolbar.gridButton:SetText(("Grid: %d"):format(self.db.core.gridSize or 16))
 	RefreshFilters(toolbar)
+	self:PlaceToolbar()
 	toolbar:Show()
+	self:RefreshGrid()
 	ShowBoxes()
+end
+
+-- Edit Mode's own panel sits at the top centre, so with both open the
+-- toolbar moves to the top-left corner (it can still be dragged).
+function StzxUI:PlaceToolbar()
+	if not toolbar then return end
+	toolbar:ClearAllPoints()
+	if EditModeActive() then
+		toolbar:SetPoint("TOPLEFT", 16, -16)
+	else
+		toolbar:SetPoint("TOP", 0, -48)
+	end
 end
 
 function StzxUI:ExitMoveMode()
@@ -373,6 +414,45 @@ end
 function StzxUI:ToggleMoveMode()
 	if self.moveMode then self:ExitMoveMode() else self:EnterMoveMode() end
 end
+
+-- Edit Mode opens and closes move mode with it (setting "Open with Edit
+-- Mode"). Blizzard calls these through its callback registry, which keeps
+-- our code apart from its secure code.
+local openedByEditMode = false
+if EventRegistry and EventRegistry.RegisterCallback then
+	EventRegistry:RegisterCallback("EditMode.Enter", function()
+		if StzxUI.moveMode then
+			StzxUI:PlaceToolbar()
+			StzxUI:RefreshGrid()
+		elseif StzxUI.db and StzxUI.db.core.withEditMode and #StzxUI.moverOrder > 0 and not InCombatLockdown() then
+			StzxUI:EnterMoveMode()
+			openedByEditMode = StzxUI.moveMode
+		end
+	end, "StzxUIMoveModeEnter")
+	EventRegistry:RegisterCallback("EditMode.Exit", function()
+		if openedByEditMode and StzxUI.moveMode then
+			StzxUI:ExitMoveMode()
+		else
+			StzxUI:PlaceToolbar()
+			StzxUI:RefreshGrid()
+		end
+		openedByEditMode = false
+	end, "StzxUIMoveModeExit")
+end
+
+-- Edit Mode's grid switch and spacing slider: keep our grid in step.
+local gridHooked = false
+local function HookEditModeGrid()
+	local manager = _G.EditModeManagerFrame
+	if not manager or gridHooked then return end
+	gridHooked = true
+	for _, method in ipairs({ "SetGridShown", "SetGridSpacing" }) do
+		if manager[method] then
+			hooksecurefunc(manager, method, function() StzxUI:RefreshGrid() end)
+		end
+	end
+end
+HookEditModeGrid()
 
 -- Combat closes move mode at once.
 local events = CreateFrame("Frame")

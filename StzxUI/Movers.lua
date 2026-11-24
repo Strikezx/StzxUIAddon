@@ -117,33 +117,56 @@ end
 -- Snap to other frames: if an edge or centre line of this frame is within
 -- SNAP_DISTANCE of another visible frame's edge or centre line, line them up.
 -- Returns the corrected left / top, or nil on an axis with nothing close.
-local function SnapToFrames(holder, left, top)
-	local width, height = holder:GetWidth(), holder:GetHeight()
-	local bestX, bestY, bestDX, bestDY
+-- A frame's edges in UIParent's units (Blizzard's frames can have their own
+-- scale). nil when it isn't on screen.
+local function Rect(frame)
+	if not (frame and frame:IsVisible()) then return nil end
+	local left, bottom, width, height = frame:GetRect()
+	if not left then return nil end
+	local s = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
+	return left * s, (bottom + height) * s, (left + width) * s, bottom * s
+end
+
+-- Everything a frame can line up with: the other StzxUI boxes, plus the
+-- Blizzard frames Edit Mode places (action bars, minimap, chat, ...).
+local function SnapTargets(holder)
+	local rects = {}
 	for _, key in ipairs(StzxUI.moverOrder) do
 		local other = StzxUI.movers[key]
 		if other ~= holder and other.overlay:IsShown() then
-			local oLeft, oTop = other:GetLeft(), other:GetTop()
-			if oLeft and oTop then
-				local oRight, oBottom = oLeft + other:GetWidth(), oTop - other:GetHeight()
-				local oMidX, oMidY = (oLeft + oRight) / 2, (oTop + oBottom) / 2
-				-- Horizontal: our left, right or middle against theirs.
-				for _, ours in ipairs({ 0, width, width / 2 }) do
-					for _, theirs in ipairs({ oLeft, oRight, oMidX }) do
-						local d = math.abs(left + ours - theirs)
-						if d <= SNAP_DISTANCE and (not bestDX or d < bestDX) then
-							bestDX, bestX = d, theirs - ours
-						end
-					end
+			local l, t, r, b = Rect(other)
+			if l then rects[#rects + 1] = { l, t, r, b } end
+		end
+	end
+	local manager = _G.EditModeManagerFrame
+	for _, system in ipairs(manager and manager.registeredSystemFrames or {}) do
+		local l, t, r, b = Rect(system)
+		if l then rects[#rects + 1] = { l, t, r, b } end
+	end
+	return rects
+end
+
+local function SnapToFrames(holder, left, top)
+	local width, height = holder:GetWidth(), holder:GetHeight()
+	local bestX, bestY, bestDX, bestDY
+	for _, rect in ipairs(SnapTargets(holder)) do
+		local oLeft, oTop, oRight, oBottom = rect[1], rect[2], rect[3], rect[4]
+		local oMidX, oMidY = (oLeft + oRight) / 2, (oTop + oBottom) / 2
+		-- Horizontal: our left, right or middle against theirs.
+		for _, ours in ipairs({ 0, width, width / 2 }) do
+			for _, theirs in ipairs({ oLeft, oRight, oMidX }) do
+				local d = math.abs(left + ours - theirs)
+				if d <= SNAP_DISTANCE and (not bestDX or d < bestDX) then
+					bestDX, bestX = d, theirs - ours
 				end
-				-- Vertical: our top, bottom or middle against theirs.
-				for _, ours in ipairs({ 0, height, height / 2 }) do
-					for _, theirs in ipairs({ oTop, oBottom, oMidY }) do
-						local d = math.abs(top - ours - theirs)
-						if d <= SNAP_DISTANCE and (not bestDY or d < bestDY) then
-							bestDY, bestY = d, theirs + ours
-						end
-					end
+			end
+		end
+		-- Vertical: our top, bottom or middle against theirs.
+		for _, ours in ipairs({ 0, height, height / 2 }) do
+			for _, theirs in ipairs({ oTop, oBottom, oMidY }) do
+				local d = math.abs(top - ours - theirs)
+				if d <= SNAP_DISTANCE and (not bestDY or d < bestDY) then
+					bestDY, bestY = d, theirs + ours
 				end
 			end
 		end
@@ -166,7 +189,8 @@ function StzxUI:SaveMoverPosition(holder, free)
 			snappedX = frameX and Round(frameX - centerX)
 			snappedY = frameY and Round(frameY - centerY)
 		end
-		local grid = core.gridSize or 16
+		-- With Edit Mode open and its grid showing, use its spacing so both line up.
+		local grid = self:EditModeGridSize() or core.gridSize or 16
 		local useGrid = core.snapToGrid and grid > 0
 		x = snappedX or (useGrid and Round(x / grid) * grid or Round(x))
 		y = snappedY or (useGrid and Round(y / grid) * grid or Round(y))

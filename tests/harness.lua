@@ -29,6 +29,7 @@ local realmName = "Testrealm"
 local group = { kind = nil, units = {} } -- fake roster: kind "party"/"raid", units in order
 local rangeOf = {}     -- [unit] = { inRange, checked }
 local questID = 0      -- the quest open in the quest giver window
+local editMode = { active = false, gridShown = true, spacing = 20 }
 local cvars = {}
 local jiberishInstalled = false
 local SCREEN_W, SCREEN_H = 1600, 900
@@ -91,6 +92,15 @@ end
 function Frame:ClearAllPoints() self.points = {}; self.allPointsOf = nil end
 function Frame:SetAllPoints(rel) self.allPointsOf = rel or self.parent end
 function Frame:GetLeft() local r = self:Rect(); return r and r.left end
+function Frame:GetEffectiveScale() return self.effScale or 1 end
+-- In the frame's own units: divided by its scale, as the game does.
+function Frame:GetRect()
+	local r = self:Rect()
+	if not r then return nil end
+	local s = self.effScale or 1
+	return r.left / s, r.bottom / s, r.w / s, r.h / s
+end
+function Frame:SetEnabled(on) self.enabled = on and true or false end
 function Frame:GetTop() local r = self:Rect(); return r and (r.bottom + r.h) end
 function Frame:GetCenter() local r = self:Rect(); if r then return r.left + r.w / 2, r.bottom + r.h / 2 end end
 function Frame:SetSize(w, h) self.w, self.h = w, h end
@@ -253,9 +263,10 @@ local function InstallClient()
 	QuestMapFrame.DetailsFrame.Bg:SetSize(280, 500)
 	function QuestMapFrame_ShowQuestDetails(id) QuestMapFrame.DetailsFrame.questID = id end
 	function QuestMapFrame_CloseQuestDetails() QuestMapFrame.DetailsFrame.questID = nil end
-	function hooksecurefunc(name, fn)
-		local old = _G[name]
-		_G[name] = function(...) local a, b = old(...); fn(...); return a, b end
+	function hooksecurefunc(t, name, fn)
+		if type(t) == "string" then t, name, fn = _G, t, name end
+		local old = t[name]
+		t[name] = function(...) local a, b = old(...); fn(...); return a, b end
 	end
 	function GetQuestID() return questID end
 	function UnitXP() return unitState.player.xp or 0 end
@@ -335,7 +346,25 @@ local function InstallClient()
 	function UnitCastingInfo(u) return Cast(u, false) end
 	function UnitChannelInfo(u) return Cast(u, true) end
 	-- Auras
-	Enum = { UnitAuraSortRule = { Expiration = 3 } }
+	Enum = { UnitAuraSortRule = { Expiration = 3 }, EditModeAccountSetting = { ShowGrid = 0, GridSpacing = 1 } }
+	-- Edit Mode: Blizzard's callback registry and its manager frame, with one
+	-- system frame (an action bar at half scale) to snap to.
+	local callbacks = {}
+	EventRegistry = {
+		RegisterCallback = function(_, event, fn, owner) callbacks[event] = callbacks[event] or {}; callbacks[event][owner] = fn end,
+		TriggerEvent = function(_, event) for _, fn in pairs(callbacks[event] or {}) do fn() end end,
+	}
+	EditModeManagerFrame = NewFrame("Frame", "EditModeManagerFrame")
+	EditModeManagerFrame.Grid = NewFrame("Frame", nil, EditModeManagerFrame)
+	function EditModeManagerFrame:IsEditModeActive() return editMode.active end
+	function EditModeManagerFrame:GetAccountSettingValue(setting) if setting == 1 then return editMode.spacing end end
+	function EditModeManagerFrame:SetGridShown(on) editMode.gridShown = on; self.Grid.shown = on end
+	function EditModeManagerFrame:SetGridSpacing(n) editMode.spacing = n end
+	local bar = NewFrame("Frame", "MainActionBar")
+	bar.effScale = 0.5
+	bar:SetSize(500, 50)
+	bar:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 600, 100)
+	EditModeManagerFrame.registeredSystemFrames = { bar }
 	C_UnitAuras = {
 		GetUnitAuras = function(unit, filter, maxCount)
 			local list = {}
@@ -1229,6 +1258,62 @@ check(InfoMod.XPText() == "Lv 19  4%  -- xp/h", "/stzx xp starts again")
 unitState.player.level = 60
 check(InfoMod.XPText() == nil, "hidden at max level")
 unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, nil
+
+---------------------------------------------------------------------------
+-- 18. Move mode alongside Edit Mode
+---------------------------------------------------------------------------
+StartGame(nil)
+local function OpenEditMode()
+	editMode.active = true
+	EditModeManagerFrame.shown = true
+	EditModeManagerFrame.Grid.shown = editMode.gridShown
+	EventRegistry:TriggerEvent("EditMode.Enter")
+end
+local function CloseEditMode()
+	editMode.active = false
+	EditModeManagerFrame.shown = false
+	EventRegistry:TriggerEvent("EditMode.Exit")
+end
+local bar = StzxUIMoveToolbar
+OpenEditMode()
+check(StzxUI.moveMode and StzxUIMoveToolbar and StzxUIMoveToolbar.shown, "opening Edit Mode opens move mode")
+bar = StzxUIMoveToolbar
+check(bar.points[1].point == "TOPLEFT", "toolbar moves to the corner, clear of Edit Mode's panel")
+check(StzxUIMoveToolbar.gridButton.text == "Grid: 20 (Edit Mode)" and StzxUIMoveToolbar.gridButton.enabled == false,
+	"uses Edit Mode's grid size")
+local sh = StzxUI.movers.InfoStats
+StzxUIDB.core.snapToFrames = false
+DragTo(sh, 800 + 23, 450 + 3)
+check(StzxUI.profile.positions.InfoStats.x == 20 and StzxUI.profile.positions.InfoStats.y == 0,
+	"drops snap to Edit Mode's 20-unit grid")
+StzxUIDB.core.snapToFrames = true
+DragTo(sh, 604, 300 + 3)
+check(StzxUI.profile.positions.InfoStats.x == -200, "snaps to a Blizzard frame's edge (action bar, even at its own scale)")
+EditModeManagerFrame:SetGridShown(false)
+check(StzxUIMoveToolbar.gridButton.text == "Grid: 16" and StzxUIMoveToolbar.gridButton.enabled,
+	"Edit Mode's grid switched off: StzxUI's own grid comes back")
+EditModeManagerFrame:SetGridShown(true)
+CloseEditMode()
+check(not StzxUI.moveMode, "closing Edit Mode closes move mode it opened")
+
+StzxUI:EnterMoveMode()
+OpenEditMode()
+check(StzxUI.moveMode and StzxUIMoveToolbar.points[1].point == "TOPLEFT", "already open: stays open, toolbar moves aside")
+CloseEditMode()
+check(StzxUI.moveMode and StzxUIMoveToolbar.points[1].point == "TOP", "...and stays open after Edit Mode closes")
+StzxUI:ExitMoveMode()
+
+check(log.settings.STZXUI_CORE_WITHEDITMODE, "setting: Open with Edit Mode")
+log.settings.STZXUI_CORE_WITHEDITMODE:SetValue(false)
+OpenEditMode()
+check(not StzxUI.moveMode, "switched off: Edit Mode opens alone")
+CloseEditMode()
+log.settings.STZXUI_CORE_WITHEDITMODE:SetValue(true)
+inCombat = true
+OpenEditMode()
+check(not StzxUI.moveMode, "never in combat")
+inCombat = false
+CloseEditMode()
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
