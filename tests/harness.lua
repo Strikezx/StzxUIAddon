@@ -1142,6 +1142,8 @@ end
 RH:Show()
 RH.headerUpdate(RH)
 check(RH[12].unit == "raid12" and not RH[13].shown and RH[12].healthText.text == "50%", "raid cells fill in")
+check(not blizzard.CompactRaidFrameContainer:IsVisible() and blizzard.CompactRaidFrameManager:IsVisible(),
+	"Blizzard's raid frames hidden, its raid manager panel kept")
 check(RH:GetAttribute("groupBy") == "GROUP" and RH:GetAttribute("unitsPerColumn") == 5, "raid sorted by group, 5 per column")
 check(not RH[1].power.shown, "raid cells have no power bar by default")
 

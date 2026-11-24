@@ -36,8 +36,9 @@ end)
 -- Blizzard's raid frames live in a load-on-demand addon, so they may not
 -- exist yet: hide them as soon as that addon loads.
 local hideRaidWhenLoaded = false
+-- Only the frames themselves: the raid manager panel on the left edge
+-- (ready check, world markers) stays.
 local function TuckRaid()
-	Tuck(_G.CompactRaidFrameManager)
 	Tuck(_G.CompactRaidFrameContainer)
 end
 events:RegisterEvent("ADDON_LOADED")
