@@ -30,6 +30,7 @@ local group = { kind = nil, units = {} } -- fake roster: kind "party"/"raid", un
 local rangeOf = {}     -- [unit] = { inRange, checked }
 local questID = 0      -- the quest open in the quest giver window
 local questLog, questOffers = {}, {}
+local instance, money, lootWindow = nil, 0, {}
 local afters = {}
 local function RunAfters() local list = afters; afters = {}; for _, fn in ipairs(list) do fn() end end
 local function TickAll(list)
@@ -297,7 +298,19 @@ local function InstallClient()
 	C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
 	function GetTime() return now end
 	function InCombatLockdown() return inCombat end
-	function IsInInstance() return false end
+	-- Instances: instance = nil (outside) or { name, kind, id }.
+	function IsInInstance() if instance then return true, instance.kind end return false, "none" end
+	function GetInstanceInfo()
+		if not instance then return "Eastern Kingdoms", "none", 0, "", 0, 0, false, 0 end
+		return instance.name, instance.kind, 1, "Normal", 5, 0, false, instance.id
+	end
+	function time() return math.floor(now) end
+	function date(fmt, t) return os.date(fmt, t) end
+	function wipe(t) for k in pairs(t) do t[k] = nil end return t end
+	function GetMoney() return money end
+	function GetNumLootItems() return #lootWindow end
+	function GetLootSlotLink(i) return lootWindow[i] and lootWindow[i].link end
+	function GetLootSlotInfo(i) local l = lootWindow[i]; if l then return nil, l.link, 1, nil, l.quality end end
 	function IsShiftKeyDown() return shiftDown end
 	C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
 	function UnitName(u) local d = units[u]; if d then return d.name, d.surname end end
@@ -515,7 +528,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -611,9 +624,9 @@ check(log.whispers[1] == "WHISPER>Petra Stonewell>Thanks for the buff, Petra!", 
 ---------------------------------------------------------------------------
 local stats, coords = StzxUIInfoStats, StzxUIInfoCoords
 check(stats.text.text:find("60 fps", 1, true) and stats.text.text:find("61 ms", 1, true), "stats show fps and the higher latency")
-mapPos = { 0.4523, 0.6781 }; tickers[#tickers].fn()
+mapPos = { 0.4523, 0.6781 }; for _, t in ipairs(tickers) do t.fn(t) end
 check(coords.text.text == "45.2, 67.8", "coordinates shown to one decimal")
-mapPos = nil; tickers[#tickers].fn()
+mapPos = nil; for _, t in ipairs(tickers) do t.fn(t) end
 check(coords.text.text == "--, --", "coordinates blank where the game hides them")
 log.settings.STZXUI_INFO_SHOWCOORDS:SetValue(false)
 check(not coords.shown and tickers[#tickers].fn ~= nil, "coordinates hide when switched off")
@@ -813,6 +826,7 @@ log.settings.STZXUI_SECTION_INFO:SetValue(false)
 check(StzxUIDB.profiles.Default.enabled.Info == false and DialogShown(), "switching Info off is saved and asks to reload")
 log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
+log.settings.STZXUI_SECTION_RUNS:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -821,6 +835,7 @@ check(not StzxUI.moveMode and lastPrint():find("nothing to move", 1, true), "mov
 log.settings.STZXUI_SECTION_INFO:SetValue(true)
 log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
+log.settings.STZXUI_SECTION_RUNS:SetValue(true)
 check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
 Reload()
 check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
@@ -1417,6 +1432,99 @@ QuestFrame.shown, questID, questLog, questOffers = false, 0, {}, {}
 QuestMapFrame.shown = false
 group.units = {}
 for i = 1, 3 do units["party" .. i], unitState["party" .. i] = nil, nil end
+
+---------------------------------------------------------------------------
+-- 20. Runs: dungeon run history
+---------------------------------------------------------------------------
+StzxUIRunsDB = nil
+unitState.player.xp, unitState.player.xpMax = 1000, 10000
+money = 50000
+StartGame(nil)
+local Runs = StzxUI:GetModule("Runs")
+check(Runs.enabled and Category("Runs") and StzxUI.movers.RunTimer, "Runs section, options page and a movable timer")
+check(Runs.Current() == nil and not StzxUIRunTimer.shown, "outside: no run")
+
+local start = now
+instance = { name = "The Deadmines", kind = "party", id = 36 }
+Fire("PLAYER_ENTERING_WORLD")
+local run = Runs.Current()
+check(run and run.name == "The Deadmines" and run.level == 18, "going in starts a run")
+check(StzxUIRunTimer.shown and Runs.TimerText() == "The Deadmines  0:00", "run timer shows while inside")
+
+now = now + 600
+unitState.player.xp = 4000
+Fire("PLAYER_XP_UPDATE", "player")
+Fire("ENCOUNTER_END", 1, "Rhahk'Zor", 1, 5, 1)
+Fire("ENCOUNTER_END", 2, "Sneed", 1, 5, 0) -- a wipe
+Fire("PLAYER_DEAD")
+check(run.xp == 3000 and #run.bosses == 1 and run.deaths == 1, "XP, bosses killed (not wipes) and deaths counted")
+check(Runs.TimerText() == "The Deadmines  10:00  1 boss", "timer shows time and bosses")
+
+lootWindow = {
+	{ link = "[Linen Cloth]", quality = 1 },
+	{ link = "[Cruel Barb]", quality = 3 },
+	{ link = "[Smelting Pants]", quality = 2 },
+}
+Fire("LOOT_READY")
+Fire("LOOT_SLOT_CLEARED", 2)
+Fire("LOOT_SLOT_CLEARED", 1)
+Fire("LOOT_CLOSED")
+check(#run.loot == 1 and run.loot[1] == "[Cruel Barb]", "loot you pick up, green and better")
+
+-- A /reload inside carries the run on.
+now = now + 60
+Reload()
+check(Runs.Current() == run or (Runs.Current() and Runs.Current().start == start), "/reload inside: same run")
+
+money = 62345
+Fire("PLAYER_MONEY")
+now = now + 1500
+TickAll(tickers) -- the game's "still inside" check, every 30 seconds
+unitState.player.level, unitState.player.xp, unitState.player.xpMax = 19, 500, 11000
+Fire("PLAYER_XP_UPDATE", "player")
+-- Leave.
+instance = nil
+Fire("PLAYER_ENTERING_WORLD")
+local done = Runs.History()[1]
+check(Runs.Current() == nil and done and done.duration == 2160 and done.money == 12345,
+	"leaving ends the run: 36 minutes, +1g 23s 45c")
+check(done.xp == 3000 + 6000 + 500, "XP across a level-up")
+local cols = Runs.Columns(done)
+check(cols.time == "36:00" and cols.gold == "+1g 23s" and cols.xp == "9.5k" and cols.bosses == "1" and cols.loot == "1",
+	"history row text")
+check(not StzxUIRunTimer.shown, "timer hides outside")
+check(Runs.Money(-4500) == "-45s" and Runs.Money(0) == "0" and Runs.Money(7) == "+7c", "money text")
+
+-- Window.
+SlashCmdList.STZXUI("runs")
+check(StzxUIRunsWindow.shown and StzxUIRunsWindow.rows[1].cells.name.text == "The Deadmines"
+	and not StzxUIRunsWindow.rows[2].shown and StzxUIRunsWindow.count.text == "1-1 of 1", "/stzx runs opens the history")
+
+-- Raids can be left out; a logout inside and coming back much later is a new run.
+Runs.db.raids = false
+instance = { name = "Molten Core", kind = "raid", id = 409 }
+Fire("PLAYER_ENTERING_WORLD")
+check(Runs.Current() == nil, "raids off: not tracked")
+Runs.db.raids = true
+Fire("PLAYER_ENTERING_WORLD")
+check(Runs.Current() and Runs.Current().name == "Molten Core", "raids on: tracked")
+now = now + 3 * 3600
+Reload()
+check(#Runs.History() == 2 and Runs.Current().start == math.floor(now), "back hours later: old run closed, new one started")
+check(Runs.History()[1].duration < 3600, "...ending when you were last seen inside")
+
+-- Keep only so many.
+Runs.db.keep = 3
+for i = 1, 5 do
+	instance = nil; Fire("PLAYER_ENTERING_WORLD")
+	instance = { name = "Run " .. i, kind = "party", id = 100 + i }; Fire("PLAYER_ENTERING_WORLD")
+end
+instance = nil; Fire("PLAYER_ENTERING_WORLD")
+check(#Runs.History() == 3 and Runs.History()[1].name == "Run 5", "history keeps the newest runs only")
+Runs.db.keep = 50
+StzxUIRunsWindow:Hide()
+unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, nil
+money, lootWindow = 0, {}
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

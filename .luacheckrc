@@ -16,7 +16,7 @@ ignore = {
 -- Globals StzxUI creates
 globals = {
 	"StzxUI",
-	"StzxUIDB",
+	"StzxUIDB", "StzxUIRunsDB",
 	"SlashCmdList",
 	"SLASH_STZXUI1",
 	"SLASH_STZXUI2",
@@ -77,7 +77,8 @@ read_globals = {
 	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists",
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
-	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "QuestLogPushQuest", "IsInGroup", "C_QuestLog", "GetMaxLevelForPlayerExpansion", "UnitXP", "UnitXPMax", "C_CVar", "CreateColor", "GetQuestID", "QuestFrame",
+	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "time", "date", "wipe", "GetMoney",
+	"GetInstanceInfo", "IsInInstance", "GetLootSlotInfo", "GetLootSlotLink", "GetNumLootItems", "QuestLogPushQuest", "IsInGroup", "C_QuestLog", "GetMaxLevelForPlayerExpansion", "UnitXP", "UnitXPMax", "C_CVar", "CreateColor", "GetQuestID", "QuestFrame",
 	"QuestMapFrame", "QuestMapFrame_CloseQuestDetails", "QuestMapFrame_ShowQuestDetails", "hooksecurefunc", "UnitInRange", "UnitIsGroupLeader",
 	"GetRaidTargetIndex", "SetRaidTargetIconTexture", "GameTooltip_SetDefaultAnchor",
 	"Enum", "C_UnitAuras",
