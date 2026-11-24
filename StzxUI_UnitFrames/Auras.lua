@@ -17,7 +17,6 @@ local StzxUI = _G.StzxUI
 local Plain = StzxUI.Plain
 
 local MAX_EACH = 16 -- most buffs / debuffs shown per frame
-local SPACING = 2
 
 -- Debuff borders by type; untyped debuffs are red.
 local DEBUFF_COLOURS = {
@@ -40,21 +39,46 @@ local function ShowTooltip(button)
 	if ok then GameTooltip:Show() else GameTooltip:Hide() end
 end
 
+-- Each icon: a 1-pixel border inside its own edge, so the space between
+-- icons is a real gap. Its numbers (time left in the middle, stacks in the
+-- bottom-right corner) are sized to the icon so they stay inside it.
+local FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+
+local function SizeButton(button, size)
+	button:SetSize(size, size)
+	if button.fontFor == size then return end
+	button.fontFor = size
+	button.count:SetFont(FONT, math.max(7, math.floor(size * 0.38)), "OUTLINE")
+	local countdown = button.cooldown.GetCountdownFontString and button.cooldown:GetCountdownFontString()
+	if countdown then
+		countdown:SetFont(FONT, math.max(7, math.floor(size * 0.42)), "OUTLINE")
+		countdown:ClearAllPoints()
+		countdown:SetPoint("CENTER", 0, 1)
+	end
+end
+ns.SizeAuraButton = SizeButton
+
 local function CreateButton(container)
 	local button = CreateFrame("Frame", nil, container)
 	button.border = button:CreateTexture(nil, "BACKGROUND")
-	button.border:SetPoint("TOPLEFT", -1, 1)
-	button.border:SetPoint("BOTTOMRIGHT", 1, -1)
+	button.border:SetAllPoints()
 	button.icon = button:CreateTexture(nil, "ARTWORK")
-	button.icon:SetAllPoints()
+	button.icon:SetPoint("TOPLEFT", 1, -1)
+	button.icon:SetPoint("BOTTOMRIGHT", -1, 1)
 	button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 	button.cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-	button.cooldown:SetAllPoints()
+	button.cooldown:SetPoint("TOPLEFT", 1, -1)
+	button.cooldown:SetPoint("BOTTOMRIGHT", -1, 1)
 	button.cooldown:SetReverse(true)
 	button.cooldown:SetDrawEdge(false)
-	button.count = button:CreateFontString(nil, "OVERLAY")
-	button.count:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
-	button.count:SetPoint("BOTTOMRIGHT", 2, -1)
+	-- Stacks sit above the swipe, tucked inside the corner.
+	local text = CreateFrame("Frame", nil, button)
+	text:SetAllPoints()
+	text:SetFrameLevel(button.cooldown:GetFrameLevel() + 2)
+	button.count = text:CreateFontString(nil, "OVERLAY")
+	button.count:SetPoint("BOTTOMRIGHT", -1, 2)
+	button.count:SetJustifyH("RIGHT")
+	SizeButton(button, 22)
 	button:EnableMouse(true)
 	button:SetScript("OnEnter", ShowTooltip)
 	button:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -129,7 +153,8 @@ end
 function ns.UpdateAuras(frame)
 	local container, settings, unit = frame.auraContainer, frame.settings, frame.unit
 	if not container then return end
-	local size = settings.auraSize or 22
+	local size = settings.auraSize or 24
+	local SPACING = settings.auraSpacing or 1
 	local left = frame.side == "LEFT"
 	local above = settings.auraPosition ~= "BELOW"
 	local perRow = math.max(1, math.floor((frame.dims.width + SPACING) / (size + SPACING)))
@@ -163,7 +188,7 @@ function ns.UpdateAuras(frame)
 				button = CreateButton(container)
 				container.buttons[used] = button
 			end
-			button:SetSize(size, size)
+			SizeButton(button, size)
 			button:ClearAllPoints()
 			local x, y = col * (size + SPACING) * direction, row * (size + SPACING)
 			if above then

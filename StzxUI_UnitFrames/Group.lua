@@ -147,7 +147,7 @@ local function LayoutButton(button)
 	end
 	local size = s.debuffSize
 	for i, icon in ipairs(button.debuffs) do
-		icon:SetSize(size, size)
+		ns.SizeAuraButton(icon, size)
 		icon:ClearAllPoints()
 		if raid then
 			icon:SetPoint("BOTTOMRIGHT", button.health, "BOTTOMRIGHT", -2 - (i - 1) * (size + 1), 2)

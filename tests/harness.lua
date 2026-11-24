@@ -147,6 +147,13 @@ function Frame:HighlightText() self.highlighted = true end
 function Frame:SetFocus() self.focused = true end
 function Frame:SetCursorPosition(n) self.cursor = n end
 function Frame:SetTextColor(r, g, b) self.color = { r, g, b } end
+function Frame:SetFont(file, size, flags) self.font = { file = file, size = size, flags = flags } end
+-- A cooldown's countdown numbers (made on first ask, like the game's).
+function Frame:GetCountdownFontString()
+	if self.kind ~= "Cooldown" then return nil end
+	self.countdownText = self.countdownText or NewFrame("FontString", nil, self)
+	return self.countdownText
+end
 function Frame:SetFormattedText(fmt, ...)
 	local args, secret = { ... }, false
 	for i = 1, select("#", ...) do if issecretvalue(args[i]) then secret = true end end
@@ -192,7 +199,7 @@ function Frame:IsVisible() local f = self while f do if not f.shown then return 
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
-	"SetScrollChild", "SetOwner", "AddLine", "SetFont", "SetShadowColor", "SetWordWrap", "SetWidth",
+	"SetScrollChild", "SetOwner", "AddLine", "SetShadowColor", "SetWordWrap", "SetWidth",
 	"SetVertexColor", "SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
@@ -598,7 +605,17 @@ local CHAR = "Strikezx Kincrag - Testrealm"
 -- 1. Upgrade from the first release's saved settings
 ---------------------------------------------------------------------------
 StartGame({ core = { chatMessages = false }, modules = { Social = { thankMode = "WHISPER", thankCooldown = 7 } } })
-check(StzxUIDB.version == 2, "saved settings upgraded to version 2")
+check(StzxUIDB.version == 3, "saved settings upgraded to version 3")
+do
+	local saved = StzxUIDB
+	StzxUIDB = { version = 2, core = {}, profiles = { Default = { modules = { UnitFrames = {
+		player = { auraSize = 22 }, target = { auraSize = 30 }, pet = { auraSize = 18 } } } } } }
+	StzxUI:LoadProfiles()
+	local uf = StzxUIDB.profiles.Default.modules.UnitFrames
+	check(uf.player.auraSize == 24 and uf.pet.auraSize == 20 and uf.target.auraSize == 30,
+		"version 3: icons bumped from the old default, your own size kept")
+	StzxUIDB = saved
+end
 check(StzxUIDB.modules == nil, "old module settings moved out")
 check(StzxUIDB.profiles.Default.modules.Social.thankMode == "WHISPER", "your Social choices kept in the Default profile")
 check(StzxUIDB.profiles.Default.modules.Social.thankCooldown == 7, "your cooldown kept")
@@ -1094,6 +1111,15 @@ check(not PA[2].cooldown.shown, "no swipe on a buff with no duration")
 check(Shown(TA) == 3 and TA[1].icon.texture == 136207 and TA[3].icon.texture == 135987, "target: debuffs first, then buffs")
 check(TA[1].count.text == 3 and TA[2].count.text == "", "stack count shown from 2 up")
 check(TA[3].points[1].point == "BOTTOMRIGHT" and TA[3].points[1].y > 0, "target buffs start a new row, growing from the right")
+check(PA[1].w == 24 and PA[2].points[1].x == 25, "icons 24 px by default, 1 px apart")
+check(PA[1].icon.points[1].x == 1 and PA[1].icon.points[2].x == -1, "border inside the icon's edge, picture inset 1 px")
+check(PA[1].count.font.size == 9 and PA[1].cooldown.countdownText.font.size == 10,
+	"stack count and time left sized to fit inside a 24 px icon")
+check(PA[1].count.points[1].point == "BOTTOMRIGHT" and PA[1].count.points[1].x < 0 and PA[1].count.points[1].y > 0,
+	"stack count tucked inside the corner")
+log.settings.STZXUI_UNITFRAMESPLAYER_AURASPACING:SetValue(4)
+check(PA[2].points[1].x == 28, "space between icons is adjustable")
+log.settings.STZXUI_UNITFRAMESPLAYER_AURASPACING:SetValue(1)
 log.settings.STZXUI_UNITFRAMESTARGET_ONLYMINE:SetValue(true)
 check(Shown(TA) == 2 and TA[1].auraInstanceID == 11 and TA[2].auraInstanceID == 13, "only my debuffs (buffs still shown)")
 log.settings.STZXUI_UNITFRAMESTARGET_ONLYMINE:SetValue(false)
@@ -1104,7 +1130,8 @@ check(Shown(TA) == 0, "debuffs can be hidden too")
 log.settings.STZXUI_UNITFRAMESTARGET_SHOWBUFFS:SetValue(true)
 log.settings.STZXUI_UNITFRAMESTARGET_SHOWDEBUFFS:SetValue(true)
 log.settings.STZXUI_UNITFRAMESPLAYER_AURASIZE:SetValue(30)
-check(PA[1].w == 30, "icon size option")
+check(PA[1].w == 30 and PA[1].count.font.size == 11 and PA[1].cooldown.countdownText.font.size == 12,
+	"icon size option: numbers grow with the icon")
 log.settings.STZXUI_UNITFRAMESPLAYER_AURAPOSITION:SetValue("BELOW")
 check(StzxUIPlayerFrame.auraContainer.points[1].point == "TOPLEFT" and PA[1].points[1].point == "TOPLEFT", "auras can go below the frame")
 log.settings.STZXUI_UNITFRAMESPLAYER_AURAPOSITION:SetValue("ABOVE")

@@ -16,7 +16,8 @@ local FRAME_DEFAULTS = {
 	showBuffs = true,
 	showDebuffs = true,
 	onlyMine = false,       -- target: only debuffs you cast
-	auraSize = 22,
+	auraSize = 24,
+	auraSpacing = 1,        -- pixels between icons
 	auraPosition = "ABOVE", -- "ABOVE" or "BELOW" the frame
 }
 
@@ -30,7 +31,8 @@ local SMALL_DEFAULTS = {
 	showBuffs = false,
 	showDebuffs = false,
 	onlyMine = false,
-	auraSize = 18,
+	auraSize = 20,
+	auraSpacing = 1,
 	auraPosition = "ABOVE",
 }
 
@@ -121,6 +123,8 @@ local function AddFrameOptions(page, spec)
 		"Small buff icons after the debuffs. Hover an icon for its tooltip.", RefreshAll)
 	StzxUI:AddSlider(page, owner, "auraSize", "Buff and debuff size",
 		"Icon size.", 16, 36, 2, function(value) return ("%d px"):format(value) end, RefreshAll)
+	StzxUI:AddSlider(page, owner, "auraSpacing", "Space between icons",
+		nil, 0, 6, 1, function(value) return ("%d px"):format(value) end, RefreshAll)
 	StzxUI:AddDropdown(page, owner, "auraPosition", "Buffs and debuffs go",
 		"Above or below the frame.", { { "ABOVE", "Above the frame" }, { "BELOW", "Below the frame" } }, RefreshAll)
 end

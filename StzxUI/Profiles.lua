@@ -12,7 +12,7 @@
 local StzxUI = _G.StzxUI
 local Plain = StzxUI.Plain
 
-local DB_VERSION = 2
+local DB_VERSION = 3
 local DEFAULT_PROFILE = "Default"
 local EXPORT_PREFIX = "!STZX1!"
 local MAX_NAME_LENGTH = 32
@@ -85,6 +85,21 @@ function StzxUI:LoadProfiles()
 		default.modules = db.modules
 		db.profiles[DEFAULT_PROFILE] = default
 		db.modules = nil
+	end
+	-- Version 3: buff and debuff icons a touch bigger (24, small frames 20),
+	-- unless you'd already picked your own size.
+	if (tonumber(db.version) or 0) < 3 then
+		local bigger = { player = { 22, 24 }, target = { 22, 24 }, focus = { 22, 24 },
+			targettarget = { 18, 20 }, pet = { 18, 20 } }
+		for _, data in pairs(db.profiles) do
+			local frames = type(data) == "table" and type(data.modules) == "table" and data.modules.UnitFrames
+			if type(frames) == "table" then
+				for unit, sizes in pairs(bigger) do
+					local f = frames[unit]
+					if type(f) == "table" and f.auraSize == sizes[1] then f.auraSize = sizes[2] end
+				end
+			end
+		end
 	end
 	db.version = DB_VERSION
 
