@@ -1700,6 +1700,68 @@ check(select(2, Fish.Catches("Elwynn Forest")) == 3, "the log is kept")
 fishing.zone, lootWindow, StzxUIFishingDB = "Elwynn Forest", {}, nil
 
 ---------------------------------------------------------------------------
+-- 23. Test frames
+---------------------------------------------------------------------------
+StartGame(nil)
+local PH2, RH2 = StzxUIPartyHeader, StzxUIRaidHeader
+check(StzxUI.testModes.groups and not StzxUI.testMode, "party and raid register test frames; off to start")
+SlashCmdList.STZXUI("test")
+check(StzxUI.testMode and PH2.preview.shown and RH2.preview.shown, "/stzx test shows pretend party and raid")
+local PC, RC = PH2.preview.cells, RH2.preview.cells
+check(#PC == 5 and #RC == 40 and PH2.preview.parent == StzxUIPartyFrames, "5 party cells and 40 raid cells, inside the movable boxes")
+check(PC[1].nameText.text == "Strikezx" and PC[1].healthText.text == "100%", "you first, at full health")
+check(PC[2].leader.shown and PC[2].highlight.shown and PC[2].debuffs[1].shown and PC[2].debuffs[2].count.text == 3,
+	"a leader, your target and debuffs with stacks")
+check(PC[3].healthText.text == "Dead" and PC[5].healthText.text == "Offline" and PC[4].art.alpha == 0.4,
+	"dead, offline and out of range")
+check(PC[2].points[1].point == "TOPLEFT" and PC[2].points[1].y == -42, "laid out like the real party (36 high, 6 apart, growing down)")
+check(RC[6].points[1].x == 75 and RC[6].points[1].y == 0 and RC[2].points[1].y == -41, "raid: one column per group")
+check(RC[1].marker.markerIndex == 8 and RC[7].healthText.text == "Dead", "raid markers and the rest")
+check(PH2.alpha == 0, "real frames step aside while testing")
+
+local partyDB2 = StzxUIDB.profiles.Default.modules.GroupFrames.party
+partyDB2.healthText = "BOTH"
+log.settings.STZXUI_GROUPPARTY_WIDTH:SetValue(120)
+check(PC[2].w == 120 and PC[2].healthText.text:find(" | ", 1, true), "settings show on the test frames straight away")
+log.settings.STZXUI_GROUPPARTY_SHOWPLAYER:SetValue(false)
+check(not PC[5].shown and PC[1].nameText.text ~= "Strikezx", "without yourself: four members")
+log.settings.STZXUI_GROUPPARTY_SHOWPLAYER:SetValue(true)
+partyDB2.healthText = "PERCENT"
+
+SlashCmdList.STZXUI("test")
+check(not StzxUI.testMode and not PH2.preview.shown and PH2.alpha == 1, "/stzx test again hides them")
+
+-- From the move mode toolbar.
+StzxUI:EnterMoveMode()
+local tb = StzxUIMoveToolbar
+check(tb.test.shown, "toolbar has a Test frames switch")
+tb.test:SetChecked(true)
+Script(tb.test, "OnClick")
+check(StzxUI.testMode and RH2.preview.shown, "switch shows the test frames")
+StzxUI:ExitMoveMode()
+check(not StzxUI.testMode, "...and they go when move mode closes")
+
+-- Combat.
+SlashCmdList.STZXUI("test")
+Fire("PLAYER_REGEN_DISABLED")
+check(not StzxUI.testMode and not RH2.preview.shown and RH2.alpha == 1, "hidden as combat starts")
+inCombat = true
+SlashCmdList.STZXUI("test")
+check(not StzxUI.testMode and lastPrint():find("combat", 1, true), "not in combat")
+inCombat = false
+check(Button("Party & Raid", "Test frames"), "button on the Party & Raid page")
+
+log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
+Reload()
+SlashCmdList.STZXUI("test")
+check(lastPrint():find("nothing has test frames", 1, true), "Party & Raid off: says so")
+StzxUI:EnterMoveMode()
+check(not StzxUIMoveToolbar.test.shown, "...and no switch on the toolbar")
+StzxUI:ExitMoveMode()
+log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
+Reload()
+
+---------------------------------------------------------------------------
 -- 8. Slash commands
 ---------------------------------------------------------------------------
 SlashCmdList.STZXUI("profile")

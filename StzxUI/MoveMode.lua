@@ -229,7 +229,7 @@ end
 
 local function BuildToolbar()
 	local bar = CreateFrame("Frame", "StzxUIMoveToolbar", UIParent)
-	bar:SetSize(600, 96)
+	bar:SetSize(700, 96)
 	bar:SetPoint("TOP", 0, -48)
 	bar:SetFrameStrata("FULLSCREEN_DIALOG")
 	bar:SetClampedToScreen(true)
@@ -277,9 +277,24 @@ local function BuildToolbar()
 		check.key = key
 		return check, label
 	end
-	local snapLabel
+	local snapLabel, framesLabel
 	bar.snap, snapLabel = Switch("Snap to grid", "snapToGrid")
-	bar.snapFrames = Switch("Snap to frames", "snapToFrames", snapLabel)
+	bar.snapFrames, framesLabel = Switch("Snap to frames", "snapToFrames", snapLabel)
+
+	-- Test frames: pretend party and raid members (and anything else that
+	-- registers a test mode) so there's something to place.
+	local test = CreateFrame("CheckButton", nil, bar, "UICheckButtonTemplate")
+	test:SetSize(24, 24)
+	test:SetPoint("LEFT", framesLabel, "RIGHT", 12, 0)
+	test.label = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	test.label:SetPoint("LEFT", test, "RIGHT", 2, 0)
+	test.label:SetText("Test frames")
+	test:SetScript("OnClick", function(button)
+		local on = button:GetChecked() and true or false
+		StzxUI:SetTestMode(on)
+		StzxUI.testFromMoveMode = on
+	end)
+	bar.test = test
 
 	-- Row 2: "Show:" one switch per category, built when move mode opens.
 	local showLabel = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -381,6 +396,10 @@ function StzxUI:EnterMoveMode()
 	grid:Show()
 	toolbar.snap:SetChecked(self.db.core.snapToGrid and true or false)
 	toolbar.snapFrames:SetChecked(self.db.core.snapToFrames and true or false)
+	local hasTests = next(self.testModes) ~= nil
+	toolbar.test:SetShown(hasTests)
+	toolbar.test.label:SetShown(hasTests)
+	toolbar.test:SetChecked(self.testMode and true or false)
 	RefreshFilters(toolbar)
 	self:PlaceToolbar()
 	toolbar:Show()
@@ -408,7 +427,48 @@ function StzxUI:ExitMoveMode()
 	end
 	if grid then grid:Hide() end
 	if toolbar and toolbar:IsShown() then toolbar:Hide() end
+	-- Test frames switched on from the toolbar go away with move mode.
+	if self.testFromMoveMode then
+		self.testFromMoveMode = false
+		self:SetTestMode(false)
+	end
 	GameTooltip:Hide()
+end
+
+---------------------------------------------------------------------------
+-- Test frames
+---------------------------------------------------------------------------
+
+-- Modules register a function(on) that shows or hides pretend frames.
+StzxUI.testModes = {}
+StzxUI.testMode = false
+
+function StzxUI:RegisterTestMode(name, fn)
+	self.testModes[name] = fn
+end
+
+-- Returns false when it can't (in combat).
+function StzxUI:SetTestMode(on)
+	on = on and true or false
+	if on and InCombatLockdown() then
+		self:Say("test frames can't be shown in combat.")
+		if toolbar then toolbar.test:SetChecked(false) end
+		return false
+	end
+	self.testMode = on
+	for _, fn in pairs(self.testModes) do fn(on) end
+	if toolbar then toolbar.test:SetChecked(on) end
+	return true
+end
+
+function StzxUI:ToggleTestMode()
+	if not next(self.testModes) then
+		self:Say("nothing has test frames (Party & Raid is switched off).")
+		return
+	end
+	self.testFromMoveMode = false
+	if not self:SetTestMode(not self.testMode) then return end
+	self:Say(self.testMode and "test frames on. /stzx test again to hide them." or "test frames off.")
 end
 
 function StzxUI:ToggleMoveMode()
@@ -454,12 +514,17 @@ local function HookEditModeGrid()
 end
 HookEditModeGrid()
 
--- Combat closes move mode at once.
+-- Combat closes move mode and test frames at once (this event comes just
+-- before the game locks secure frames).
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:SetScript("OnEvent", function()
 	if StzxUI.moveMode then
 		StzxUI:ExitMoveMode()
 		StzxUI:Say("move mode closed for combat.")
+	end
+	if StzxUI.testMode then
+		StzxUI:SetTestMode(false)
+		StzxUI:Say("test frames hidden for combat.")
 	end
 end)

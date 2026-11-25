@@ -157,11 +157,12 @@ local function LayoutButton(button)
 	end
 end
 
--- Turns one of the header's secure buttons into a StzxUI cell.
-local function StyleButton(button, header)
+-- Turns one of the header's secure buttons into a StzxUI cell. `preview`:
+-- an ordinary frame drawn the same way for test frames (no clicks, no unit).
+local function StyleButton(button, header, preview)
 	button.kind, button.settings = header.kind, header.settings
 	button.dims = { width = header.settings.width }
-	button:RegisterForClicks("AnyUp")
+	if not preview then button:RegisterForClicks("AnyUp") end
 
 	-- All the drawing hangs off "art" so range fading never touches the
 	-- secure button itself.
@@ -215,6 +216,10 @@ local function StyleButton(button, header)
 	button.marker:Hide()
 
 	button.debuffs = {}
+	if preview then
+		LayoutButton(button)
+		return
+	end
 
 	button:HookScript("OnEnter", function(self)
 		if not self.unit then return end
@@ -329,6 +334,7 @@ local function ApplyLayout(header)
 	end
 	header.area:SetSize(ns.GroupAreaSize(kind, s))
 	header:SetAttribute("startingIndex", 1) -- triggers the header to re-place its buttons
+	if header.preview and header.preview:IsShown() then ns.LayoutPreview(header) end
 end
 ns.ApplyGroupLayout = ApplyLayout
 
@@ -366,6 +372,176 @@ function ns.CreateGroupHeader(kind, area, settings)
 	if kind == "party" and settings.showSolo then visibility = VISIBILITY.partySolo end
 	RegisterStateDriver(header, "visibility", visibility)
 	return header
+end
+
+---------------------------------------------------------------------------
+-- Test frames: pretend members drawn exactly like the real cells
+---------------------------------------------------------------------------
+-- The secure header only ever shows real group members, so test frames are
+-- ordinary frames on top, laid out the way the header would, using the same
+-- settings. They cover the cases worth seeing: dead, offline, out of range,
+-- the leader, a raid marker, your target and some debuffs.
+
+local NAMES = { "Liala", "Gorr", "Tamsin", "Brannoc", "Elowen", "Krag", "Mirel", "Doran", "Sefa", "Thalric" }
+local CLASSES = { "DRUID", "WARRIOR", "MAGE", "PALADIN", "PRIEST", "SHAMAN", "ROGUE", "HUNTER", "WARLOCK" }
+local DEBUFFS = {
+	{ icon = "Interface\\Icons\\Spell_Shadow_ShadowWordPain", dispelName = "Magic" },
+	{ icon = "Interface\\Icons\\Spell_Nature_CorrosiveBreath", dispelName = "Poison", applications = 3 },
+	{ icon = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras", dispelName = "Curse" },
+	{ icon = "Interface\\Icons\\Spell_Nature_NullifyDisease", dispelName = "Disease" },
+}
+local GREY = { r = 0.45, g = 0.45, b = 0.45 }
+local MANA, RAGE = { r = 0.00, g = 0.44, b = 0.87 }, { r = 0.78, g = 0.25, b = 0.25 }
+
+-- Pretend member number i of a party (5) or raid (40).
+function ns.TestMember(kind, i, withPlayer)
+	local m = {
+		name = NAMES[(i - 1) % #NAMES + 1],
+		class = CLASSES[(i - 1) % #CLASSES + 1],
+		health = ((i * 37) % 85 + 15) / 100,
+	}
+	if kind == "raid" and i > #NAMES then m.name = m.name .. " " .. math.ceil(i / #NAMES) end
+	if kind == "party" and withPlayer and i == 1 then
+		local name = Plain(UnitName("player"))
+		local _, class = UnitClass("player")
+		m.name, m.class, m.health, m.you = name or "You", Plain(class) or m.class, 1, true
+	end
+	local leader, dead, offline, target = 2, 3, 5, 2
+	local far = { [4] = true }
+	local debuffs = { [2] = { 1, 2 }, [4] = { 3 } }
+	if kind == "raid" then
+		leader, dead, offline, target = 1, 7, 12, 9
+		far = { [15] = true, [16] = true, [17] = true, [33] = true }
+		debuffs = { [3] = { 1 }, [9] = { 2, 4 }, [21] = { 3 }, [26] = { 1, 2 } }
+		if i == 1 then m.marker = 8 elseif i == 4 then m.marker = 7 end
+	end
+	m.leader, m.dead, m.offline, m.target, m.far = i == leader, i == dead, i == offline, i == target, far[i]
+	m.debuffs = debuffs[i]
+	return m
+end
+
+local function PaintPreview(cell, m)
+	local s = cell.settings
+	cell.nameText:SetText(m.name)
+	cell.nameText:SetTextColor(1, 1, 1)
+
+	local bar, text = cell.health, cell.healthText
+	local colour = Style.GREEN
+	if s.healthColour ~= "GREEN" then
+		colour = (C_ClassColor and C_ClassColor.GetClassColor(m.class)) or Style.GREEN
+	end
+	bar:SetMinMaxValues(0, 1)
+	if m.dead or m.offline then
+		bar:SetValue(m.offline and 1 or 0)
+		bar:SetColor(GREY)
+		text:SetText(m.offline and "Offline" or "Dead")
+	else
+		bar:SetValue(m.health)
+		bar:SetColor(colour)
+		local hp, pct = math.floor(m.health * 4200), math.floor(m.health * 100 + 0.5)
+		if s.healthText == "NUMBER" then
+			text:SetText(hp)
+		elseif s.healthText == "PERCENT" then
+			text:SetText(pct .. "%")
+		elseif s.healthText == "BOTH" then
+			text:SetText(("%d | %d%%"):format(hp, pct))
+		else
+			text:SetText("")
+		end
+	end
+
+	if s.powerHeight > 0 then
+		cell.power:SetMinMaxValues(0, 1)
+		cell.power:SetValue((m.dead or m.offline) and 0 or 0.65)
+		cell.power:SetColor(m.class == "WARRIOR" and RAGE or MANA)
+	end
+
+	local shown = 0
+	if s.showDebuffs and m.debuffs and not m.dead then
+		for _, index in ipairs(m.debuffs) do
+			if shown >= s.maxDebuffs or not cell.debuffs[shown + 1] then break end
+			local d = DEBUFFS[index]
+			shown = shown + 1
+			ns.SetAuraButton(cell.debuffs[shown], "player", { auraInstanceID = 0, icon = d.icon,
+				duration = 0, expirationTime = 0, applications = d.applications or 0, dispelName = d.dispelName }, true)
+		end
+	end
+	for i = shown + 1, #cell.debuffs do cell.debuffs[i]:Hide() end
+
+	cell.art:SetAlpha((m.far and s.rangeFade) and OUT_OF_RANGE_ALPHA or 1)
+	cell.leader:SetShown(m.leader)
+	if m.marker and SetRaidTargetIconTexture then
+		SetRaidTargetIconTexture(cell.marker, m.marker)
+		cell.marker:Show()
+	else
+		cell.marker:Hide()
+	end
+	cell.highlight:SetAlpha(1)
+	cell.highlight:SetShown(m.target)
+end
+
+-- Place and paint the pretend cells where the header would put real ones.
+function ns.LayoutPreview(header)
+	local s, kind, preview = header.settings, header.kind, header.preview
+	local count = kind == "party" and (s.showPlayer and 5 or 4) or 40
+	for i = 1, math.max(count, #preview.cells) do
+		local cell = preview.cells[i]
+		if i > count then
+			if cell then cell:Hide() end
+		else
+			if not cell then
+				cell = CreateFrame("Frame", nil, preview)
+				StyleButton(cell, header, true)
+				preview.cells[i] = cell
+			end
+			cell:SetSize(s.width, s.height)
+			cell.dims.width = s.width
+			LayoutButton(cell)
+			cell:ClearAllPoints()
+			local stepX, stepY = s.width + s.spacing, s.height + s.spacing
+			if kind == "party" then
+				local n = i - 1
+				if s.growth == "UP" then
+					cell:SetPoint("BOTTOMLEFT", preview, "BOTTOMLEFT", 0, n * stepY)
+				elseif s.growth == "RIGHT" then
+					cell:SetPoint("TOPLEFT", preview, "TOPLEFT", n * stepX, 0)
+				elseif s.growth == "LEFT" then
+					cell:SetPoint("TOPRIGHT", preview, "TOPRIGHT", -n * stepX, 0)
+				else
+					cell:SetPoint("TOPLEFT", preview, "TOPLEFT", 0, -n * stepY)
+				end
+				PaintPreview(cell, ns.TestMember("party", s.showPlayer and i or i + 1, s.showPlayer))
+			else
+				local group, slot = math.floor((i - 1) / 5), (i - 1) % 5
+				if s.groupsAcross then
+					cell:SetPoint("TOPLEFT", preview, "TOPLEFT", group * stepX, -slot * stepY)
+				else
+					cell:SetPoint("TOPLEFT", preview, "TOPLEFT", slot * stepX, -group * stepY)
+				end
+				PaintPreview(cell, ns.TestMember("raid", i))
+			end
+			cell:Show()
+		end
+	end
+end
+
+local function ShowTest(on)
+	for _, header in pairs(headers) do
+		if on and not header.preview then
+			local preview = CreateFrame("Frame", nil, header.area)
+			preview:SetAllPoints()
+			preview:SetFrameLevel(header:GetFrameLevel() + 20)
+			preview.cells = {}
+			header.preview = preview
+		end
+		if header.preview then
+			header.preview:SetShown(on)
+			if on then ns.LayoutPreview(header) end
+		end
+		-- Real members (if you're grouped) step aside while testing. Never in
+		-- combat: test frames are switched off before combat starts.
+		if not InCombatLockdown() then header:SetAlpha(on and 0 or 1) end
+	end
 end
 
 ---------------------------------------------------------------------------
@@ -410,6 +586,7 @@ local ALL_EVENTS = {
 local driver = CreateFrame("Frame")
 ns.groupDriver = driver
 function ns.StartGroupEvents()
+	StzxUI:RegisterTestMode("groups", ShowTest)
 	for event in pairs(UNIT_EVENTS) do driver:RegisterEvent(event) end
 	for event in pairs(ALL_EVENTS) do driver:RegisterEvent(event) end
 	driver:RegisterEvent("PLAYER_REGEN_ENABLED")

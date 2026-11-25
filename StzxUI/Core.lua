@@ -208,6 +208,10 @@ StzxUI.slashCommands.move = {
 	help = "unlock StzxUI frames so you can drag them (same again to lock)",
 	run = function() StzxUI:ToggleMoveMode() end,
 }
+StzxUI.slashCommands.test = {
+	help = "show or hide test frames (pretend party and raid) to see and place them",
+	run = function() StzxUI:ToggleTestMode() end,
+}
 StzxUI.slashCommands.profile = {
 	help = "show which profile this character uses",
 	run = function()

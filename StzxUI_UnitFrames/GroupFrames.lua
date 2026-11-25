@@ -90,6 +90,10 @@ function GroupFrames:OnInitialize()
 		end)
 	StzxUI:AddButton(page, "Place the frames", "Move mode",
 		function() StzxUI:EnterMoveMode() end, "Party and raid each have a box you can drag.")
+	StzxUI:AddButton(page, "Test frames", "Show / hide",
+		function() StzxUI:ToggleTestMode() end,
+		"Pretend party and raid members, drawn with your current settings, so you can see and place the "
+		.. "frames without a group. Also on the move mode toolbar and /stzx test. Hidden when combat starts.")
 
 	local party = { name = "GroupParty", db = self.db.party, defaults = PARTY_DEFAULTS }
 	StzxUI:AddHeader(page, "Party")
