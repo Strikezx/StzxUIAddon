@@ -73,6 +73,15 @@ function Skin.Refresh()
 	for tab in pairs(tabs) do Skin.PaintTab(tab) end
 end
 
+-- One backdrop's edge in a colour of its own (e.g. a tooltip in its item's
+-- quality colour), and back to the skin colour.
+function Skin.SetEdgeColour(backdrop, r, g, b)
+	for _, line in ipairs(backdrop.edges) do line:SetColorTexture(r, g, b, 1) end
+end
+function Skin.ResetEdges(backdrop)
+	for _, line in ipairs(backdrop.edges) do PaintEdge(line) end
+end
+
 function Skin.SetColourMode(newMode) mode = newMode or "ACCENT"; Skin.Refresh() end
 function Skin.SetOpacity(value) opacity = math.max(0.3, math.min(1, value or 0.92)); Skin.Refresh() end
 function Skin.IsSkinned(frame) return skinned[frame] ~= nil end

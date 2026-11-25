@@ -489,7 +489,7 @@ local function InstallClient()
 	function UnitChannelInfo(u) return Cast(u, true) end
 	-- Auras
 	Enum = { UnitAuraSortRule = { Expiration = 3 }, EditModeAccountSetting = { ShowGrid = 0, GridSpacing = 1 },
-		TooltipDataType = { Item = 0 },
+		TooltipDataType = { Item = 0, Spell = 1, Unit = 2 },
 		WeaponSlot = { MainHand = 0, OffHand = 1, Ranged = 2 } }
 	-- Fishing: a pole in the main hand (item 6256), an optional lure on it.
 	function GetInventoryItemID(_, slot)
@@ -505,15 +505,45 @@ local function InstallClient()
 		end,
 	}
 	local tooltipCalls = {}
-	TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn) tooltipCalls[#tooltipCalls + 1] = fn end }
-	function ShowItemTooltip(id)
+	TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn) tooltipCalls[#tooltipCalls + 1] = { kind = kind, fn = fn } end }
+	local function ShowTooltip(kind, data)
 		GameTooltip.lines = {}
-		for _, fn in ipairs(tooltipCalls) do fn(GameTooltip, { id = id }) end
+		if GameTooltip.scripts.OnTooltipCleared then GameTooltip.scripts.OnTooltipCleared(GameTooltip) end
+		for _, c in ipairs(tooltipCalls) do if c.kind == kind then c.fn(GameTooltip, data) end end
 		return GameTooltip.lines
 	end
+	function ShowItemTooltip(id, link) GameTooltip.itemLink = link; return ShowTooltip(0, { id = id }) end
+	function ShowSpellTooltip(id) return ShowTooltip(1, { id = id }) end
+	function ShowUnitTooltip(unit) GameTooltip.unit = unit; return ShowTooltip(2, {}) end
 	function GameTooltip:AddDoubleLine(l, r) table.insert(self.lines, l .. " " .. r) end
+	function GameTooltip:AddLine(text, r, g, b)
+		self.lines = self.lines or {}
+		table.insert(self.lines, text)
+		self.lastLineColour = { r, g, b }
+	end
+	function GameTooltip:GetUnit() return "Someone", self.unit end
+	function GameTooltip:GetItem() return "Item", self.itemLink end
+	GameTooltip.NineSlice = NewFrame("Frame", nil, GameTooltip)
+	ItemRefTooltip = NewFrame("GameTooltip", "ItemRefTooltip")
+	ItemRefTooltip.NineSlice = NewFrame("Frame", nil, ItemRefTooltip)
+	GameTooltipStatusBar = NewFrame("StatusBar", "GameTooltipStatusBar", GameTooltip)
+	function GameTooltipStatusBar:SetStatusBarTexture(t) self.barTex = t end
+	-- Blizzard's tooltip fonts.
+	for _, n in ipairs({ "GameTooltipHeaderText", "GameTooltipText", "GameTooltipTextSmall" }) do
+		local font = { font = { "Fonts\\FRIZQT__.TTF", n == "GameTooltipHeaderText" and 14 or 12, "" } }
+		function font:GetFont() return self.font[1], self.font[2], self.font[3] end
+		function font:SetFont(f, size, flags) self.font = { f, size, flags } end
+		_G[n] = font
+	end
+	SharedTooltip_SetBackdropStyle = function(tooltip) tooltip.NineSlice:SetAlpha(1) end
 	C_Item = {
 		GetItemIconByID = function() return 134400 end,
+		GetItemQualityByID = function(id) return ({ [2770] = 1, [6256] = 4 })[id] or 2 end,
+		GetItemQualityColor = function(q)
+			local c = ({ [2] = { 0.12, 1, 0 }, [4] = { 0.64, 0.21, 0.93 } })[q]
+			return c[1], c[2], c[3]
+		end,
+		GetDetailedItemLevelInfo = function() return 33 end,
 		GetItemInfoInstant = function(id) if id == 6256 then return id, "Weapon", "Fishing Poles", "INVTYPE_2HWEAPON", 1, 2, 20 end return id, "Weapon", "Daggers", "INVTYPE_WEAPON", 1, 2, 15 end,
 		GetWeaponEnchantInfo = function(slot)
 			if slot == 0 and fishing.lureMS then return { { hasEnchant = true, timeLeft = fishing.lureMS, charges = 0 } } end
@@ -2605,6 +2635,62 @@ unitState.player = savedPlayer
 log.prints = {}
 SlashCmdList.STZXUI("skins")
 check(lastPrint():find("0 more windows skinned", 1, true), "/stzx skins")
+end
+
+---------------------------------------------------------------------------
+-- 32. Tooltip
+---------------------------------------------------------------------------
+do
+	StartGame(nil)
+	local TT = StzxUI:GetModule("Tooltip")
+	local function TopEdge(frame)
+		for _, f in ipairs(frames) do
+			if f.kind == "Texture" and f.colour and f.points[1] and f.points[1].rel == frame and f.h == 1
+				and f.points[1].point == "TOPLEFT" and f.points[2] and f.points[2].point == "TOPRIGHT" then return f end
+		end
+	end
+	check(TT.enabled and Category("Tooltip"), "Tooltip section and page")
+	check(GameTooltip.NineSlice.alpha == 0 and ItemRefTooltip.NineSlice.alpha == 0 and TopEdge(GameTooltip),
+		"tooltips in StzxUI's look")
+	SharedTooltip_SetBackdropStyle(GameTooltip) -- Blizzard re-applies its art
+	check(GameTooltip.NineSlice.alpha == 0, "...and it stays")
+	check(GameTooltipStatusBar.barTex == "Interface\\Buttons\\WHITE8x8" and GameTooltipStatusBar.h == 5, "slim flat health bar")
+	check(GameTooltipText.font[2] == 13 and GameTooltipHeaderText.font[2] == 15 and GameTooltipTextSmall.font[2] == 11,
+		"bigger tooltip text (13)")
+	log.settings.STZXUI_TOOLTIP_TEXTSIZE:SetValue(16)
+	check(GameTooltipText.font[2] == 16 and GameTooltipHeaderText.font[2] == 18, "text size slider")
+	-- Items: edge in the quality colour; back to the skin colour for the next.
+	ShowItemTooltip(6256)
+	check(TopEdge(GameTooltip).colour[1] == 0.64, "epic item: purple edge")
+	local lines = ShowItemTooltip(2770)
+	check(TopEdge(GameTooltip).colour[1] == StzxUI.ACCENT.r and #lines == 0, "plain item: skin edge again, no extra lines by default")
+	log.settings.STZXUI_TOOLTIP_SHOWITEMLEVEL:SetValue(true)
+	log.settings.STZXUI_TOOLTIP_SHOWIDS:SetValue(true)
+	lines = table.concat(ShowItemTooltip(6256, "|Hitem:6256|h"), "/")
+	check(lines:find("Item level 33", 1, true) and lines:find("Item ID 6256", 1, true), "item level and item ID")
+	check(table.concat(ShowSpellTooltip(172), "/"):find("Spell ID 172", 1, true), "spell ID")
+	-- Units: who they're targeting (out of combat), class-coloured edge for players.
+	units.mouseover = { name = "Gorvak", isPlayer = true }
+	unitState.mouseover = { class = "SHAMAN" }
+	units.mouseovertarget = { name = "Strikezx", isPlayer = true }
+	unitState.mouseovertarget = { class = "DRUID" }
+	lines = table.concat(ShowUnitTooltip("mouseover"), "/")
+	check(TopEdge(GameTooltip).colour[3] == 0.87, "player: edge in their class colour")
+	check(lines:find("Target: Strikezx", 1, true) and GameTooltip.lastLineColour[1] == 1 and GameTooltip.lastLineColour[2] == 0.49,
+		"who they're targeting, in that player's class colour")
+	inCombat = true
+	lines = table.concat(ShowUnitTooltip("mouseover"), "/")
+	inCombat = false
+	check(not lines:find("Target:", 1, true), "no target line in combat (names are hidden from addons)")
+	units.mouseovertarget = { name = SECRET }
+	lines = table.concat(ShowUnitTooltip("mouseover"), "/")
+	check(not lines:find("Target:", 1, true), "a hidden (secret) name is never compared or shown")
+	units.mouseover, units.mouseovertarget, unitState.mouseover, unitState.mouseovertarget = nil, nil, nil, nil
+	-- Edge colour follows the Skins setting.
+	log.settings.STZXUI_SKINS_COLOUR:SetValue("BLACK")
+	ShowItemTooltip(2770)
+	check(TopEdge(GameTooltip).colour[1] == 0, "tooltip edge follows the Skins edge colour")
+	log.settings.STZXUI_SKINS_COLOUR:SetValue("ACCENT")
 end
 
 ---------------------------------------------------------------------------

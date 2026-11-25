@@ -8,3 +8,4 @@
 ## Dependencies: StzxUI
 
 Skins.lua
+Tooltip.lua
