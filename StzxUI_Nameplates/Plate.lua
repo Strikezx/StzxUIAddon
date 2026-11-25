@@ -141,6 +141,8 @@ function ns.LayoutPlate(p, db)
 	p.cast:SetSize(db.width - castHeight - 2, castHeight)
 	p.castIcon:SetSize(castHeight, castHeight)
 	p.shield:SetSize(castHeight * 1.6, castHeight * 1.9)
+	p.name:SetFont(FONT, db.nameSize, "OUTLINE")
+	p.level:SetFont(FONT, math.max(9, db.nameSize - 3), "OUTLINE")
 	p.level:SetShown(db.showLevel)
 	for i = #p.debuffs + 1, db.maxDebuffs do
 		local icon = StzxUI.Auras.Create(p)
@@ -269,14 +271,15 @@ function ns.UpdateDebuffs(p)
 	ns.PlaceDebuffs(p, shown)
 end
 
--- A centred row above the name.
+-- A centred row above the name (clear of it, however big the name is).
 function ns.PlaceDebuffs(p, shown)
 	local size = ns.db().debuffSize
+	local above = ns.db().nameSize + 6
 	local width = shown * (size + 1) - 1
 	for i, icon in ipairs(p.debuffs) do
 		if i <= shown then
 			icon:ClearAllPoints()
-			icon:SetPoint("BOTTOMLEFT", p.health, "TOP", -width / 2 + (i - 1) * (size + 1), 16)
+			icon:SetPoint("BOTTOMLEFT", p.health, "TOP", -width / 2 + (i - 1) * (size + 1), above)
 			icon:Show()
 		else
 			icon:Hide()

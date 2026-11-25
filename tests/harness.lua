@@ -2165,6 +2165,11 @@ C_UnitAuras.GetUnitAuras = realGet
 -- Blizzard's shared code makes its plate visible again (range/status update in combat).
 np1.UnitFrame:SetAlpha(1)
 check(np1.UnitFrame.alpha == 0, "Blizzard's plate goes straight back to invisible (no second, bigger name)")
+check(p1.name.font.size == 14 and p1.debuffs[1].points[1].y == 20, "a bigger name by default, debuffs above it")
+log.settings.STZXUI_NAMEPLATES_NAMESIZE:SetValue(20)
+check(p1.name.font.size == 20 and p1.level.font.size == 17 and p1.debuffs[1].points[1].y == 26,
+	"name size: name and level grow, debuffs move up to stay clear")
+log.settings.STZXUI_NAMEPLATES_NAMESIZE:SetValue(14)
 
 -- Options.
 log.settings.STZXUI_NAMEPLATES_WIDTH:SetValue(160)

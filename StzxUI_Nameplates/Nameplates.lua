@@ -20,6 +20,7 @@ local Nameplates = StzxUI:NewModule("Nameplates", ADDON_NAME, {
 	healthText = "PERCENT", -- "PERCENT", "NUMBER", "NONE"
 	classColours = true,    -- enemy players in their class colour
 	showLevel = true,
+	nameSize = 14,          -- the name above the bar (the level follows it)
 	castBar = true,
 	castHeight = 10,
 	debuffs = true,         -- your debuffs on enemies
@@ -303,6 +304,7 @@ function Nameplates:OnInitialize()
 	StzxUI:AddDropdown(page, self, "healthText", "Health text", nil,
 		{ { "PERCENT", "Percent" }, { "NUMBER", "Number" }, { "NONE", "None" } }, Refresh)
 	StzxUI:AddCheckbox(page, self, "classColours", "Enemy players in class colours", nil, Refresh)
+	StzxUI:AddSlider(page, self, "nameSize", "Name size", "The level text grows with it.", 8, 24, 1, nil, Refresh)
 	StzxUI:AddCheckbox(page, self, "showLevel", "Show level", "Coloured by difficulty; + means elite.", Refresh)
 
 	StzxUI:AddHeader(page, "In a fight")
