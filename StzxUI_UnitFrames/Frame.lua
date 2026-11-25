@@ -233,6 +233,17 @@ function ns.UpdateUnitFrame(frame)
 	ns.UpdateAuras(frame)
 end
 
+-- A new width for a frame (its bars, name and buffs follow). Secure frame:
+-- only out of combat; returns false in combat.
+function ns.SetFrameWidth(frame, width)
+	if InCombatLockdown() then return false end
+	frame.dims.width = width
+	frame:SetWidth(width)
+	if frame.auraContainer then frame.auraContainer:SetWidth(width) end
+	ns.UpdateUnitFrame(frame)
+	return true
+end
+
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
@@ -280,7 +291,10 @@ local POLL_EVERY = 0.25
 -- unit: "player", "target", "focus", "targettarget" or "pet".
 -- side: "LEFT" puts the portrait on the left. size: ns.SIZES.full / compact.
 function ns.CreateUnitFrame(unit, globalName, side, settings, size)
-	local dims = size or ns.SIZES.full
+	-- Each frame has its own copy of the sizes (its width can be changed on its own).
+	local dims = {}
+	for k, v in pairs(size or ns.SIZES.full) do dims[k] = v end
+	if settings.width then dims.width = settings.width end
 	local height = dims.name + dims.health + Style.GAP + dims.power
 	local frame = CreateFrame("Button", globalName, UIParent, "SecureUnitButtonTemplate")
 	frame:SetSize(dims.width, height)

@@ -75,7 +75,13 @@ function StzxUI:BuildMoverOverlay(holder)
 	end)
 	box:EnableMouseWheel(true)
 	box:SetScript("OnMouseWheel", function(_, delta)
-		if InCombatLockdown() or not holder.scalable then return end
+		if InCombatLockdown() then return end
+		if holder.widthWheel and IsControlKeyDown() then
+			holder.widthWheel(delta)
+			box:UpdateLabel()
+			return
+		end
+		if not holder.scalable then return end
 		StzxUI:ScaleMover(holder, delta > 0 and 0.05 or -0.05)
 		box:UpdateLabel()
 	end)
@@ -90,6 +96,9 @@ function StzxUI:BuildMoverOverlay(holder)
 		GameTooltip:AddLine("Arrow keys: nudge. Right-click: reset.", 1, 1, 1)
 		if holder.scalable then
 			GameTooltip:AddLine("Mouse wheel: bigger or smaller.", 1, 1, 1)
+		end
+		if holder.widthWheel then
+			GameTooltip:AddLine("Ctrl + mouse wheel: wider or narrower.", 1, 1, 1)
 		end
 		GameTooltip:Show()
 	end)

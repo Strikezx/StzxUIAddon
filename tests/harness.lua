@@ -282,7 +282,7 @@ function Frame:IsVisible() local f = self while f do if not f.shown then return 
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetSwipeColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
-	"SetScrollChild", "SetOwner", "AddLine", "SetShadowColor", "SetWordWrap", "SetWidth",
+	"SetScrollChild", "SetOwner", "AddLine", "SetShadowColor", "SetWordWrap",
 	"SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
@@ -392,6 +392,7 @@ local function InstallClient()
 	C_AddOns = { GetAddOnMetadata = function() return "@project-version@" end }
 	function GetTime() return now end
 	function InCombatLockdown() return inCombat end
+	function IsControlKeyDown() return ctrlDown == true end
 	-- Instances: instance = nil (outside) or { name, kind, id }.
 	function IsInInstance() if instance then return true, instance.kind end return false, "none" end
 	function GetInstanceInfo()
@@ -2691,6 +2692,36 @@ do
 	ShowItemTooltip(2770)
 	check(TopEdge(GameTooltip).colour[1] == 0, "tooltip edge follows the Skins edge colour")
 	log.settings.STZXUI_SKINS_COLOUR:SetValue("ACCENT")
+end
+
+---------------------------------------------------------------------------
+-- 33. Unit frames: length
+---------------------------------------------------------------------------
+do
+	StartGame(nil)
+	local pf, tf = StzxUIPlayerFrame, StzxUITargetFrame
+	check(pf.w == 230 and tf.w == 230, "player and target frames start 230 long")
+	log.settings.STZXUI_UNITFRAMESPLAYER_WIDTH:SetValue(300)
+	check(pf.w == 300 and pf.auraContainer.w == 300 and StzxUI.movers.PlayerFrame.w == 300,
+		"Length: the frame, its buffs row and its move-mode box follow")
+	check(tf.w == 230, "...and only that frame (the target keeps its own length)")
+	inCombat = true
+	log.settings.STZXUI_UNITFRAMESPLAYER_WIDTH:SetValue(250)
+	check(pf.w == 300, "in combat: waits (secure frame)")
+	inCombat = false
+	Fire("PLAYER_REGEN_ENABLED")
+	check(pf.w == 250, "...changes when combat ends")
+	-- Move mode: Ctrl + mouse wheel for length, plain wheel still scales.
+	StzxUI:EnterMoveMode()
+	local box = StzxUI.movers.PlayerFrame.overlay
+	ctrlDown = true
+	Script(box, "OnMouseWheel", 1)
+	ctrlDown = false
+	check(pf.w == 260 and StzxUI:GetModule("UnitFrames").db.player.width == 260, "Ctrl + mouse wheel: 10 px longer, saved")
+	Script(box, "OnMouseWheel", 1)
+	check(pf.w == 260 and StzxUI:GetMoverScale(StzxUI.movers.PlayerFrame) == 1.05, "plain mouse wheel still grows the whole frame")
+	StzxUI:ExitMoveMode()
+	StzxUI:ResetMover("PlayerFrame")
 end
 
 ---------------------------------------------------------------------------

@@ -80,6 +80,7 @@ function StzxUI:RegisterMover(key, frame, opts)
 	holder.default = opts.default or { "CENTER", "CENTER", 0, 0 }
 	holder.isShown = opts.isShown
 	holder.scalable = opts.scalable ~= false
+	holder.widthWheel = opts.widthWheel -- optional: Ctrl + mouse wheel makes the frame wider / narrower
 	holder.target = frame
 	holder.baseWidth = opts.width or frame:GetWidth()
 	holder.baseHeight = opts.height or frame:GetHeight()

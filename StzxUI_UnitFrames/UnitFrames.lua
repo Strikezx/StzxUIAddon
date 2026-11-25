@@ -19,6 +19,7 @@ local FRAME_DEFAULTS = {
 	auraSize = 24,
 	auraSpacing = 1,        -- pixels between icons
 	auraPosition = "ABOVE", -- "ABOVE" or "BELOW" the frame
+	width = 230,            -- the frame's length (Style.WIDTH)
 }
 
 -- The small frames start simpler: no portrait, percent only, no auras.
@@ -34,6 +35,7 @@ local SMALL_DEFAULTS = {
 	auraSize = 20,
 	auraSpacing = 1,
 	auraPosition = "ABOVE",
+	width = 130,
 }
 
 -- Every frame StzxUI can show. `small` frames use the compact size and
@@ -79,6 +81,27 @@ local HEALTH_TEXTS = {
 	{ "NONE", "None" },
 }
 
+-- A frame's length from its setting (out of combat; otherwise after it).
+local widthWaiter
+function ns.ApplyWidth(unit, width)
+	local frame = frames[unit]
+	if not frame then return end
+	if ns.SetFrameWidth(frame, width) then
+		local spec
+		for _, s in ipairs(SPECS) do if s.unit == unit then spec = s end end
+		StzxUI:SetMoverSize(spec.key .. "Frame", width, frame:GetHeight())
+		return
+	end
+	widthWaiter = widthWaiter or CreateFrame("Frame")
+	widthWaiter:RegisterEvent("PLAYER_REGEN_ENABLED")
+	widthWaiter:SetScript("OnEvent", function(self)
+		self:UnregisterAllEvents()
+		for _, s in ipairs(SPECS) do
+			if frames[s.unit] then ns.ApplyWidth(s.unit, UnitFrames.db[s.unit].width) end
+		end
+	end)
+end
+
 local function RefreshAll()
 	for _, frame in pairs(frames) do ns.UpdateUnitFrame(frame) end
 	for _, bar in pairs(castBars) do ns.RefreshCastBar(bar) end
@@ -97,6 +120,10 @@ local function AddFrameOptions(page, spec)
 	StzxUI:AddCheckbox(page, owner, "enabled", "Show the " .. title:lower() .. " frame",
 		"Turning a frame on or off applies after a reload.",
 		function() StzxUI:AskReload(("The %s frame changes after a reload."):format(title:lower())) end)
+	StzxUI:AddSlider(page, owner, "width", "Length",
+		"How wide the frame is. In move mode, Ctrl + mouse wheel does the same. (Not in combat.)",
+		spec.small and 80 or 140, spec.small and 240 or 400, 5, function(value) return ("%d px"):format(value) end,
+		function(value) ns.ApplyWidth(unit, value) end)
 	StzxUI:AddDropdown(page, owner, "portrait", "Portrait",
 		"Round class icon or the character's face. With the JiberishUI Icons addon installed, its styles are listed too. NPCs always show their face.",
 		function()
@@ -170,6 +197,12 @@ local function Build(self)
 				label = spec.title,
 				category = "Unit frames",
 				default = { "CENTER", "CENTER", spec.at[1], spec.at[2] },
+				-- Ctrl + mouse wheel in move mode: longer or shorter, 10 px a notch.
+				widthWheel = function(delta)
+					local lo, hi = spec.small and 80 or 140, spec.small and 240 or 400
+					settings.width = math.max(lo, math.min(hi, settings.width + (delta > 0 and 10 or -10)))
+					ns.ApplyWidth(spec.unit, settings.width)
+				end,
 			})
 
 			if spec.cast then
