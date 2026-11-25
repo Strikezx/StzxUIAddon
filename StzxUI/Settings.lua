@@ -227,12 +227,26 @@ local function AddProfilesPage(self)
 		function()
 			self:ShowDialog({
 				title = "Import profile",
-				text = "Paste a StzxUI profile string (Ctrl+V). It becomes a new profile and this character switches to it.",
+				text = "Paste a StzxUI profile string (Ctrl+V). Next you'll name it; it becomes a new profile and this character switches to it.",
 				input = "box",
-				accept = "Import",
+				accept = "Next",
 				onAccept = function(text)
-					local name, problem = self:ImportProfile(text)
-					if not name then return false, problem end
+					local data, problem, sharedName = self:DecodeProfile(text)
+					if not data then return false, problem end
+					-- Step two: name it (suggested: the name it was shared under).
+					self:ShowDialog({
+						title = "Name the imported profile",
+						text = "What should this profile be called?",
+						input = "line",
+						value = self:FreeProfileName(sharedName),
+						selectAll = true,
+						accept = "Import",
+						onAccept = function(name)
+							local made, nameProblem = self:ImportProfile(text, name)
+							if not made then return false, nameProblem end
+							return true
+						end,
+					})
 					return true
 				end,
 			})

@@ -5,6 +5,7 @@
 ### Added
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
+- Profiles: importing now asks what to call the new profile, suggesting the name it was shared under (exports now carry it; older strings suggest "Imported").
 - Unit Frames: buff and debuff icons tidied. A 1-pixel gap between icons (new "Space between icons" slider, 0-6), borders drawn inside each icon, and the time-left and stack numbers sized to the icon so they stay inside it. Icons a touch bigger by default (24, small frames 20); saved sizes still on the old default move up too (saved data version 3).
 - Fishing (new section): lure timer while you hold a fishing pole ("Lure 4:32", red in the last 30 seconds, a chime when it runs out) and a catch log per zone saved for all your characters. Hover the timer for this zone's catches with percentages; `/stzx fishing` lists them.
 - Social: recent mail names. A list beside the Send Mail tab of the people you mailed last and your own characters (noted as you log in to each). Click a name to fill in the To box; right-click a recent name to forget it. Saved for the whole account.

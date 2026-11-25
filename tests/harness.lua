@@ -840,10 +840,22 @@ check(DialogShown() and StzxUIDialog.problem.text:find("isn't a StzxUI", 1, true
 DialogAccept("!STZX1!zz")
 check(StzxUIDialog.problem.text:find("damaged", 1, true), "damaged string refused")
 DialogAccept("  " .. exported .. "\n")
-check(StzxUIDB.profiles.Imported and StzxUIDB.profiles.Imported.positions.InfoStats.x == 0, "import creates 'Imported' with the shared positions")
-check(StzxUIDB.profileKeys[CHAR] == "Imported", "and switches to it")
+check(DialogShown() and StzxUIDialog.title.text == "Name the imported profile" and StzxUIDialog.line.text == "Healing 2", -- exported while Healing was live
+	"step two: name it, suggesting the name it was shared under (made free)")
+DialogAccept("Healing")
+check(StzxUIDialog.problem.text:find("already a profile", 1, true), "a name already in use is refused")
+DialogAccept("  Raid night  ")
+check(StzxUIDB.profiles["Raid night"] and StzxUIDB.profiles["Raid night"].positions.InfoStats.x == 0,
+	"import creates the profile under your name, with the shared positions")
+check(StzxUIDB.profileKeys[CHAR] == "Raid night", "and switches to it")
 StzxUIDialog.cancelButton:Click()
-check(StzxUI:ImportProfile(exported) == "Imported 2", "a second import gets its own name")
+check(StzxUI:ImportProfile(exported) == "Healing 2", "without a name: a free one based on the shared name")
+check(StzxUI:ImportProfile(exported, "  ") == nil, "an empty name is refused")
+do -- a string from before names were included
+	local old = "!STZX1!" .. C_EncodingUtil.EncodeBase64(C_EncodingUtil.CompressString(C_EncodingUtil.SerializeCBOR(
+		{ addon = "StzxUI", v = 1, profile = { positions = {} } })))
+	check(StzxUI:ImportProfile(old) == "Imported", "older strings still suggest 'Imported'")
+end
 
 -- Delete
 StzxUIDB.profileKeys["Alt Character - Testrealm"] = "Healing"

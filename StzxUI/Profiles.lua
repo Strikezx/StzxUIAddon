@@ -203,7 +203,8 @@ end
 ---------------------------------------------------------------------------
 
 function StzxUI:ExportProfile()
-	local payload = { addon = "StzxUI", v = 1, profile = CleanCopy(self.profile) }
+	-- The profile's name travels with it, as the suggested name when imported.
+	local payload = { addon = "StzxUI", v = 1, name = self.profileName, profile = CleanCopy(self.profile) }
 	local ok, text = pcall(function()
 		local raw = C_EncodingUtil.SerializeCBOR(payload)
 		return EXPORT_PREFIX .. C_EncodingUtil.EncodeBase64(C_EncodingUtil.CompressString(raw))
@@ -212,7 +213,21 @@ function StzxUI:ExportProfile()
 	return nil, "Export failed: " .. tostring(text)
 end
 
--- Read a shared string. Returns the profile data, or nil plus a reason.
+-- A free profile name based on `base`: "Raid", then "Raid 2", "Raid 3", ...
+function StzxUI:FreeProfileName(base)
+	base = type(base) == "string" and base:match("^%s*(.-)%s*$") or ""
+	if base == "" then base = "Imported" end
+	base = base:sub(1, MAX_NAME_LENGTH - 3)
+	local name, n = base, 1
+	while self.db.profiles[name] do
+		n = n + 1
+		name = base .. " " .. n
+	end
+	return name
+end
+
+-- Read a shared string. Returns the profile data and the name it was shared
+-- under (strings from before names were included have none), or nil plus a reason.
 function StzxUI:DecodeProfile(text)
 	if type(text) ~= "string" then return nil, "Nothing pasted." end
 	text = text:gsub("%s+", "")
@@ -228,17 +243,21 @@ function StzxUI:DecodeProfile(text)
 	end
 	local data = CleanCopy(payload.profile)
 	if not data then return nil, "The string is too large." end
-	return StzxUI.ApplyDefaults(data, NewProfileData())
+	local sharedName = type(payload.name) == "string" and payload.name or nil
+	return StzxUI.ApplyDefaults(data, NewProfileData()), nil, sharedName
 end
 
--- Import a string as a new profile (named "Imported", "Imported 2", ...) and switch to it.
-function StzxUI:ImportProfile(text)
-	local data, problem = self:DecodeProfile(text)
+-- Import a string as a new profile and switch to it. `name` is what to call
+-- it; without one it gets a free name based on the shared name ("Imported"
+-- for older strings).
+function StzxUI:ImportProfile(text, name)
+	local data, problem, sharedName = self:DecodeProfile(text)
 	if not data then return nil, problem end
-	local name, n = "Imported", 1
-	while self.db.profiles[name] do
-		n = n + 1
-		name = "Imported " .. n
+	if name then
+		name, problem = self:CheckProfileName(name)
+		if not name then return nil, problem end
+	else
+		name = self:FreeProfileName(sharedName)
 	end
 	self.db.profiles[name] = data
 	self:SwitchProfile(name)
