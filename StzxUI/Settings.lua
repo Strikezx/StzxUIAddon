@@ -1,6 +1,7 @@
 -- StzxUI Settings
 -- One "StzxUI" entry in Esc > Options > AddOns:
---   StzxUI            move mode, grid, notices, and Sections (switch modules on/off)
+--   StzxUI            welcome page: what StzxUI is, and a button into StzxUI's own window
+--   StzxUI > General  move mode, grid, notices, and Sections (switch modules on/off)
 --   StzxUI > Social   (and one page per module)
 --   StzxUI > Profiles choose, copy, reset, delete, export, import
 -- Built on Blizzard's own Settings API so options look like the game's own.
@@ -116,16 +117,111 @@ end
 -- The main StzxUI page (created when the core loads)
 ---------------------------------------------------------------------------
 
-function StzxUI:CreateSettingsPanel()
-	local category, layout = Settings.RegisterVerticalLayoutCategory("StzxUI")
-	self.settingsCategory = category
-	self.layouts = { [category] = layout }
-	self:NoteOptionPage(category, "General")
+-- The welcome page: the first thing you see under Esc > Options > AddOns >
+-- StzxUI. A big title, what StzxUI does, and buttons into StzxUI's own window.
+local LANDING_FONT = "Fonts\\FRIZQT__.TTF"
 
-	-- Blizzard's panel only: a way into the StzxUI window.
-	layout:AddInitializer(CreateSettingsButtonInitializer("StzxUI options window", "Open",
-		function() self:OpenOptionsWindow() end,
-		"StzxUI's own window: every section in a sidebar, with search. /stzx opens it too.", true))
+local function LandingText(parent, size, r, g, b)
+	local text = parent:CreateFontString(nil, "ARTWORK")
+	text:SetFont(LANDING_FONT, size, "")
+	text:SetTextColor(r or 1, g or 1, b or 1)
+	text:SetJustifyH("CENTER")
+	return text
+end
+
+local function LandingButton(parent, label, width, height, fontSize, onClick)
+	local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+	button:SetSize(width, height)
+	button:SetText(label)
+	local text = button:GetFontString()
+	if text then text:SetFont(LANDING_FONT, fontSize, "") end
+	button:SetScript("OnClick", onClick)
+	return button
+end
+
+local function AddonVersion()
+	local version = C_AddOns.GetAddOnMetadata("StzxUI", "Version")
+	if not version or version:find("project%-version") then return "development copy" end
+	return version
+end
+
+-- Which sections are switched on, e.g. "Unit Frames, Minimap".
+local function SectionsOn(self)
+	local on = {}
+	for _, name in ipairs(self.moduleOrder or {}) do
+		local module = self.modules[name]
+		if module.enabled then on[#on + 1] = module.title end
+	end
+	return #on > 0 and table.concat(on, ", ") or "none"
+end
+
+function StzxUI:CreateLandingPage()
+	local A = self.ACCENT
+	local hex = ("%02x%02x%02x"):format(A.r * 255, A.g * 255, A.b * 255)
+	local page = CreateFrame("Frame", "StzxUISettingsLanding")
+	page:Hide()
+
+	local title = LandingText(page, 72)
+	title:SetPoint("TOP", page, "TOP", 0, -60)
+	title:SetText(("|cff%sStzx|rUI"):format(hex))
+
+	local tagline = LandingText(page, 18)
+	tagline:SetPoint("TOP", title, "BOTTOM", 0, -6)
+	tagline:SetText("A complete UI for WoW: Forever")
+
+	local version = LandingText(page, 13, 0.7, 0.7, 0.7)
+	version:SetPoint("TOP", tagline, "BOTTOM", 0, -6)
+
+	local about = LandingText(page, 14, 0.9, 0.9, 0.9)
+	about:SetPoint("TOP", version, "BOTTOM", 0, -22)
+	about:SetWidth(540)
+	about:SetWordWrap(true)
+	about:SetText("Unit frames, party and raid frames, nameplates, a restyled minimap and action bars, "
+		.. "quest helpers, fishing and dungeon-run tools, and more. Switch each part on or off, keep "
+		.. "your setup in profiles you can share, and place everything in move mode alongside "
+		.. "Blizzard's Edit Mode.")
+
+	local open = LandingButton(page, "Open StzxUI options", 320, 46, 20, function()
+		if SettingsPanel and SettingsPanel:IsShown() then SettingsPanel:Close(true) end
+		self:OpenOptionsWindow()
+	end)
+	open:SetPoint("TOP", about, "BOTTOM", 0, -30)
+	page.open = open
+
+	local hint = LandingText(page, 13, 0.7, 0.7, 0.7)
+	hint:SetPoint("TOP", open, "BOTTOM", 0, -10)
+	hint:SetText("or type /stzx in chat")
+
+	local move = LandingButton(page, "Move mode", 150, 26, 13, function() self:EnterMoveMode() end)
+	move:SetPoint("TOPRIGHT", hint, "BOTTOM", -6, -22)
+	page.move = move
+	local test = LandingButton(page, "Test frames", 150, 26, 13, function() self:ToggleTestMode() end)
+	test:SetPoint("TOPLEFT", hint, "BOTTOM", 6, -22)
+	page.test = test
+
+	local sections = LandingText(page, 12, 0.7, 0.7, 0.7)
+	sections:SetPoint("TOP", move, "BOTTOMRIGHT", 6, -28)
+	sections:SetWidth(540)
+	sections:SetWordWrap(true)
+	page.sections = sections
+
+	-- Version and sections can change (a reload, a new build), so fill them in on show.
+	page:SetScript("OnShow", function()
+		version:SetText("Version: " .. AddonVersion())
+		sections:SetText(("|cff%sSections on:|r %s"):format(hex, SectionsOn(self)))
+	end)
+	return page
+end
+
+function StzxUI:CreateSettingsPanel()
+	-- The top entry is the welcome page; the options themselves are on sub-pages.
+	local category = Settings.RegisterCanvasLayoutCategory(self:CreateLandingPage(), "StzxUI")
+	self.settingsCategory = category
+	local general, layout = Settings.RegisterVerticalLayoutSubcategory(category, "General")
+	self.generalPage = general
+	self.layouts = { [general] = layout }
+	self:NoteOptionPage(general, "General")
+	category = general
 
 	-- The core's own options live in StzxUIDB.core (same on every character).
 	local core = { name = "Core", db = self.db.core, defaults = self.CORE_DEFAULTS }
@@ -162,7 +258,7 @@ end
 -- StzxUI > Sections: one switch per module. Stored in the profile, so a
 -- shared profile also carries which parts are on.
 local function AddSectionSwitches(self)
-	local category = self.settingsCategory
+	local category = self.generalPage
 	LayoutFor(category):AddInitializer(CreateSettingsListSectionHeaderInitializer("Sections",
 		"Switch whole parts of StzxUI on or off for this profile. Changes apply after a reload."))
 	-- In the StzxUI window, Sections is a page of its own.

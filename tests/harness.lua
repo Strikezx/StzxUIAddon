@@ -239,6 +239,10 @@ function Frame:SetVertexColorFromBoolean(v, yes, no)
 end
 function Frame:GetParent() return self.parent end
 function Frame:GetName() return self.name end
+function Frame:GetFontString()
+	self.fontString = self.fontString or NewFrame("FontString", nil, self)
+	return self.fontString
+end
 function Frame:GetObjectType() return self.kind end
 function Frame:GetScript(name) return self.scripts[name] end
 function Frame:GetNumPoints() return #self.points end
@@ -698,6 +702,7 @@ local function InstallClient()
 		VarType = { Boolean = "boolean", String = "string", Number = "number" },
 		RegisterVerticalLayoutCategory = function(name) return NewCategory(name) end,
 		RegisterVerticalLayoutSubcategory = function(parent, name) return NewCategory(name, parent) end,
+		RegisterCanvasLayoutCategory = function(frame, name) local c = NewCategory(name); c.frame = frame; return c end,
 		RegisterAddOnSetting = function(_, var, key, tbl, _, _, default)
 			if tbl[key] == nil then tbl[key] = default end
 			return NewSetting(var, function() return tbl[key] end, function(v) tbl[key] = v end)
@@ -797,7 +802,7 @@ check(Social.enabled and Info.enabled, "Social and Info started")
 check(log.registered == "StzxUI", "settings registered at login")
 check(Category("Social") and Category("Info") and Category("Profiles"), "Social, Info and Profiles pages exist")
 check(log.settings.STZXUI_SECTION_SOCIAL and log.settings.STZXUI_SECTION_INFO, "a section switch per module")
-check(Button("StzxUI", "Move StzxUI frames"), "move mode button on the main page")
+check(Button("General", "Move StzxUI frames"), "move mode button on the General page")
 check(log.settings.STZXUI_CORE_SNAPTOGRID and log.settings.STZXUI_CORE_GRIDSIZE, "snap and grid size options")
 
 ---------------------------------------------------------------------------
@@ -854,7 +859,7 @@ inCombat = true; SlashCmdList.STZXUI("move"); inCombat = false
 check(not StzxUI.moveMode and lastPrint():find("combat", 1, true), "move mode refused in combat")
 
 SettingsPanel.shown = true
-Button("StzxUI", "Move StzxUI frames").click()
+Button("General", "Move StzxUI frames").click()
 check(StzxUI.moveMode and log.settingsClosed == 1, "Unlock button opens move mode and closes the options")
 check(statsHolder.overlay.shown and StzxUIMoveToolbar.shown, "boxes and toolbar shown")
 check(StzxUIMoveToolbar.snap:GetChecked() == true, "toolbar shows snapping on")
@@ -2381,11 +2386,24 @@ check(OW.pageTitle.text:find("Search: ", 1, true) and RowFor("Cast bar height") 
 OW.search:SetText("")
 Script(OW.search, "OnTextChanged")
 StzxUI:ShowOptionsPage("General")
-local blizz = Button("StzxUI", "StzxUI options window")
-check(blizz, "Blizzard's StzxUI page has a button into the window")
+-- Esc > Options > AddOns > StzxUI: a welcome page with a way into the window.
+local landing = Category("StzxUI").frame
+check(landing == StzxUISettingsLanding and Category("General").parent == Category("StzxUI"),
+	"StzxUI's AddOns entry is a welcome page; options are on sub-pages")
+landing:Hide(); landing:Show()
+local landingText = {}
+for _, f in ipairs(frames) do if f.parent == landing and f.kind == "FontString" then landingText[#landingText + 1] = f.text end end
+local all = table.concat(landingText, " | ")
+check(all:find("Stzx|rUI") and all:find("Version: development copy") and all:find("Unit frames, party"),
+	"welcome page: title, version and what StzxUI does")
+check(all:find("Sections on:|r Social, Info"), "...and which sections are on")
 OW:Hide()
-blizz.click()
-check(OW.shown, "...which opens it")
+SettingsPanel.shown = true
+landing.open:Click()
+check(OW.shown and not SettingsPanel.shown, "its big button opens StzxUI's window (and closes Blizzard's)")
+landing.move:Click()
+check(StzxUI.moveMode, "...and it has a Move mode button")
+StzxUI:ExitMoveMode()
 StzxUI:OpenBlizzardSettings()
 check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 
