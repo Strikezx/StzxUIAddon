@@ -15,6 +15,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Runs` | Dungeon and raid run history: time, XP, gold, bosses, deaths and the loot you picked up, per character; a movable run timer while inside; `/stzx runs` opens the history |
 | `StzxUI_Fishing` | Lure timer while you hold a fishing pole (red in the last 30 s, chime when it runs out) and a catch log per zone for all your characters; hover the timer or `/stzx fishing` to see this zone's catches |
 | `StzxUI_ActionBars` | Restyles Blizzard's action bars (square icons with a 1-pixel border, StzxUI hover/pressed colours, tidy text, short keybinds, optional red icons out of range). Edit Mode still places and sizes them |
+| `StzxUI_Nameplates` | StzxUI nameplates: health, name and level, raid marker, target outline with other plates faded, red edge when a mob attacks you, cast bars coloured by whether you can interrupt, your debuffs. Blizzard's plate stays (invisible) so clicking works; `/stzx test` shows pretend plates |
 
 ## Optional: JiberishUI Icons
 
@@ -50,7 +51,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing` and `StzxUI_ActionBars` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars` and `StzxUI_Nameplates` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -69,6 +70,7 @@ mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Quests" "C
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Runs" "C:\...\StzxUIAddon\StzxUI_Runs"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Fishing" "C:\...\StzxUIAddon\StzxUI_Fishing"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_ActionBars" "C:\...\StzxUIAddon\StzxUI_ActionBars"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Nameplates" "C:\...\StzxUIAddon\StzxUI_Nameplates"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.

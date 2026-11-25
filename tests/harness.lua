@@ -31,6 +31,7 @@ local rangeOf = {}     -- [unit] = { inRange, checked }
 local questID = 0      -- the quest open in the quest giver window
 local questLog, questOffers = {}, {}
 local instance, money, lootWindow = nil, 0, {}
+local nameplates = {}
 local mailLoaded = true
 local fishing = { pole = false, lureMS = nil, zone = "Elwynn Forest", fishingLoot = false }
 -- Action bars: keybinds by button name, and which actions are usable.
@@ -79,6 +80,7 @@ local function NewFrame(kind, name, parent)
 	local f = setmetatable({ kind = kind, name = name, parent = parent, points = {}, w = 0, h = 0,
 		shown = true, scripts = {}, events = {}, unitEvents = {}, text = "" }, Frame)
 	table.insert(frames, f)
+	if parent then parent.childList = parent.childList or {}; table.insert(parent.childList, f) end
 	if name then _G[name] = f end
 	return f
 end
@@ -196,13 +198,40 @@ function Frame:SetFrameLevel(l) self.level = l end
 function Frame:CreateMaskTexture() return NewFrame("MaskTexture", nil, self) end
 function Frame:AddMaskTexture(m) self.mask = m end
 function Frame:UnregisterAllEvents() self.events = {} end
-function Frame:SetParent(p) self.parent = p end
+function Frame:SetParent(p)
+	local old = self.parent
+	if old and old.childList then
+		for i, c in ipairs(old.childList) do if c == self then table.remove(old.childList, i) break end end
+	end
+	self.parent = p
+	if p then p.childList = p.childList or {}; table.insert(p.childList, self) end
+end
+-- Child frames (not textures or text), in creation order, following SetParent.
+local function IsRegion(f) return f.kind == "Texture" or f.kind == "FontString" end
+function Frame:GetChildren()
+	local list = {}
+	for _, f in ipairs(self.childList or {}) do if not IsRegion(f) then list[#list + 1] = f end end
+	return unpack(list)
+end
+function Frame:GetNumChildren() return select("#", self:GetChildren()) end
+function Frame:IsForbidden() return self.forbidden or false end
+function Frame:EnableMouse(on) self.mouseEnabled = on and true or false end
+function Frame:IsProtected() return self.protected or false end
+function Frame:GetStatusBarTexture()
+	self.barTexture = self.barTexture or NewFrame("Texture", nil, self)
+	return self.barTexture
+end
+function Frame:SetVertexColorFromBoolean(v, yes, no)
+	if issecretvalue(v) then self.vertex = "secret" return end
+	local c = v and yes or no
+	self.vertex = { c.r, c.g, c.b }
+end
 function Frame:GetParent() return self.parent end
 function Frame:SetCooldown(start, duration) self.cooldownStart, self.cooldownDuration, self.durationObject = start, duration, nil end
 function Frame:SetCooldownFromDurationObject(d) self.durationObject, self.cooldownStart = d, nil end
 function Frame:Clear() self.cooldownStart, self.durationObject = nil, nil end
 function Frame:IsVisible() local f = self while f do if not f.shown then return false end f = f.parent end return true end
-local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
+local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetSwipeColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
 	"SetScrollChild", "SetOwner", "AddLine", "SetShadowColor", "SetWordWrap", "SetWidth",
@@ -343,7 +372,11 @@ local function InstallClient()
 	C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
 	function UnitName(u) local d = units[u]; if d then return d.name, d.surname end end
 	function UnitIsPlayer(u) local d = units[u]; return d and d.isPlayer or false end
-	function UnitIsUnit(a, b) if b == "player" then local d = units[a]; return d and d.isSelf or false end return a == b end
+	function UnitIsUnit(a, b)
+		if b == "player" then local d = units[a]; return d and d.isSelf or false end
+		if unitState[a] and unitState[a] == unitState[b] then return true end
+		return a == b
+	end
 	function UnitInParty(u) local d = units[u]; return d and d.inParty or false end
 	function UnitInRaid() return nil end
 	function GetRealmName() return realmName end
@@ -397,6 +430,14 @@ local function InstallClient()
 		return c.name, c.name, c.texture, c.startMS, c.endMS, false, c.castID, c.notInterruptible
 	end
 	function UnitCastingInfo(u) return Cast(u, false) end
+	-- Nameplates: nameplates[unit] = Blizzard's plate (with .UnitFrame and its children).
+	C_NamePlate = {
+		GetNamePlateForUnit = function(u) local np = nameplates[u]; if np and not np.forbiddenPlate then return np end end,
+		GetNamePlates = function() local list = {} for _, np in pairs(nameplates) do if not np.forbiddenPlate then list[#list + 1] = np end end return list end,
+	}
+	function UnitCanAttack(_, u) return U(u).attackable or false end
+	function UnitDetailedThreatSituation(_, u) return U(u).tanking end
+	function GetCreatureDifficultyColor() return { r = 1, g = 1, b = 0 } end
 	function UnitChannelInfo(u) return Cast(u, true) end
 	-- Auras
 	Enum = { UnitAuraSortRule = { Expiration = 3 }, EditModeAccountSetting = { ShowGrid = 0, GridSpacing = 1 },
@@ -607,7 +648,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -1796,6 +1837,7 @@ inCombat = false
 check(Button("Party & Raid", "Test frames"), "button on the Party & Raid page")
 
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
+log.settings.STZXUI_SECTION_NAMEPLATES:SetValue(false)
 Reload()
 SlashCmdList.STZXUI("test")
 check(lastPrint():find("nothing has test frames", 1, true), "Party & Raid off: says so")
@@ -1803,6 +1845,7 @@ StzxUI:EnterMoveMode()
 check(not StzxUIMoveToolbar.test.shown, "...and no switch on the toolbar")
 StzxUI:ExitMoveMode()
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
+log.settings.STZXUI_SECTION_NAMEPLATES:SetValue(true)
 Reload()
 
 ---------------------------------------------------------------------------
@@ -1864,6 +1907,129 @@ check(ActionButton1.NormalTexture.alpha == 1, "in combat: waits")
 inCombat = false
 Fire("PLAYER_REGEN_ENABLED")
 check(ActionButton1.NormalTexture.alpha == 0, "...restyles once combat ends")
+
+---------------------------------------------------------------------------
+-- 25. Nameplates
+---------------------------------------------------------------------------
+-- Blizzard's plate for a unit: the plate, its UnitFrame and some children.
+local function BlizzardPlate(unit, opts)
+	opts = opts or {}
+	local np = NewFrame("Frame", nil, UIParent)
+	np.namePlateUnitToken = unit
+	np.forbiddenPlate = opts.forbidden
+	local uf = NewFrame("Button", nil, np)
+	np.UnitFrame = uf
+	uf.healthBar = NewFrame("StatusBar", nil, uf)
+	uf.castBar = NewFrame("StatusBar", nil, uf)
+	uf.WidgetContainer = NewFrame("Frame", nil, uf)
+	uf.SoftTargetFrame = NewFrame("Frame", nil, uf)
+	uf.locked = NewFrame("Frame", nil, uf)
+	uf.locked.protected = true
+	nameplates[unit] = np
+	return np
+end
+
+local np1 = BlizzardPlate("nameplate1")
+units.nameplate1 = { name = "Defias Pillager" }
+unitState.nameplate1 = { hp = 300, hpMax = 400, reaction = 2, level = 18, attackable = true }
+StartGame(nil)
+local NP = StzxUI:GetModule("Nameplates")
+check(NP.enabled and Category("Nameplates"), "Nameplates section and options page")
+local function PlateOf(np) for _, f in ipairs(frames) do if f.parent == np and f.health then return f end end end
+local p1 = PlateOf(np1)
+check(p1 and p1.shown and p1.unit == "nameplate1", "plates already on screen after a /reload get styled")
+check(np1.UnitFrame.alpha == 0 and np1.UnitFrame.healthBar.parent ~= np1.UnitFrame, "Blizzard's plate invisible, its parts tucked away")
+check(np1.UnitFrame.WidgetContainer.parent == np1.UnitFrame and np1.UnitFrame.SoftTargetFrame.parent == np1.UnitFrame
+	and np1.UnitFrame.locked.parent == np1.UnitFrame, "...but widgets, the soft-target icon and protected parts stay")
+check(p1.name.text == "Defias Pillager" and p1.level.text == "18" and p1.healthText.text == "75%"
+	and p1.health.colour[1] == 0.85, "name, level, health percent, hostile red")
+check(p1.w == 130 and p1.health.h == 10, "default size")
+
+-- New plates come and go.
+local np2 = BlizzardPlate("nameplate2")
+units.nameplate2 = { name = "Defias Conjurer" }
+unitState.nameplate2 = { hp = 100, hpMax = 100, reaction = 2, level = 19, classification = "elite", attackable = true }
+Fire("NAME_PLATE_UNIT_ADDED", "nameplate2")
+local p2 = PlateOf(np2)
+check(p2 and p2.shown and p2.level.text == "19+", "new plate; elites get a +")
+Fire("NAME_PLATE_UNIT_REMOVED", "nameplate2")
+check(not p2.shown, "plate gone with its unit")
+Fire("NAME_PLATE_UNIT_ADDED", "nameplate2")
+check(PlateOf(np2) == p2 and p2.shown, "the same Blizzard plate reuses its StzxUI plate")
+
+-- Forbidden plates and your own resource bar are left alone.
+local np3 = BlizzardPlate("nameplate3", { forbidden = true })
+Fire("NAME_PLATE_UNIT_ADDED", "nameplate3")
+check(not PlateOf(np3) and np3.UnitFrame.alpha == nil, "forbidden plates (friendly players in dungeons) keep Blizzard's look")
+local np4 = BlizzardPlate("nameplate4")
+units.nameplate4 = { name = "Strikezx", isSelf = true }
+unitState.nameplate4 = { hp = 1, hpMax = 1 }
+Fire("NAME_PLATE_UNIT_ADDED", "nameplate4")
+check(not PlateOf(np4) and np4.UnitFrame.alpha ~= 0, "your personal resource bar stays Blizzard's")
+
+-- Health and target.
+unitState.nameplate1.hp = 100
+Fire("UNIT_HEALTH", "nameplate1")
+check(p1.healthText.text == "25%", "health updates")
+unitState.target = unitState.nameplate1
+Fire("PLAYER_TARGET_CHANGED")
+check(p1.target.shown and p1.alpha == 1 and not p2.target.shown and p2.alpha == 0.7,
+	"target outlined; other plates faded to 70%")
+unitState.target = nil
+Fire("PLAYER_TARGET_CHANGED")
+check(not p1.target.shown and p2.alpha == 1, "no target: nothing faded")
+
+-- Aggro.
+unitState.nameplate2.tanking = true
+Fire("UNIT_THREAT_SITUATION_UPDATE", "nameplate2")
+check(p2.aggro.shown and not p1.aggro.shown, "red edge when a mob is attacking you")
+unitState.nameplate2.tanking = SECRET
+Fire("UNIT_THREAT_SITUATION_UPDATE", "nameplate2")
+check(p2.aggro.shown and p2.aggro.alpha == "secret", "secret threat: shown by the game, not compared")
+
+-- Casts.
+casting.nameplate2 = { name = "Fireball", texture = 135812, startMS = now * 1000, endMS = (now + 3) * 1000, castID = "n1", notInterruptible = false }
+Fire("UNIT_SPELLCAST_START", "nameplate2")
+check(p2.cast.shown and p2.castText.text == "Fireball" and p2.cast.barTexture.vertex[1] == 0.95 and p2.shield.alpha == 0,
+	"cast you can interrupt: yellow, no shield")
+casting.nameplate2.notInterruptible = true
+Fire("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "nameplate2")
+check(p2.cast.barTexture.vertex[1] == 0.55 and p2.shield.alpha == 1, "can't interrupt: grey with a shield")
+casting.nameplate2 = { name = SECRET, texture = SECRET, startMS = SECRET, endMS = SECRET, castID = SECRET, notInterruptible = SECRET }
+Fire("UNIT_SPELLCAST_START", "nameplate2")
+check(p2.cast.shown and p2.castText.text == SECRET_TEXT and p2.cast.barTexture.vertex == "secret" and p2.shield.alpha == "secret",
+	"secret cast in combat: shown and coloured by the game")
+casting.nameplate2 = nil
+Fire("UNIT_SPELLCAST_INTERRUPTED", "nameplate2")
+check(p2.castText.text == "Interrupted" and p2.cast.shown, "interrupted: says so...")
+RunAfters()
+check(not p2.cast.shown, "...then goes")
+
+-- Your debuffs.
+auraState.nameplate1 = {
+	{ auraInstanceID = 41, icon = 136207, duration = 18, expirationTime = now + 9, applications = 0, harmful = true, mine = true },
+	{ auraInstanceID = 42, icon = 136208, duration = 18, expirationTime = now + 9, applications = 0, harmful = true, mine = false },
+}
+Fire("UNIT_AURA", "nameplate1")
+check(p1.debuffs[1].shown and p1.debuffs[1].auraInstanceID == 41 and not p1.debuffs[2].shown, "only your debuffs")
+check(p1.debuffs[1].mouseEnabled == false, "debuff icons never block clicking the plate")
+
+-- Options.
+log.settings.STZXUI_NAMEPLATES_WIDTH:SetValue(160)
+log.settings.STZXUI_NAMEPLATES_HEALTHTEXT:SetValue("NONE")
+check(p1.w == 160 and p1.healthText.text == "", "size and health text options")
+log.settings.STZXUI_NAMEPLATES_DEBUFFS:SetValue(false)
+check(not p1.debuffs[1].shown, "debuffs can be switched off")
+
+-- Test plates.
+SlashCmdList.STZXUI("test")
+local th = StzxUINameplateTest
+check(th and th.shown and #th.plates == 3 and th.plates[1].target.shown and th.plates[3].shield.alpha == 1
+	and th.plates[2].aggro.shown, "test plates: target, a cast you can interrupt (with aggro) and one you can't")
+SlashCmdList.STZXUI("test")
+check(not th.shown, "...hidden again")
+nameplates, auraState.nameplate1 = {}, nil
+for i = 1, 4 do units["nameplate" .. i], unitState["nameplate" .. i] = nil, nil end
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

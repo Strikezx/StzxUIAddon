@@ -1,0 +1,11 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Nameplates
+## Notes: StzxUI nameplates: clear target highlight, cast bars that show what you can interrupt, your debuffs on enemies.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+
+Plate.lua
+Nameplates.lua
