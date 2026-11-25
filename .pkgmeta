@@ -12,6 +12,7 @@ move-folders:
   StzxUI/StzxUI_Fishing: StzxUI_Fishing
   StzxUI/StzxUI_ActionBars: StzxUI_ActionBars
   StzxUI/StzxUI_Nameplates: StzxUI_Nameplates
+  StzxUI/StzxUI_Blizzard: StzxUI_Blizzard
 
 ignore:
   - docs

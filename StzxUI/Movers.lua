@@ -88,8 +88,12 @@ function StzxUI:RegisterMover(key, frame, opts)
 	if holder.SetDontSavePosition then holder:SetDontSavePosition(true) end
 	Place(holder)
 
+	-- Which point of the frame sits on the same point of its box. Most
+	-- frames hang from their top-left; Blizzard frames keep their own anchor
+	-- point (e.g. the alerts grow up from their bottom).
+	local anchor = opts.anchor or "TOPLEFT"
 	frame:ClearAllPoints()
-	frame:SetPoint("TOPLEFT", holder, "TOPLEFT")
+	frame:SetPoint(anchor, holder, anchor)
 
 	self.movers[key] = holder
 	table.insert(self.moverOrder, key)

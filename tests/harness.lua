@@ -494,6 +494,13 @@ local function InstallClient()
 	MainActionBar = NewFrame("Frame", "MainActionBar")
 	MainActionBar.actionButtons = {}
 	for i = 1, 12 do MainActionBar.actionButtons[i] = ActionButton("ActionButton" .. i, 45, i) end
+	-- Blizzard frames Edit Mode doesn't place.
+	for _, name in ipairs({ "AlertFrame", "UIErrorsFrame", "ZoneTextFrame", "UIWidgetTopCenterContainerFrame",
+		"BossBanner", "EventToastManagerFrame" }) do
+		local f = NewFrame("Frame", name)
+		f:SetSize(100, 20)
+		f:SetPoint("TOP", UIParent, "TOP", 0, -100)
+	end
 	PetActionBar = NewFrame("Frame", "PetActionBar")
 	PetActionBar.actionButtons = { ActionButton("PetActionButton1", 30, 121) }
 	function ActionButton_UpdateRangeIndicator(button, checksRange, inRange)
@@ -657,7 +664,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -826,7 +833,7 @@ StzxUIDB.core.snapToGrid = true
 
 -- Snap to other frames: the target frame's left edge is at 985.
 StzxUIDB.core.snapToFrames = true
-DragTo(statsHolder, 808, 760) -- right edge lands at 978, 7 short of 985 (height clear of the group frames)
+DragTo(statsHolder, 808, 380) -- right edge lands at 978, 7 short of 985 (a height clear of other frames' edges)
 check(statsHolder:GetLeft() + statsHolder:GetWidth() == 985, "right edge lines up with a nearby frame's edge")
 check(StzxUI.profile.positions.InfoStats.y % 16 == 0, "the other direction still snaps to the grid")
 local playerHolder = StzxUI.movers.PlayerFrame
@@ -979,6 +986,7 @@ log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_RUNS:SetValue(false)
 log.settings.STZXUI_SECTION_FISHING:SetValue(false)
+log.settings.STZXUI_SECTION_BLIZZARDFRAMES:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -989,6 +997,7 @@ log.settings.STZXUI_SECTION_UNITFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_RUNS:SetValue(true)
 log.settings.STZXUI_SECTION_FISHING:SetValue(true)
+log.settings.STZXUI_SECTION_BLIZZARDFRAMES:SetValue(true)
 check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
 Reload()
 check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
@@ -2039,6 +2048,35 @@ SlashCmdList.STZXUI("test")
 check(not th.shown, "...hidden again")
 nameplates, auraState.nameplate1 = {}, nil
 for i = 1, 4 do units["nameplate" .. i], unitState["nameplate" .. i] = nil, nil end
+
+---------------------------------------------------------------------------
+-- 27. Blizzard frames in move mode
+---------------------------------------------------------------------------
+StartGame(nil)
+local BF = StzxUI:GetModule("BlizzardFrames")
+check(BF.enabled and Category("Blizzard Frames") and #BF.FRAMES == 6, "Blizzard Frames section with six frames")
+local errBox, alertBox = StzxUI.movers.BlizzErrors, StzxUI.movers.BlizzAlerts
+check(errBox and errBox.category == "Blizzard" and UIErrorsFrame.points[1].point == "TOP"
+	and UIErrorsFrame.points[1].rel == errBox, "error messages hang from the top of their box")
+check(errBox.points[1].point == "TOP" and errBox.points[1].y == -122, "...which starts where Blizzard puts them")
+check(AlertFrame.points[1].point == "BOTTOM" and alertBox.points[1].point == "BOTTOM" and alertBox.points[1].y == 128,
+	"alerts keep their bottom anchor (they stack upwards)")
+DragTo(errBox, 800, 700)
+check(StzxUI.profile.positions.BlizzErrors, "drag to move; saved in the profile")
+Reload()
+check(StzxUI.movers.BlizzErrors.points[1].point == "TOPLEFT", "...and kept after a reload")
+StzxUI:EnterMoveMode()
+local blizzFilter
+for _, f in ipairs(StzxUIMoveToolbar.filters) do if f.category == "Blizzard" then blizzFilter = f end end
+check(blizzFilter, "a Blizzard switch in move mode's Show row")
+StzxUI:ExitMoveMode()
+log.settings.STZXUI_BLIZZARDFRAMES_ERRORS:SetValue(false)
+check(DialogShown() and DialogText():find("after a reload", 1, true), "switching one off asks for a reload")
+StzxUIDialog.cancelButton:Click()
+Reload()
+check(not StzxUI.movers.BlizzErrors and StzxUI.movers.BlizzZoneText, "switched off: left to Blizzard; the others stay")
+log.settings.STZXUI_BLIZZARDFRAMES_ERRORS:SetValue(true)
+StzxUIDialog.cancelButton:Click()
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

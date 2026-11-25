@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Blizzard Frames
+## Notes: Move and resize the Blizzard frames Edit Mode can't: alerts, error messages, zone text, capture bars, boss banner, level-up toasts.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+
+BlizzardFrames.lua
