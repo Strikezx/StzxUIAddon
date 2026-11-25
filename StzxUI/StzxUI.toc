@@ -13,3 +13,4 @@ Dialog.lua
 Settings.lua
 Movers.lua
 MoveMode.lua
+Auras.lua
