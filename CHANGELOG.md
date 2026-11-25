@@ -5,6 +5,7 @@
 ### Added
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
+- Nameplates: your debuffs now show in fights. The game refuses addons a unit's auras in combat ("Auras cannot be accessed when secret while tainted"), so by default StzxUI shows Blizzard's own debuff row (Blizzard's code may read them) above the StzxUI plate, restyled square with a thin black edge and numbers sized to the icon. New "Debuff icons" option: Blizzard's in StzxUI's look (default) or StzxUI's own (out of fights only).
 - Nameplates: "Name size" slider (default 14, was 10); the level grows with it and debuffs move up to stay clear.
 - Fix: a second, bigger name appeared above nameplates in combat. Blizzard's shared unit-frame code sets its (hidden) plate visible again during range/status updates; StzxUI now puts it straight back to invisible.
 - Auras: if the game refuses a list sorted by time left, StzxUI asks again unsorted. (Not the cause of the missing nameplate debuffs after all: in game, the game refuses the request itself in combat: "Auras cannot be accessed when secret while tainted". Being worked on.)

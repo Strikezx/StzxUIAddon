@@ -8,6 +8,11 @@
 -- and raids): those keep Blizzard's look. Your own personal resource bar is
 -- left alone too.
 --
+-- Your debuffs: in a fight the game won't tell addons a unit's auras, so
+-- by default StzxUI shows Blizzard's own debuff row (Blizzard's code may
+-- read them) above the StzxUI plate, restyled square with a thin border.
+-- StzxUI's own icons are still an option; they only fill in out of combat.
+--
 -- Settings: StzxUI > Nameplates. /stzx test shows three pretend plates.
 
 local ADDON_NAME, ns = ...
@@ -24,6 +29,7 @@ local Nameplates = StzxUI:NewModule("Nameplates", ADDON_NAME, {
 	castBar = true,
 	castHeight = 10,
 	debuffs = true,         -- your debuffs on enemies
+	debuffSource = "BLIZZARD", -- BLIZZARD (works in fights) or STZXUI (StzxUI's icons; out of fights only)
 	maxDebuffs = 5,
 	debuffSize = 20,
 	targetOutline = true,
@@ -47,8 +53,21 @@ hidden:Hide()
 -- Blizzard's plate: invisible, but left in place
 ---------------------------------------------------------------------------
 
--- Children kept: the widget container (quest/objective widgets) and the
--- soft-target icon. Protected or forbidden pieces are only made invisible.
+-- Blizzard's debuff row: visible on its own (ignoring the invisible plate)
+-- when it's the debuff source, invisible with the rest otherwise.
+local function ApplyDebuffSource(uf)
+	local auras = uf.AurasFrame
+	if not (auras and auras.SetIgnoreParentAlpha) then return end
+	local db = Nameplates.db
+	auras:SetIgnoreParentAlpha(parked[uf] ~= nil and db.debuffs and db.debuffSource == "BLIZZARD")
+end
+ns.UsesBlizzardDebuffs = function()
+	return Nameplates.db.debuffSource == "BLIZZARD"
+end
+
+-- Children kept: the widget container (quest/objective widgets), the
+-- soft-target icon and the debuff row. Protected or forbidden pieces are
+-- only made invisible.
 local function HideBlizzard(nameplate)
 	local uf = nameplate.UnitFrame
 	if not uf then return end
@@ -66,13 +85,14 @@ local function HideBlizzard(nameplate)
 	local list = {}
 	for i = uf:GetNumChildren(), 1, -1 do
 		local child = select(i, uf:GetChildren())
-		if child and child ~= uf.WidgetContainer and child ~= uf.SoftTargetFrame
+		if child and child ~= uf.WidgetContainer and child ~= uf.SoftTargetFrame and child ~= uf.AurasFrame
 			and not (child.IsForbidden and child:IsForbidden()) and not (child.IsProtected and child:IsProtected()) then
 			child:SetParent(hidden)
 			list[#list + 1] = child
 		end
 	end
 	parked[uf] = list
+	ApplyDebuffSource(uf)
 end
 
 local function ShowBlizzard(nameplate)
@@ -81,6 +101,57 @@ local function ShowBlizzard(nameplate)
 	for _, child in ipairs(parked[uf] or {}) do child:SetParent(uf) end
 	parked[uf] = nil
 	uf:SetAlpha(1)
+	ApplyDebuffSource(uf)
+end
+
+---------------------------------------------------------------------------
+-- Blizzard's debuff icons in StzxUI's look
+---------------------------------------------------------------------------
+-- Runs right after Blizzard fills in an icon (only looks are changed: no
+-- anchors of Blizzard's frames, nothing it reads back).
+local styledAura = setmetatable({}, { __mode = "k" })
+
+local function StyleAuraItem(item)
+	if not ns.UsesBlizzardDebuffs() then return end
+	local size = item:GetHeight()
+	local icon = item.Icon
+	if not styledAura[item] then
+		styledAura[item] = true
+		if icon then
+			for i = (icon.GetNumMaskTextures and icon:GetNumMaskTextures() or 0), 1, -1 do
+				icon:RemoveMaskTexture(icon:GetMaskTexture(i))
+			end
+			icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+			icon:ClearAllPoints()
+			icon:SetPoint("TOPLEFT", 1, -1)
+			icon:SetPoint("BOTTOMRIGHT", -1, 1)
+		end
+		-- Blizzard's rounded overlay ring off; a 1-pixel black edge instead.
+		for _, region in ipairs({ item:GetRegions() }) do
+			if region ~= icon and region.GetAtlas and region:GetAtlas() == "UI-HUD-CoolDownManager-IconOverlay" then
+				region:SetAlpha(0)
+			end
+		end
+		local border = item:CreateTexture(nil, "BACKGROUND", nil, -8)
+		border:SetAllPoints()
+		border:SetColorTexture(0, 0, 0, 1)
+		if item.Cooldown and item.Cooldown.SetSwipeColor then item.Cooldown:SetSwipeColor(0, 0, 0, 0.6) end
+	end
+	-- Numbers sized to the icon, like StzxUI's own.
+	local count = item.CountFrame and item.CountFrame.Count
+	if count then count:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", math.max(8, size * 0.42), "OUTLINE") end
+	local timer = item.Cooldown and item.Cooldown.GetCountdownFontString and item.Cooldown:GetCountdownFontString()
+	if timer then timer:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", math.max(8, size * 0.45), "OUTLINE") end
+end
+ns.StyleAuraItem = StyleAuraItem
+
+local auraHooked = false
+local function HookBlizzardAuras()
+	if auraHooked or not NamePlateAuraItemMixin then return end
+	auraHooked = true
+	-- Icons made from now on use the hooked SetAura (Blizzard copies the
+	-- mixin into each icon when it makes it).
+	hooksecurefunc(NamePlateAuraItemMixin, "SetAura", StyleAuraItem)
 end
 
 ---------------------------------------------------------------------------
@@ -121,6 +192,9 @@ local function Removed(unit)
 end
 
 function Nameplates:RefreshAll()
+	for nameplate in pairs(platesOf) do
+		if nameplate.UnitFrame then ApplyDebuffSource(nameplate.UnitFrame) end
+	end
 	for _, p in pairs(plates) do
 		ns.LayoutPlate(p, self.db)
 		ns.UpdatePlate(p)
@@ -322,8 +396,13 @@ function Nameplates:OnInitialize()
 		"Yellow: you can interrupt it. Grey with a shield: you can't. Blue: channelled.", Refresh)
 	StzxUI:AddSlider(page, self, "castHeight", "Cast bar height", nil, 6, 20, 1, nil, Refresh)
 	StzxUI:AddCheckbox(page, self, "debuffs", "My debuffs on enemies", nil, Refresh)
-	StzxUI:AddSlider(page, self, "maxDebuffs", "Debuffs shown", nil, 1, 8, 1, nil, Refresh)
-	StzxUI:AddSlider(page, self, "debuffSize", "Debuff size", nil, 12, 32, 1, nil, Refresh)
+	StzxUI:AddDropdown(page, self, "debuffSource", "Debuff icons",
+		"In a fight the game won't tell addons a unit's auras. Blizzard's icons (restyled to StzxUI's look) "
+		.. "keep working; StzxUI's own icons only fill in out of combat.",
+		{ { "BLIZZARD", "Blizzard's, StzxUI look (work in fights)" }, { "STZXUI", "StzxUI's (out of fights only)" } },
+		Refresh)
+	StzxUI:AddSlider(page, self, "maxDebuffs", "Debuffs shown", "StzxUI's own icons only.", 1, 8, 1, nil, Refresh)
+	StzxUI:AddSlider(page, self, "debuffSize", "Debuff size", "StzxUI's own icons only.", 12, 32, 1, nil, Refresh)
 	StzxUI:AddButton(page, "Test plates", "Show / hide", function() StzxUI:ToggleTestMode() end,
 		"Three pretend plates in the middle of the screen, drawn with these settings. /stzx test does the same.")
 end
@@ -334,6 +413,14 @@ function Nameplates:OnEnable()
 	for event in pairs(UNIT_EVENTS) do pcall(events.RegisterEvent, events, event) end
 	for event in pairs(ALL_EVENTS) do events:RegisterEvent(event) end
 	StzxUI:RegisterTestMode("nameplates", ns.ShowTest)
+	HookBlizzardAuras()
+	if not auraHooked then -- Blizzard's nameplates not loaded yet
+		local waiter = CreateFrame("Frame")
+		waiter:RegisterEvent("ADDON_LOADED")
+		waiter:SetScript("OnEvent", function(w, _, name)
+			if name == "Blizzard_NamePlates" then HookBlizzardAuras(); w:UnregisterAllEvents() end
+		end)
+	end
 	-- Plates already on screen (after a /reload).
 	for _, nameplate in ipairs(C_NamePlate.GetNamePlates and C_NamePlate.GetNamePlates() or {}) do
 		local unit = nameplate.namePlateUnitToken or (nameplate.UnitFrame and nameplate.UnitFrame.unit)

@@ -261,7 +261,9 @@ end
 function ns.UpdateDebuffs(p)
 	local db = ns.db()
 	local shown = 0
-	if db.debuffs then
+	-- Blizzard's debuff row is showing instead (it works in fights; asking
+	-- the game ourselves in combat is refused).
+	if db.debuffs and db.debuffSource ~= "BLIZZARD" then
 		for _, aura in ipairs(StzxUI.Auras.Get(p.unit, "HARMFUL|PLAYER", db.maxDebuffs)) do
 			if shown >= db.maxDebuffs then break end
 			shown = shown + 1

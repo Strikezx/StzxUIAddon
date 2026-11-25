@@ -191,7 +191,10 @@ function Frame:SetTexCoord(...) self.texCoord = { ... } end
 function Frame:SetAlpha(a) self.alpha = a end
 function Frame:SetColorTexture(r, g, b, a) self.colour = { r, g, b, a } end
 function Frame:SetVertexColor(r, g, b) self.vertex = { r, g, b } end
-function Frame:RemoveMaskTexture(m) self.removedMask = m end
+function Frame:RemoveMaskTexture(m)
+	self.removedMask = m
+	for i, x in ipairs(self.masks or {}) do if x == m then table.remove(self.masks, i) break end end
+end
 function Frame:GetAlpha() return self.alpha or 1 end
 function Frame:SetScale(sc) self.scale = sc end
 function Frame:GetScale() return self.scale or 1 end
@@ -239,6 +242,15 @@ function Frame:SetVertexColorFromBoolean(v, yes, no)
 end
 function Frame:GetParent() return self.parent end
 function Frame:GetName() return self.name end
+function Frame:SetIgnoreParentAlpha(v) self.ignoreParentAlpha = v and true or false end
+function Frame:GetAtlas() return self.atlas end
+function Frame:GetNumMaskTextures() return #(self.masks or {}) end
+function Frame:GetMaskTexture(i) return (self.masks or {})[i] end
+function Frame:GetRegions()
+	local list = {}
+	for _, f in ipairs(self.childList or {}) do if f.kind == "Texture" or f.kind == "FontString" then list[#list + 1] = f end end
+	return unpack(list)
+end
 function Frame:GetFontString()
 	self.fontString = self.fontString or NewFrame("FontString", nil, self)
 	return self.fontString
@@ -557,6 +569,8 @@ local function InstallClient()
 	end
 	GetMinimapShape = nil
 	MinimapBackdrop = NewFrame("Frame", "MinimapBackdrop", MinimapCluster)
+	-- Blizzard's nameplate aura icon (its code; it fills in an icon).
+	NamePlateAuraItemMixin = { SetAura = function(self, aura) self.Icon:SetTexture(aura.icon) end }
 	-- Globals Blizzard made are "secure"; an addon's (marked .addon here) aren't.
 	function issecurevariable(t, k)
 		if k == nil then k = t end
@@ -2057,6 +2071,7 @@ local function BlizzardPlate(unit, opts)
 	uf.castBar = NewFrame("StatusBar", nil, uf)
 	uf.WidgetContainer = NewFrame("Frame", nil, uf)
 	uf.SoftTargetFrame = NewFrame("Frame", nil, uf)
+	uf.AurasFrame = NewFrame("Frame", nil, uf)
 	uf.locked = NewFrame("Frame", nil, uf)
 	uf.locked.protected = true
 	nameplates[unit] = np
@@ -2139,11 +2154,42 @@ check(p2.castText.text == "Interrupted" and p2.cast.shown, "interrupted: says so
 RunAfters()
 check(not p2.cast.shown, "...then goes")
 
--- Your debuffs.
+-- Your debuffs. By default: Blizzard's own debuff row (the game lets
+-- Blizzard's code read auras in a fight; it refuses addons).
 auraState.nameplate1 = {
 	{ auraInstanceID = 41, icon = 136207, duration = 18, expirationTime = now + 9, applications = 0, harmful = true, mine = true },
 	{ auraInstanceID = 42, icon = 136208, duration = 18, expirationTime = now + 9, applications = 0, harmful = true, mine = false },
 }
+local blizzAuras = np1.UnitFrame.AurasFrame
+check(blizzAuras.parent == np1.UnitFrame and blizzAuras.ignoreParentAlpha == true,
+	"Blizzard's debuff row stays, visible above the invisible Blizzard plate")
+local auraAsks = 0
+local realGetCount = C_UnitAuras.GetUnitAuras
+C_UnitAuras.GetUnitAuras = function(...) auraAsks = auraAsks + 1 return realGetCount(...) end
+Fire("UNIT_AURA", "nameplate1")
+check(auraAsks == 0 and not p1.debuffs[1].shown, "...and StzxUI doesn't ask the game itself (it would be refused in a fight)")
+C_UnitAuras.GetUnitAuras = realGetCount
+-- Blizzard makes a debuff icon (copying its mixin, as the game does) and fills it in.
+local item = NewFrame("Frame", nil, blizzAuras)
+for k, v in pairs(NamePlateAuraItemMixin) do item[k] = v end
+item:SetSize(20, 20)
+item.Icon = item:CreateTexture()
+item.Icon.masks = { item:CreateMaskTexture() }
+local ring = item:CreateTexture()
+ring.atlas = "UI-HUD-CoolDownManager-IconOverlay"
+item.Cooldown = NewFrame("Cooldown", nil, item)
+item.CountFrame = NewFrame("Frame", nil, item)
+item.CountFrame.Count = item.CountFrame:CreateFontString()
+item:SetAura({ icon = 136207 })
+local edgeFound
+for _, f in ipairs(frames) do if f.parent == item and f.kind == "Texture" and f.allPointsOf == item and f.colour then edgeFound = f end end
+check(item.Icon.texture == 136207 and #item.Icon.masks == 0 and item.Icon.texCoord[1] == 0.08 and ring.alpha == 0
+	and edgeFound and edgeFound.colour[1] == 0, "Blizzard's icons restyled: square, cropped, thin black edge, no ring")
+check(item.CountFrame.Count.font.size == 8.4 and item.Cooldown.countdownText.font.size == 9,
+	"...with numbers sized to the icon")
+-- StzxUI's own icons instead (out of combat only).
+log.settings.STZXUI_NAMEPLATES_DEBUFFSOURCE:SetValue("STZXUI")
+check(blizzAuras.ignoreParentAlpha == false, "StzxUI icons chosen: Blizzard's row hidden with its plate")
 Fire("UNIT_AURA", "nameplate1")
 check(p1.debuffs[1].shown and p1.debuffs[1].auraInstanceID == 41 and not p1.debuffs[2].shown, "only your debuffs")
 check(p1.debuffs[1].mouseEnabled == false, "debuff icons never block clicking the plate")
