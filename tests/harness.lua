@@ -2322,6 +2322,12 @@ check(questie.clicked and not flyout:IsShown(), "...or closes, if asked")
 local onEscape = false
 for _, n in ipairs(UISpecialFrames) do if n == "StzxUIMinimapButtons" then onEscape = true end end
 check(onEscape, "Escape closes the panel")
+details:SetAlpha(0.3)
+SlashCmdList.STZXUI("buttons")
+local said = table.concat(log.prints, "\n")
+check(said:find("4 addon buttons gathered") and said:find("Details %(LibDBIcon%), see%-through 70%%")
+	and said:find("OtherAddonMinimapButton %(other%), see%-through 0%%"), "/stzx buttons lists them, and how faded")
+details:SetAlpha(1)
 log.settings.STZXUI_MINIMAP_BUTTONSOPEN:SetValue("DOWN")
 corner:Click()
 check(flyout.points[1].point == "TOPRIGHT" and flyout.points[1].relPoint == "BOTTOMRIGHT", "panel can open below the minimap")

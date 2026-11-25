@@ -253,6 +253,37 @@ local function Build()
 end
 
 ---------------------------------------------------------------------------
+-- /stzx buttons: what's in the panel (to track down odd-looking buttons)
+---------------------------------------------------------------------------
+local function Describe(button)
+	local name = IconName(button)
+	local parts = { (name or button:GetName() or "?") .. (name and " (LibDBIcon)" or " (other)") }
+	parts[#parts + 1] = ("see-through %d%%"):format(math.floor((1 - button:GetAlpha()) * 100 + 0.5))
+	local icon = button.icon
+	if icon and icon.GetVertexColor then
+		local r, g, b = icon:GetVertexColor()
+		if r and (r < 0.99 or g < 0.99 or b < 0.99) then
+			parts[#parts + 1] = ("icon tinted %.2f %.2f %.2f"):format(r, g, b)
+		end
+	end
+	if icon and icon.IsDesaturated and icon:IsDesaturated() then parts[#parts + 1] = "icon greyed out" end
+	if not button:IsShown() then parts[#parts + 1] = "hidden" end
+	return table.concat(parts, ", ")
+end
+
+StzxUI.slashCommands.buttons = {
+	help = "list the addon buttons gathered from the minimap",
+	run = function()
+		if #order == 0 then
+			StzxUI:Say("no addon buttons gathered.")
+			return
+		end
+		StzxUI:Say(("%d addon buttons gathered:"):format(#order))
+		for _, button in ipairs(order) do StzxUI:Say("  " .. Describe(button)) end
+	end,
+}
+
+---------------------------------------------------------------------------
 -- Settings and start-up
 ---------------------------------------------------------------------------
 function ns.AddButtonSettings(page, module)
