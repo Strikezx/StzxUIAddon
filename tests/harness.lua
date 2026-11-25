@@ -2633,6 +2633,32 @@ check(winFill.colour[4] == 0.6, "background opacity")
 log.settings.STZXUI_SKINS_COLOUR:SetValue("ACCENT")
 log.settings.STZXUI_SKINS_OPACITY:SetValue(92)
 unitState.player = savedPlayer
+-- Zygor builds its window late; StzxUI waits for it, then re-colours it after each of Zygor's skin passes.
+local zborder = NewFrame("Frame")
+function zborder:SetBackdropColor(r, g, b, a) self.bg = { r, g, b, a } end
+function zborder:GetBackdropColor() return unpack(self.bg) end
+function zborder:SetBackdropBorderColor(r, g, b, a) self.edge = { r, g, b, a } end
+function zborder:GetBackdropBorderColor() return unpack(self.edge) end
+local zframe = NewFrame("Frame", "ZygorGuidesViewerFrame")
+zframe.Border = zborder
+function zframe:ApplySkin() -- Zygor's Stealth style, at its 80% opacity
+	self.Border:SetBackdropColor(0, 0, 0, 0.8)
+	self.Border:SetBackdropBorderColor(0.49, 0.49, 0.49, 0.8)
+end
+zframe:ApplySkin()
+ZygorGuidesViewer = {}
+TickAll(tickers)
+check(zborder.edge[1] == 0.49, "Zygor not ready yet: left alone")
+ZygorGuidesViewer.Frame = zframe
+TickAll(tickers)
+check(zborder.edge[1] == StzxUI.ACCENT.r and zborder.edge[4] == 0.8 and zborder.bg[1] == 0.06 and zborder.bg[4] == 0.8,
+	"Zygor's window in StzxUI's colours, keeping Zygor's opacity")
+zframe:ApplySkin() -- Zygor re-skins (e.g. style changed)
+check(zborder.edge[1] == StzxUI.ACCENT.r, "...and again after Zygor re-skins")
+log.settings.STZXUI_SKINS_COLOUR:SetValue("BLACK")
+check(zborder.edge[1] == 0, "...following the edge colour setting")
+log.settings.STZXUI_SKINS_COLOUR:SetValue("ACCENT")
+ZygorGuidesViewer = nil
 log.prints = {}
 SlashCmdList.STZXUI("skins")
 check(lastPrint():find("0 more windows skinned", 1, true), "/stzx skins")

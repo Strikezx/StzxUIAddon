@@ -19,6 +19,7 @@ local Skins = StzxUI:NewModule("Skins", ADDON_NAME, {
 	colour = "ACCENT",   -- edge colour: ACCENT (StzxUI's accent), CLASS (your class colour), BLACK
 	opacity = 92,        -- window background, %
 	controls = true,     -- also flatten the buttons and scrollbars inside windows
+	zygor = true,        -- Zygor Guides' window in StzxUI's colours
 	skip = {},           -- window name -> true: keep Blizzard's look
 }, {
 	title = "Skins",
@@ -32,7 +33,7 @@ Skins.WINDOWS = {
 	"CharacterFrame", "PlayerSpellsFrame", "SpellBookFrame", "ProfessionsBookFrame", "InspectFrame",
 	"DressUpFrame", "TabardFrame",
 	-- Social
-	"FriendsFrame", "CommunitiesFrame", "RaidInfoFrame", "GuildRegistrarFrame", "PetitionFrame",
+	"FriendsFrame", "SocialUIFrame", "CommunitiesFrame", "RaidInfoFrame", "GuildRegistrarFrame", "PetitionFrame",
 	-- Questing and NPCs
 	"QuestFrame", "GossipFrame", "QuestLogPopupDetailFrame", "MerchantFrame", "ClassTrainerFrame",
 	"TaxiFrame", "StableFrame", "ItemTextFrame", "BarberShopFrame",
@@ -47,7 +48,7 @@ Skins.WINDOWS = {
 	"CollectionsJournal", "EncounterJournal", "AchievementFrame", "CalendarFrame", "TimeManagerFrame",
 	-- System
 	"GameMenuFrame", "AddonList", "MacroFrame", "ClickBindingFrame", "HelpFrame", "ChatConfigFrame",
-	"ColorPickerFrame", "SettingsPanel", "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4",
+	"ColorPickerFrame", "LegacySystemFrame", "SettingsPanel", "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4",
 }
 
 local pending = false -- something to skin once combat ends
@@ -72,9 +73,58 @@ function Skins:SkinAll()
 	return count
 end
 
+---------------------------------------------------------------------------
+-- Other addons: Zygor Guides
+---------------------------------------------------------------------------
+-- Zygor draws its window with its own skin (Skins\Default\Skin.lua:
+-- ZGV.Frame:ApplySkin() sets ZGV.Frame.Border's backdrop from its style).
+-- Its "Stealth" style is already flat and dark with a 1-pixel edge, so
+-- StzxUI only re-colours it right after each ApplySkin: the edge in the
+-- skin colour, the background in StzxUI's dark fill. Zygor's own opacity
+-- setting (the colours' alpha) is kept. Zygor builds its window late, so
+-- StzxUI checks for it every second for a while.
+local ZYGOR_FILL = { 0.06, 0.065, 0.075 }
+
+local function ZygorFrame()
+	local zgv = _G.ZygorGuidesViewer or _G.ZGV
+	return type(zgv) == "table" and zgv.Frame or nil
+end
+
+function Skins.ColourZygor()
+	if not Skins.db.zygor then return end
+	local frame = ZygorFrame()
+	local border = frame and frame.Border
+	if not (border and border.SetBackdropBorderColor and border.GetBackdropBorderColor) then return end
+	local r, g, b = Skin.EdgeColour()
+	local _, _, _, edgeAlpha = border:GetBackdropBorderColor()
+	border:SetBackdropBorderColor(r, g, b, edgeAlpha or 1)
+	local _, _, _, fillAlpha = border:GetBackdropColor()
+	border:SetBackdropColor(ZYGOR_FILL[1], ZYGOR_FILL[2], ZYGOR_FILL[3], fillAlpha or 1)
+end
+
+local zygorHooked = false
+local function WatchZygor()
+	if zygorHooked or not Skins.db.zygor then return end
+	local tries = 0
+	local ticker
+	ticker = C_Timer.NewTicker(1, function()
+		tries = tries + 1
+		local frame = ZygorFrame()
+		if frame and frame.ApplySkin then
+			zygorHooked = true
+			hooksecurefunc(frame, "ApplySkin", Skins.ColourZygor)
+			Skins.ColourZygor()
+			ticker:Cancel()
+		elseif tries >= 180 then -- no Zygor (or a very different one): stop looking
+			ticker:Cancel()
+		end
+	end)
+end
+
 local function ApplyLook()
 	Skin.SetColourMode(Skins.db.colour)
 	Skin.SetOpacity(Skins.db.opacity / 100)
+	Skins.ColourZygor()
 end
 
 function Skins:OnInitialize()
@@ -88,6 +138,12 @@ function Skins:OnInitialize()
 		60, 100, 2, function(value) return ("%d%%"):format(value) end, ApplyLook)
 	StzxUI:AddCheckbox(page, self, "controls", "Flatten buttons and scrollbars inside windows",
 		"Changes apply after a reload.", function() StzxUI:AskReload("Buttons and scrollbars change after a reload.") end)
+	StzxUI:AddHeader(page, "Other addons")
+	StzxUI:AddCheckbox(page, self, "zygor", "Zygor Guides in StzxUI's colours",
+		"Zygor's window edge and background in StzxUI's colours. Looks best with Zygor's \"Stealth\" style. Off needs a reload.",
+		function(on)
+			if on then WatchZygor() else StzxUI:AskReload("Zygor's own colours come back after a reload.") end
+		end)
 end
 
 function Skins:OnEnable()
@@ -102,6 +158,7 @@ function Skins:OnEnable()
 		Skins:SkinAll()
 	end)
 	self:SkinAll()
+	WatchZygor()
 end
 
 StzxUI.slashCommands.skins = {
