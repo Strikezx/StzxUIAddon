@@ -30,6 +30,9 @@ Scott's personal UI suite for WoW: Forever. Scott is learning addon development 
 - Move-mode categories: pass `category` to `RegisterMover` so the toolbar's Show row can filter it. Frames resize with the mouse wheel (`scales[key]` in the profile) unless `scalable = false`.
 - Switching profiles or sections asks for a reload (`StzxUI:AskReload`) instead of swapping tables live.
 - Upgrading saved data: bump `DB_VERSION` in `Profiles.lua` and migrate in `LoadProfiles`, with a harness check that old data survives.
+- Other module folders: `StzxUI_Social` (duels, thanks, mail names), `StzxUI_Info` (stats, coords, levelling), `StzxUI_Quests` (Forever tint, sparkles, party quest status), `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars` (restyle only; Edit Mode places), `StzxUI_Nameplates`, `StzxUI_Blizzard` (Blizzard frames Edit Mode can't place), `StzxUI_Inventory` (read-only, all characters), `StzxUI_Minimap`.
+- Core extras: `Auras.lua` (StzxUI.Auras: shared aura icons), `OptionsWindow.lua` (StzxUI's own options window, drawn from what the Settings.lua helpers record in `StzxUI.optionPages`; always add options through those helpers). Test frames: `StzxUI:RegisterTestMode(name, fn)`.
+- Restyling Blizzard frames: never touch secure attributes or the frames' own anchors; repaint after Blizzard's redraws with `hooksecurefunc`.
 - `tests/harness.lua` offline fake client.
 - `docs/` notes, not packaged.
 
