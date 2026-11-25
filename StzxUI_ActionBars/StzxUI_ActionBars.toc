@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Action Bars
+## Notes: Restyles Blizzard's action bars in StzxUI's look. Edit Mode still places them.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+
+ActionBars.lua

@@ -33,6 +33,9 @@ local questLog, questOffers = {}, {}
 local instance, money, lootWindow = nil, 0, {}
 local mailLoaded = true
 local fishing = { pole = false, lureMS = nil, zone = "Elwynn Forest", fishingLoot = false }
+-- Action bars: keybinds by button name, and which actions are usable.
+local bindings = { ActionButton1 = "1", ActionButton2 = "SHIFT-Mouse Button 4", ActionButton3 = "c-s-Num Pad 5" }
+local usable = {}  -- [action] = "yes" | "mana" | "no"
 local afters = {}
 local function RunAfters() local list = afters; afters = {}; for _, fn in ipairs(list) do fn() end end
 local function TickAll(list)
@@ -182,6 +185,9 @@ function Frame:GetAttribute(k) return self.attributes and self.attributes[k] end
 function Frame:SetTexture(t) self.texture = t end
 function Frame:SetTexCoord(...) self.texCoord = { ... } end
 function Frame:SetAlpha(a) self.alpha = a end
+function Frame:SetColorTexture(r, g, b, a) self.colour = { r, g, b, a } end
+function Frame:SetVertexColor(r, g, b) self.vertex = { r, g, b } end
+function Frame:RemoveMaskTexture(m) self.removedMask = m end
 function Frame:GetAlpha() return self.alpha or 1 end
 function Frame:SetScale(sc) self.scale = sc end
 function Frame:GetScale() return self.scale or 1 end
@@ -197,10 +203,10 @@ function Frame:SetCooldownFromDurationObject(d) self.durationObject, self.cooldo
 function Frame:Clear() self.cooldownStart, self.durationObject = nil, nil end
 function Frame:IsVisible() local f = self while f do if not f.shown then return false end f = f.parent end return true end
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable", "EnableMouse",
-	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetColorTexture",
+	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetSwipeColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
 	"SetScrollChild", "SetOwner", "AddLine", "SetShadowColor", "SetWordWrap", "SetWidth",
-	"SetVertexColor", "SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
+	"SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
 local function Fire(event, ...)
@@ -405,6 +411,44 @@ local function InstallClient()
 		end,
 	}
 	function GetRealZoneText() return fishing.zone end
+	-- Blizzard's action buttons, with the bits of its own behaviour StzxUI hooks.
+	RANGE_INDICATOR = "\226\151\143"
+	C_ActionBar = { IsUsableAction = function(action)
+		local u = usable[action] or "yes"
+		return u == "yes", u == "mana"
+	end }
+	local function ActionButton(name, width, action)
+		local b = NewFrame("CheckButton", name)
+		b:SetSize(width, width)
+		b.action = action
+		for _, key in ipairs({ "icon", "IconMask", "SlotArt", "SlotBackground", "NormalTexture", "PushedTexture",
+			"HighlightTexture", "CheckedTexture" }) do b[key] = b:CreateTexture() end
+		b.HotKey, b.Count, b.Name = NewFrame("FontString", nil, b), NewFrame("FontString", nil, b), NewFrame("FontString", nil, b)
+		b.cooldown = NewFrame("Cooldown", nil, b)
+		function b:UpdateButtonArt() self.NormalTexture:SetAlpha(1); self.SlotArt:Show(); self.PushedTexture:SetAlpha(1) end
+		function b:UpdateHotkeys()
+			local key = bindings[self.name]
+			self.HotKey:SetText(key or RANGE_INDICATOR)
+			self.HotKey:ClearAllPoints()
+			self.HotKey:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, 0)
+		end
+		function b:UpdateUsable()
+			local u = usable[self.action] or "yes"
+			if u == "yes" then self.icon:SetVertexColor(1, 1, 1)
+			elseif u == "mana" then self.icon:SetVertexColor(0.5, 0.5, 1)
+			else self.icon:SetVertexColor(0.4, 0.4, 0.4) end
+		end
+		b:UpdateButtonArt(); b:UpdateHotkeys(); b:UpdateUsable()
+		return b
+	end
+	MainActionBar = NewFrame("Frame", "MainActionBar")
+	MainActionBar.actionButtons = {}
+	for i = 1, 12 do MainActionBar.actionButtons[i] = ActionButton("ActionButton" .. i, 45, i) end
+	PetActionBar = NewFrame("Frame", "PetActionBar")
+	PetActionBar.actionButtons = { ActionButton("PetActionButton1", 30, 121) }
+	function ActionButton_UpdateRangeIndicator(button, checksRange, inRange)
+		button.HotKey:SetTextColor(checksRange and not inRange and 1 or 0.6, 0.6, 0.6)
+	end
 	function IsFishingLoot() return fishing.fishingLoot end
 	function PlaySound(id) table.insert(log.sounds, id) end
 	-- Edit Mode: Blizzard's callback registry and its manager frame, with one
@@ -420,7 +464,7 @@ local function InstallClient()
 	function EditModeManagerFrame:GetAccountSettingValue(setting) if setting == 1 then return editMode.spacing end end
 	function EditModeManagerFrame:SetGridShown(on) editMode.gridShown = on; self.Grid.shown = on end
 	function EditModeManagerFrame:SetGridSpacing(n) editMode.spacing = n end
-	local bar = NewFrame("Frame", "MainActionBar")
+	local bar = NewFrame("Frame", "EditModeTestBar")
 	bar.effScale = 0.5
 	bar:SetSize(500, 50)
 	bar:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 600, 100)
@@ -563,7 +607,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -1760,6 +1804,66 @@ check(not StzxUIMoveToolbar.test.shown, "...and no switch on the toolbar")
 StzxUI:ExitMoveMode()
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
 Reload()
+
+---------------------------------------------------------------------------
+-- 24. Action bars: restyled Blizzard buttons
+---------------------------------------------------------------------------
+StartGame(nil)
+local AB = StzxUI:GetModule("ActionBars")
+local b1, b2, b3, pet = ActionButton1, ActionButton2, ActionButton3, PetActionButton1
+check(AB.enabled and Category("Action Bars") and #AB.Buttons() == 13, "Action Bars section restyles every bar's buttons")
+check(b1.NormalTexture.alpha == 0 and not b1.SlotArt.shown and b1.icon.removedMask == b1.IconMask
+	and b1.icon.texCoord[1] == 0.08, "Blizzard's rounded art gone; square, cropped icon")
+check(b1.icon.points[1].x == 1 and b1.PushedTexture.colour[4] == 0.35 and b1.CheckedTexture.colour[1] == StzxUI.ACCENT.r,
+	"icon inside a 1-pixel border; pressed and active in StzxUI colours")
+b1:UpdateButtonArt() -- Blizzard redraws its art (e.g. after an Edit Mode change)
+check(b1.NormalTexture.alpha == 0 and not b1.SlotArt.shown, "...and it stays gone after Blizzard redraws")
+
+check(b1.HotKey.text == "1" and b2.HotKey.text == "SM4" and b3.HotKey.text == "CSN5", "short keybinds")
+check(AB.ShortKey("Mouse Wheel Up") == "WU" and AB.ShortKey("ALT-Spacebar") == "ASpc" and AB.ShortKey(RANGE_INDICATOR) == RANGE_INDICATOR,
+	"short keybind names")
+bindings.ActionButton1 = "CTRL-Mouse Button 5"
+b1:UpdateHotkeys()
+check(b1.HotKey.text == "CM5" and b1.HotKey.points[1].x == -2 and b1.HotKey.font.size == 11, "rebinding: shortened and placed again")
+check(b1.Count.font.size == 13 and b1.cooldown.countdownText.font.size == 16 and pet.HotKey.font.size == 7,
+	"text sized to the button (pet buttons smaller)")
+
+-- Out of range: whole icon red, back to Blizzard's colours after.
+ActionButton_UpdateRangeIndicator(b1, true, false)
+check(b1.icon.vertex[1] == 0.90 and b1.icon.vertex[2] == 0.25, "out of range: red icon")
+b1:UpdateUsable() -- Blizzard re-colours (e.g. mana changed)
+check(b1.icon.vertex[1] == 0.90, "...stays red through Blizzard's usable updates")
+usable[1] = "mana"
+ActionButton_UpdateRangeIndicator(b1, true, true)
+check(b1.icon.vertex[1] == 0.5 and b1.icon.vertex[3] == 1, "back in range: Blizzard's out-of-mana blue")
+ActionButton_UpdateRangeIndicator(b1, false, false)
+check(b1.icon.vertex[1] == 0.5, "no range check (no target): not red")
+
+-- Options.
+ActionButton_UpdateRangeIndicator(b2, true, false)
+log.settings.STZXUI_ACTIONBARS_RANGETINT:SetValue(false)
+check(b2.icon.vertex[1] == 1, "range tint can be switched off")
+log.settings.STZXUI_ACTIONBARS_RANGETINT:SetValue(true)
+check(b2.icon.vertex[1] == 0.90, "...and on again")
+log.settings.STZXUI_ACTIONBARS_SHOWKEYBINDS:SetValue(false)
+log.settings.STZXUI_ACTIONBARS_SHOWMACRONAMES:SetValue(false)
+check(b1.HotKey.alpha == 0 and b1.Name.alpha == 0, "keybinds and macro names can be hidden")
+b1:UpdateHotkeys()
+check(b1.HotKey.alpha == 0, "...and stay hidden after Blizzard redraws them")
+log.settings.STZXUI_ACTIONBARS_SHOWKEYBINDS:SetValue(true)
+log.settings.STZXUI_ACTIONBARS_SHOWMACRONAMES:SetValue(true)
+log.settings.STZXUI_ACTIONBARS_TEXTSIZE:SetValue(14)
+log.settings.STZXUI_ACTIONBARS_COOLDOWNSIZE:SetValue(20)
+check(b1.HotKey.font.size == 14 and b1.Count.font.size == 16 and b1.cooldown.countdownText.font.size == 20, "text sizes")
+usable[1] = nil
+
+-- Login in combat: waits.
+inCombat = true
+Reload()
+check(ActionButton1.NormalTexture.alpha == 1, "in combat: waits")
+inCombat = false
+Fire("PLAYER_REGEN_ENABLED")
+check(ActionButton1.NormalTexture.alpha == 0, "...restyles once combat ends")
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
