@@ -5,6 +5,7 @@
 ### Added
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
+- Minimap (new section): square minimap with a 1-pixel border (black or StzxUI accent), the round frame art and compass ring hidden, + and - buttons hidden (the mouse wheel already zooms). Re-applied after Blizzard's own minimap setup; minimap-button addons are told it's square. Edit Mode still places it.
 - Inventory (new section): remembers the bags, gear and bank tabs of every character (and the shared account bank, each time a bank is opened). Item tooltips list who else has one ("Sorchawyn Ashvale: 12 (bags)"); `/stzx items [words]` searches every character, hover for the item. Read-only.
 - Blizzard Frames (new section): the Blizzard frames Edit Mode can't place get boxes in StzxUI move mode (Blizzard group): alerts, error messages, zone text, capture bars and scores, boss banner, level-up toasts. They start exactly where Blizzard puts them; drag to move, mouse wheel to resize, right-click to put back. Loot roll frames and the widgets under the minimap are left to Blizzard's own layout.
 - Movers can attach a frame by any point (Blizzard frames keep their own anchor).

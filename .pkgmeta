@@ -14,6 +14,7 @@ move-folders:
   StzxUI/StzxUI_Nameplates: StzxUI_Nameplates
   StzxUI/StzxUI_Blizzard: StzxUI_Blizzard
   StzxUI/StzxUI_Inventory: StzxUI_Inventory
+  StzxUI/StzxUI_Minimap: StzxUI_Minimap
 
 ignore:
   - docs

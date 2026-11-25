@@ -524,6 +524,19 @@ local function InstallClient()
 		f:SetSize(100, 20)
 		f:SetPoint("TOP", UIParent, "TOP", 0, -100)
 	end
+	-- The minimap, as Forever builds it.
+	MinimapCluster = NewFrame("Frame", "MinimapCluster")
+	Minimap = NewFrame("Frame", "Minimap", MinimapCluster)
+	Minimap:SetSize(198, 198)
+	Minimap.ZoomIn, Minimap.ZoomOut = NewFrame("Button", nil, Minimap), NewFrame("Button", nil, Minimap)
+	function Minimap:SetMaskTexture(t) self.mask = t end
+	MinimapCompassTexture = NewFrame("Texture", "MinimapCompassTexture", MinimapCluster)
+	MinimapCompassTextureUnderlay = NewFrame("Texture", "MinimapCompassTextureUnderlay", MinimapCluster)
+	function MinimapCluster:UpdateMinimapConfig()
+		Minimap:SetMaskTexture("ui-hud-minimap-frame-generic-mask")
+		MinimapCompassTexture:SetAlpha(1)
+	end
+	GetMinimapShape = nil
 	PetActionBar = NewFrame("Frame", "PetActionBar")
 	PetActionBar.actionButtons = { ActionButton("PetActionButton1", 30, 121) }
 	function ActionButton_UpdateRangeIndicator(button, checksRange, inRange)
@@ -687,7 +700,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -2158,6 +2171,29 @@ check(#ShowItemTooltip(2770) == 0, "tooltip lines can be switched off")
 log.settings.STZXUI_INVENTORY_TOOLTIPS:SetValue(true)
 IW:Hide()
 containers, gear, StzxUIInventoryDB = {}, {}, nil
+
+---------------------------------------------------------------------------
+-- 29. Minimap
+---------------------------------------------------------------------------
+StartGame(nil)
+local MM = StzxUI:GetModule("Minimap")
+check(MM.enabled and Category("Minimap"), "Minimap section and page")
+check(Minimap.mask == "Interface\\Buttons\\WHITE8x8" and MinimapCompassTexture.alpha == 0, "square, round frame art hidden")
+check(GetMinimapShape() == "SQUARE", "minimap-button addons are told it's square")
+check(Minimap.ZoomIn.alpha == 0 and Minimap.ZoomIn.mouseEnabled == false, "zoom buttons hidden")
+MinimapCluster:UpdateMinimapConfig() -- Blizzard redoes its setup (e.g. rotate minimap)
+check(Minimap.mask == "Interface\\Buttons\\WHITE8x8" and MinimapCompassTexture.alpha == 0, "...and it stays square after")
+local edge
+for _, f in ipairs(frames) do if f.parent == Minimap and f.edges then edge = f.edges[1] end end
+check(edge and edge.colour[1] == 0, "black 1-pixel border")
+log.settings.STZXUI_MINIMAP_ACCENTBORDER:SetValue(true)
+check(edge.colour[1] == StzxUI.ACCENT.r, "or StzxUI's accent colour")
+log.settings.STZXUI_MINIMAP_HIDEZOOMBUTTONS:SetValue(false)
+check(Minimap.ZoomIn.alpha == 1 and Minimap.ZoomIn.mouseEnabled, "zoom buttons can come back")
+log.settings.STZXUI_MINIMAP_SQUARE:SetValue(false)
+check(GetMinimapShape() == "ROUND" and DialogShown(), "round again: needs a reload, and says so")
+StzxUIDialog.cancelButton:Click()
+log.settings.STZXUI_MINIMAP_SQUARE:SetValue(true)
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
