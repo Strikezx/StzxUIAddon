@@ -2159,8 +2159,17 @@ check(p1.debuffs[1].shown and p1.debuffs[1].auraInstanceID == 41, "debuffs still
 log.prints = {}
 SlashCmdList.STZXUI("auras")
 local said = table.concat(log.prints, "\n")
-check(said:find("nameplate1: 1 of your debuffs %(2 in all%), 1 icons shown") and said:find("sorting secret auras not allowed", 1, true),
-	"/stzx auras says what the game reports, and its last refusal")
+check(said:find("nameplate1: 1 of your debuffs, 2 in all, 1 icons shown") and said:find("you: 0 of your debuffs", 1, true),
+	"/stzx auras says what the game reports for each unit")
+C_UnitAuras.GetUnitAuras = function(unit, filter, maxCount)
+	if unit:find("^nameplate") then error("GetUnitAuras(): Auras cannot be accessed when secret while tainted by 'StzxUI'") end
+	return realGet(unit, filter, maxCount)
+end
+log.prints = {}
+SlashCmdList.STZXUI("auras")
+said = table.concat(log.prints, "\n")
+check(said:find("nameplate1: refused (", 1, true) and said:find("Auras cannot be accessed when secret while tainted", 1, true)
+	and said:find("you: 0 of your debuffs", 1, true), "...and which units it refuses")
 C_UnitAuras.GetUnitAuras = realGet
 -- Blizzard's shared code makes its plate visible again (range/status update in combat).
 np1.UnitFrame:SetAlpha(1)

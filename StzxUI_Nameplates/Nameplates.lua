@@ -177,8 +177,16 @@ end)
 -- /stzx auras: what the game tells StzxUI about your debuffs (to track down
 -- debuffs missing from plates or frames). Try it in a fight.
 ---------------------------------------------------------------------------
-local function DebuffCounts(unit)
-	return #StzxUI.Auras.Get(unit, "HARMFUL|PLAYER", 16), #StzxUI.Auras.Get(unit, "HARMFUL", 16)
+-- One line per unit: how many of your debuffs (and all debuffs) the game
+-- reports, or that it refused.
+local function Report(label, unit, extra)
+	local mine, err = StzxUI.Auras.Try(unit, "HARMFUL|PLAYER")
+	if not mine then
+		StzxUI:Say(("%s: refused (%s)"):format(label, err))
+		return
+	end
+	local all = StzxUI.Auras.Try(unit, "HARMFUL") or 0
+	StzxUI:Say(("%s: %d of your debuffs, %d in all%s"):format(label, mine, all, extra or ""))
 end
 
 local function IconsShown(p)
@@ -190,24 +198,21 @@ local function IconsShown(p)
 end
 
 StzxUI.slashCommands.auras = {
-	help = "check what the game tells StzxUI about your debuffs (try it in a fight)",
+	help = "check which units' auras the game lets StzxUI read (try it in a fight)",
 	run = function()
 		local secret = C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret()
 		StzxUI:Say(("in combat: %s, aura details hidden: %s"):format(
 			InCombatLockdown() and "yes" or "no", secret and "yes" or "no"))
-		if UnitExists("target") then
-			local mine, all = DebuffCounts("target")
-			StzxUI:Say(("target: %d of your debuffs (%d debuffs in all)"):format(mine, all))
-		end
+		Report("you", "player")
+		if UnitExists("target") then Report("target", "target") end
+		if UnitExists("party1") then Report("party1", "party1") end
+		if UnitExists("pet") then Report("pet", "pet") end
 		local any = false
 		for unit, p in pairs(plates) do
 			any = true
-			local mine, all = DebuffCounts(unit)
-			StzxUI:Say(("%s: %d of your debuffs (%d in all), %d icons shown"):format(unit, mine, all, IconsShown(p)))
+			Report(unit, unit, (", %d icons shown"):format(IconsShown(p)))
 		end
 		if not any then StzxUI:Say("no StzxUI nameplates on screen.") end
-		local err = StzxUI.Auras.LastError()
-		StzxUI:Say("last refusal from the game: " .. (err and tostring(err) or "none"))
 	end,
 }
 

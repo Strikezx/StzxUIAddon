@@ -7,8 +7,8 @@
 - Unit Frames: hides Blizzard's player and target frames (option).
 - Nameplates: "Name size" slider (default 14, was 10); the level grows with it and debuffs move up to stay clear.
 - Fix: a second, bigger name appeared above nameplates in combat. Blizzard's shared unit-frame code sets its (hidden) plate visible again during range/status updates; StzxUI now puts it straight back to invisible.
-- Auras (nameplates, unit frames, party/raid): if the game refuses a list sorted by time left, StzxUI asks again unsorted instead of showing nothing. Possible cause of debuffs missing on nameplates in combat; unconfirmed.
-- `/stzx auras`: what the game tells StzxUI about your debuffs on the target and each nameplate, and its last refusal.
+- Auras: if the game refuses a list sorted by time left, StzxUI asks again unsorted. (Not the cause of the missing nameplate debuffs after all: in game, the game refuses the request itself in combat: "Auras cannot be accessed when secret while tainted". Being worked on.)
+- `/stzx auras`: for you, your target, party1, your pet and each nameplate, how many of your debuffs the game reports, or that it refused. Run it in a fight.
 - Info: info bar across the top of the screen in StzxUI's style (dark fill, accent line), holding the readouts; choose left, centre or right for each. Bar length 30–100% of the screen, movable in move mode. New "Text size" slider (default 13, was about 10) for all readouts, in the bar or on their own; it replaces mouse-wheel scaling for the readouts. Turning the bar off puts each readout back in its own movable box.
 - Action Bars: "Button border" option: the 1-pixel edge round each button in black (default) or StzxUI's accent colour.
 - `/stzx buttons`: lists the addon buttons gathered from the minimap, with how faded each one is and whether its icon is tinted or greyed out.

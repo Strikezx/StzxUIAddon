@@ -156,6 +156,13 @@ end
 StzxUI.Auras = {
 	Get = function(unit, filter, max) return GetAuras(unit, filter, max) end,
 	LastError = function() return lastError end,
+	-- For /stzx auras: one plain unsorted ask. Returns the count, or nil and the game's reason.
+	Try = function(unit, filter)
+		if not (C_UnitAuras and C_UnitAuras.GetUnitAuras) then return nil, "no C_UnitAuras.GetUnitAuras" end
+		local ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, 16)
+		if not ok then return nil, tostring(list) end
+		return type(list) == "table" and #list or 0
+	end,
 	Create = CreateButton,
 	Size = SizeButton,
 	Set = function(button, unit, aura, harmful)
