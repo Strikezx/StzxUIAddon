@@ -2147,6 +2147,24 @@ auraState.nameplate1 = {
 Fire("UNIT_AURA", "nameplate1")
 check(p1.debuffs[1].shown and p1.debuffs[1].auraInstanceID == 41 and not p1.debuffs[2].shown, "only your debuffs")
 check(p1.debuffs[1].mouseEnabled == false, "debuff icons never block clicking the plate")
+-- If the game refuses a sorted list (it might, for addons in combat), ask unsorted.
+local realGet = C_UnitAuras.GetUnitAuras
+C_UnitAuras.GetUnitAuras = function(unit, filter, maxCount, sortRule)
+	if sortRule ~= nil then error("sorting secret auras not allowed") end
+	return realGet(unit, filter, maxCount)
+end
+p1.debuffs[1]:Hide()
+Fire("UNIT_AURA", "nameplate1")
+check(p1.debuffs[1].shown and p1.debuffs[1].auraInstanceID == 41, "debuffs still shown when a sorted list is refused")
+log.prints = {}
+SlashCmdList.STZXUI("auras")
+local said = table.concat(log.prints, "\n")
+check(said:find("nameplate1: 1 of your debuffs %(2 in all%), 1 icons shown") and said:find("sorting secret auras not allowed", 1, true),
+	"/stzx auras says what the game reports, and its last refusal")
+C_UnitAuras.GetUnitAuras = realGet
+-- Blizzard's shared code makes its plate visible again (range/status update in combat).
+np1.UnitFrame:SetAlpha(1)
+check(np1.UnitFrame.alpha == 0, "Blizzard's plate goes straight back to invisible (no second, bigger name)")
 
 -- Options.
 log.settings.STZXUI_NAMEPLATES_WIDTH:SetValue(160)

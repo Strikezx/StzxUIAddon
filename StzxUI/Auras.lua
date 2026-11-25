@@ -135,10 +135,19 @@ end
 -- Updating
 ---------------------------------------------------------------------------
 
+local lastError -- the game's last refusal, for /stzx auras
+
 -- The unit's auras for a filter, or an empty list if the game says no.
+-- Sorted by time left where the game allows; if a sorted list is refused
+-- (it might be, for addons in combat), asks again unsorted.
 local function GetAuras(unit, filter, max)
 	if not (C_UnitAuras and C_UnitAuras.GetUnitAuras) then return {} end
 	local ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, max or MAX_EACH, SORT)
+	if not ok and SORT then
+		lastError = list
+		ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, max or MAX_EACH)
+	end
+	if not ok then lastError = list end
 	if ok and type(list) == "table" then return list end
 	return {}
 end
@@ -146,6 +155,7 @@ end
 
 StzxUI.Auras = {
 	Get = function(unit, filter, max) return GetAuras(unit, filter, max) end,
+	LastError = function() return lastError end,
 	Create = CreateButton,
 	Size = SizeButton,
 	Set = function(button, unit, aura, harmful)

@@ -38,6 +38,7 @@ function ns.db() return Nameplates.db end
 local plates = {}   -- unit token -> StzxUI plate
 local platesOf = setmetatable({}, { __mode = "k" }) -- Blizzard nameplate -> StzxUI plate
 local parked = setmetatable({}, { __mode = "k" })   -- Blizzard UnitFrame -> its hidden children
+local alphaHooked = setmetatable({}, { __mode = "k" }) -- Blizzard UnitFrames we watch
 local hidden = CreateFrame("Frame")
 hidden:Hide()
 
@@ -51,6 +52,15 @@ local function HideBlizzard(nameplate)
 	local uf = nameplate.UnitFrame
 	if not uf then return end
 	uf:SetAlpha(0)
+	-- Blizzard's shared unit-frame code sets the frame fully visible again
+	-- now and then (e.g. its range and status update, around combat), which
+	-- brought back its big name above ours. Put it straight back to invisible.
+	if not alphaHooked[uf] then
+		alphaHooked[uf] = true
+		hooksecurefunc(uf, "SetAlpha", function(self, alpha)
+			if parked[self] and alpha ~= 0 then self:SetAlpha(0) end
+		end)
+	end
 	if parked[uf] then return end
 	local list = {}
 	for i = uf:GetNumChildren(), 1, -1 do
@@ -161,6 +171,44 @@ events:SetScript("OnEvent", function(_, event, unit)
 		for _, p in pairs(plates) do ALL_EVENTS[event](p) end
 	end
 end)
+
+---------------------------------------------------------------------------
+-- /stzx auras: what the game tells StzxUI about your debuffs (to track down
+-- debuffs missing from plates or frames). Try it in a fight.
+---------------------------------------------------------------------------
+local function DebuffCounts(unit)
+	return #StzxUI.Auras.Get(unit, "HARMFUL|PLAYER", 16), #StzxUI.Auras.Get(unit, "HARMFUL", 16)
+end
+
+local function IconsShown(p)
+	local count = 0
+	for _, icon in ipairs(p.debuffs) do
+		if icon:IsShown() then count = count + 1 end
+	end
+	return count
+end
+
+StzxUI.slashCommands.auras = {
+	help = "check what the game tells StzxUI about your debuffs (try it in a fight)",
+	run = function()
+		local secret = C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret()
+		StzxUI:Say(("in combat: %s, aura details hidden: %s"):format(
+			InCombatLockdown() and "yes" or "no", secret and "yes" or "no"))
+		if UnitExists("target") then
+			local mine, all = DebuffCounts("target")
+			StzxUI:Say(("target: %d of your debuffs (%d debuffs in all)"):format(mine, all))
+		end
+		local any = false
+		for unit, p in pairs(plates) do
+			any = true
+			local mine, all = DebuffCounts(unit)
+			StzxUI:Say(("%s: %d of your debuffs (%d in all), %d icons shown"):format(unit, mine, all, IconsShown(p)))
+		end
+		if not any then StzxUI:Say("no StzxUI nameplates on screen.") end
+		local err = StzxUI.Auras.LastError()
+		StzxUI:Say("last refusal from the game: " .. (err and tostring(err) or "none"))
+	end,
+}
 
 ---------------------------------------------------------------------------
 -- Test plates: three pretend enemies in the middle of the screen
