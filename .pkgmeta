@@ -15,6 +15,7 @@ move-folders:
   StzxUI/StzxUI_Blizzard: StzxUI_Blizzard
   StzxUI/StzxUI_Inventory: StzxUI_Inventory
   StzxUI/StzxUI_Minimap: StzxUI_Minimap
+  StzxUI/StzxUI_Skins: StzxUI_Skins
 
 ignore:
   - docs

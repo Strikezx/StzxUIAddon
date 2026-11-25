@@ -15,3 +15,4 @@ OptionsWindow.lua
 Movers.lua
 MoveMode.lua
 Auras.lua
+Skin.lua

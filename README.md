@@ -19,6 +19,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Blizzard` | Blizzard frames Edit Mode can't place, in StzxUI move mode (Blizzard group): alerts, error messages, zone text, capture bars and scores, boss banner, level-up toasts. Each can be switched off |
 | `StzxUI_Inventory` | Remembers the bags, gear and bank of all your characters (and the account bank): item tooltips list who else has it, `/stzx items` searches them all. Read-only |
 | `StzxUI_Minimap` | Square minimap with a 1-pixel border (black or accent), round frame art and zoom buttons hidden; tells minimap-button addons it's square; gathers addons' minimap buttons into a fly-out panel opened from the corner. Edit Mode still places it |
+| `StzxUI_Skins` | Blizzard's windows in StzxUI's look: dark fill, thin edge (accent, class colour or black), title strip with an accent line, flat tabs, buttons, close button and scrollbars. Windows Blizzard loads later are skinned as they load; waits for combat to end. `/stzx skins` |
 
 ## Optional: JiberishUI Icons
 
@@ -54,7 +55,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars`, `StzxUI_Nameplates`, `StzxUI_Blizzard`, `StzxUI_Inventory` and `StzxUI_Minimap` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars`, `StzxUI_Nameplates`, `StzxUI_Blizzard`, `StzxUI_Inventory`, `StzxUI_Minimap` and `StzxUI_Skins` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -77,6 +78,7 @@ mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Nameplates
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Blizzard" "C:\...\StzxUIAddon\StzxUI_Blizzard"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Inventory" "C:\...\StzxUIAddon\StzxUI_Inventory"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Minimap" "C:\...\StzxUIAddon\StzxUI_Minimap"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Skins" "C:\...\StzxUIAddon\StzxUI_Skins"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.

@@ -139,7 +139,14 @@ function Frame:UnregisterEvent(e) self.events[e] = nil end
 function Frame:RegisterUnitEvent(e, u) self.events[e] = true; self.unitEvents[e] = u end
 function Frame:StartMoving() self.moving = true end
 function Frame:StopMovingOrSizing() self.moving = false end
-function Frame:CreateTexture() return NewFrame("Texture", nil, self) end
+function Frame:CreateTexture(_, layer) local t = NewFrame("Texture", nil, self); t.layer = layer; return t end
+function Frame:GetDrawLayer() return self.layer end
+function Frame:GetNormalTexture() return self.normalTex end
+function Frame:GetPushedTexture() return self.pushedTex end
+function Frame:GetDisabledTexture() return self.disabledTex end
+function Frame:IsEnabled() return self.disabled ~= true end
+function Frame:Enable() self.disabled = false end
+function Frame:Disable() self.disabled = true end
 function Frame:CreateFontString() return NewFrame("FontString", nil, self) end
 function Frame:SetText(t) self.text = t or "" end
 function Frame:GetText() return self.text end
@@ -571,6 +578,9 @@ local function InstallClient()
 	MinimapBackdrop = NewFrame("Frame", "MinimapBackdrop", MinimapCluster)
 	-- Blizzard's nameplate aura icon (its code; it fills in an icon).
 	NamePlateAuraItemMixin = { SetAura = function(self, aura) self.Icon:SetTexture(aura.icon) end }
+	-- Blizzard's window tabs.
+	function PanelTemplates_SelectTab(tab) tab.LeftActive:Show() end
+	function PanelTemplates_DeselectTab(tab) tab.LeftActive:Hide() end
 	-- Globals Blizzard made are "secure"; an addon's (marked .addon here) aren't.
 	function issecurevariable(t, k)
 		if k == nil then k = t end
@@ -744,7 +754,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap", "StzxUI_Skins" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -2468,6 +2478,134 @@ check(not corner:IsShown() and not flyout:IsShown(), "...and the corner button g
 log.settings.STZXUI_MINIMAP_COLLECTBUTTONS:SetValue(true)
 check(questie.parent == flyout and corner:IsShown(), "on again: gathered again")
 LibStub = nil
+
+---------------------------------------------------------------------------
+-- 31. Skins: Blizzard's windows in StzxUI's look
+---------------------------------------------------------------------------
+do
+-- A Blizzard window built like the real templates (PortraitFrame /
+-- ButtonFrame): frame art, portrait, title, close button, inset, tabs, and
+-- a panel button and a scrollbar a level down.
+local function FakeWindow(name)
+	local w = NewFrame("Frame", name, UIParent)
+	w:SetSize(338, 424)
+	w.NineSlice = NewFrame("Frame", nil, w)
+	w.Bg = w:CreateTexture(nil, "BACKGROUND")
+	w.TopTileStreaks = w:CreateTexture(nil, "BORDER")
+	w.content = w:CreateTexture(nil, "ARTWORK") -- something the window shows: kept
+	w.PortraitContainer = NewFrame("Frame", nil, w)
+	w.TitleContainer = NewFrame("Frame", nil, w)
+	w.TitleContainer.TitleText = w.TitleContainer:CreateFontString()
+	w.CloseButton = NewFrame("Button", nil, w)
+	w.CloseButton.normalTex = w.CloseButton:CreateTexture()
+	w.CloseButton:SetSize(24, 24)
+	w.Inset = NewFrame("Frame", nil, w)
+	w.Inset.layoutType = "InsetFrameTemplate"
+	w.Inset.NineSlice = NewFrame("Frame", nil, w.Inset)
+	w.Inset.Bg = w.Inset:CreateTexture(nil, "BACKGROUND")
+	w.Tabs = {}
+	for i = 1, 2 do
+		local t = NewFrame("Button", name .. "Tab" .. i, w)
+		t:SetSize(80, 30)
+		t.Left, t.Middle, t.Right = t:CreateTexture(), t:CreateTexture(), t:CreateTexture()
+		t.LeftActive = t:CreateTexture()
+		t.LeftActive.shown = (i == 1)
+		t.TabTextures = { t.Left, t.Middle, t.Right, t.LeftActive }
+		t.Text = t:CreateFontString()
+		w.Tabs[i] = t
+	end
+	local panel = NewFrame("Frame", nil, w)
+	local b = NewFrame("Button", nil, panel)
+	b:SetSize(100, 22)
+	b.Left, b.Middle, b.Right = b:CreateTexture(), b:CreateTexture(), b:CreateTexture()
+	local sb = NewFrame("Frame", nil, panel)
+	sb.Track = NewFrame("Frame", nil, sb)
+	sb.Track.Begin, sb.Track.Middle, sb.Track.End = sb.Track:CreateTexture(), sb.Track:CreateTexture(), sb.Track:CreateTexture()
+	sb.Track.Thumb = NewFrame("Button", nil, sb.Track)
+	sb.Track.Thumb.Begin = sb.Track.Thumb:CreateTexture()
+	return w, b, sb
+end
+-- 1-pixel lines StzxUI drew round `frame` (the top one first).
+local function EdgesOf(frame)
+	local list = {}
+	for _, f in ipairs(frames) do
+		if f.kind == "Texture" and f.colour and f.points[1] and f.points[1].rel == frame and f.h == 1
+			and f.points[1].point == "TOPLEFT" and f.points[2] and f.points[2].point == "TOPRIGHT" then
+			list[#list + 1] = f
+		end
+	end
+	return list
+end
+local function FillOf(frame)
+	for _, f in ipairs(frames) do
+		if f.kind == "Texture" and f.parent == frame and f.allPointsOf == frame and f.colour and f.layer == "BACKGROUND" then return f end
+	end
+end
+
+local charWin, charButton, charScroll
+StartGame(nil, function()
+	charWin, charButton, charScroll = FakeWindow("CharacterFrame")
+	-- An old-style window: its frame art drawn straight onto it.
+	local old = NewFrame("Frame", "TaxiFrame", UIParent)
+	old.art = old:CreateTexture(nil, "BACKGROUND")
+	old.text = old:CreateTexture(nil, "ARTWORK")
+	-- Something StzxUI doesn't know: left alone.
+	FakeWindow("SomeOtherAddonFrame")
+end)
+local SK = StzxUI:GetModule("Skins")
+check(SK.enabled and Category("Skins"), "Skins section and options page")
+check(charWin.NineSlice.alpha == 0 and charWin.Bg.alpha == 0 and charWin.TopTileStreaks.alpha == 0
+	and charWin.PortraitContainer.alpha == 0, "Blizzard's frame art and portrait gone")
+check(charWin.content.alpha == nil, "what the window shows is kept")
+local winFill = FillOf(charWin)
+check(winFill and winFill.colour[4] == 0.92 and winFill.alpha == nil and EdgesOf(charWin)[1]
+	and EdgesOf(charWin)[1].colour[1] == StzxUI.ACCENT.r and EdgesOf(charWin)[1].alpha == nil,
+	"dark StzxUI background with a thin accent edge (both visible)")
+check(charWin.TitleContainer.TitleText.color[1] == 1, "white title")
+check(charWin.CloseButton.normalTex.alpha == 0, "flat close button")
+check(charWin.Inset.NineSlice.alpha == 0 and charWin.Inset.Bg.alpha == 0, "inner panel flattened")
+local tab1, tab2 = charWin.Tabs[1], charWin.Tabs[2]
+check(tab1.Left.alpha == 0 and tab1.LeftActive.alpha == 0 and tab1.Text.color[1] == 1 and tab2.Text.color[1] < 1,
+	"flat tabs; the chosen one stands out")
+PanelTemplates_DeselectTab(tab1); PanelTemplates_SelectTab(tab2)
+check(tab2.Text.color[1] == 1 and tab1.Text.color[1] < 1, "...and follows when you change tab")
+check(charButton.Left.alpha == 0 and charButton.Middle.alpha == 0 and FillOf(charButton), "buttons inside flattened")
+local btnEdge = EdgesOf(charButton)[1]
+local softR = btnEdge.colour[1]
+Script(charButton, "OnEnter")
+check(btnEdge.colour[1] == StzxUI.ACCENT.r, "buttons light up in the accent on hover")
+Script(charButton, "OnLeave")
+check(btnEdge.colour[1] == softR, "...and settle back")
+check(charScroll.Track.Begin.alpha == 0 and charScroll.Track.Thumb.Begin.alpha == 0, "slim scrollbars")
+check(TaxiFrame.art.alpha == 0 and TaxiFrame.text.alpha == nil, "old-style windows: frame art hidden, content kept")
+check(SomeOtherAddonFrame.NineSlice.alpha == nil, "windows not on the list are left alone")
+-- Windows Blizzard loads later.
+FakeWindow("AuctionHouseFrame")
+Fire("ADDON_LOADED", "Blizzard_AuctionHouseUI")
+check(AuctionHouseFrame.NineSlice.alpha == 0, "a window that loads later is skinned as it loads")
+inCombat = true
+FakeWindow("MacroFrame")
+Fire("ADDON_LOADED", "Blizzard_MacroUI")
+check(MacroFrame.NineSlice.alpha == nil, "in combat: waits")
+inCombat = false
+Fire("PLAYER_REGEN_ENABLED")
+check(MacroFrame.NineSlice.alpha == 0, "...skinned when combat ends")
+-- Colour and background.
+local savedPlayer = unitState.player
+unitState.player = { class = "DRUID" }
+log.settings.STZXUI_SKINS_COLOUR:SetValue("CLASS")
+check(EdgesOf(charWin)[1].colour[1] == 1 and EdgesOf(charWin)[1].colour[2] == 0.49, "edge in my class colour")
+log.settings.STZXUI_SKINS_COLOUR:SetValue("BLACK")
+check(EdgesOf(charWin)[1].colour[1] == 0, "or black")
+log.settings.STZXUI_SKINS_OPACITY:SetValue(60)
+check(winFill.colour[4] == 0.6, "background opacity")
+log.settings.STZXUI_SKINS_COLOUR:SetValue("ACCENT")
+log.settings.STZXUI_SKINS_OPACITY:SetValue(92)
+unitState.player = savedPlayer
+log.prints = {}
+SlashCmdList.STZXUI("skins")
+check(lastPrint():find("0 more windows skinned", 1, true), "/stzx skins")
+end
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
