@@ -5,7 +5,8 @@
 -- Edit Mode placement (position, size, rows, padding, which bars show, and
 -- the gryphon end caps). StzxUI only changes how each button looks:
 --
---   * square icons, cropped, with a 1-pixel border; empty slots get a dark
+--   * square icons, cropped, with a 1-pixel border (black, or StzxUI's
+--     accent colour); empty slots get a dark
 --     background instead of Blizzard's rounded frame art
 --   * hover, pressed and "active" overlays in the StzxUI accent colour
 --   * keybind, stack count, macro name and cooldown numbers resized to fit,
@@ -36,12 +37,14 @@ local ActionBars = StzxUI:NewModule("ActionBars", ADDON_NAME, {
 	rangeTint = true,      -- icon turns red when the target is out of range
 	textSize = 11,         -- keybinds and macro names on a full-size button
 	cooldownSize = 16,     -- cooldown numbers on a full-size button
+	borderColour = "BLACK", -- the 1-pixel edge round each button: BLACK or ACCENT
 }, {
 	title = "Action Bars",
 	description = "Restyles Blizzard's action bars: square icons, StzxUI colours, tidy text. Edit Mode still places them.",
 })
 
 local styled = {}   -- button -> true once restyled
+local borders = {}  -- button -> its 1-pixel border texture
 local outOfRange = setmetatable({}, { __mode = "k" }) -- button -> true
 
 ---------------------------------------------------------------------------
@@ -156,6 +159,16 @@ local function StyleText(button)
 	StyleHotkey(button)
 end
 
+local function ColourBorder(button)
+	local border = borders[button]
+	if not border then return end
+	if ActionBars.db.borderColour == "ACCENT" then
+		border:SetColorTexture(A.r, A.g, A.b, 1)
+	else
+		border:SetColorTexture(0, 0, 0, 1)
+	end
+end
+
 local function StyleButton(button)
 	if styled[button] then return end
 	styled[button] = true
@@ -177,10 +190,11 @@ local function StyleButton(button)
 	end
 
 	-- Our own background (seen in empty slots) and 1-pixel border.
-	-- Black underneath the whole button: the 1-pixel edge round the icon.
+	-- A colour underneath the whole button: the 1-pixel edge round the icon.
 	local border = button:CreateTexture(nil, "BACKGROUND", nil, -8)
 	border:SetAllPoints()
-	border:SetColorTexture(0, 0, 0, 1)
+	borders[button] = border
+	ColourBorder(button)
 	-- A dark fill inside it, seen in empty slots. The icon covers it otherwise.
 	local bg = button:CreateTexture(nil, "BACKGROUND", nil, -7)
 	bg:SetPoint("TOPLEFT", 1, -1)
@@ -237,6 +251,7 @@ end
 function ActionBars:Refresh()
 	for button in pairs(styled) do
 		StyleText(button)
+		ColourBorder(button)
 		if not (self.db.rangeTint and outOfRange[button]) then RestoreUsableColour(button) end
 		ColourIcon(button)
 	end
@@ -251,6 +266,9 @@ function ActionBars:OnInitialize()
 	local function Refresh() self:Refresh() end
 	StzxUI:AddHeader(page, "Look",
 		"Blizzard's bars restyled. Place them, size them and hide the gryphons in Blizzard's Edit Mode.")
+	StzxUI:AddDropdown(page, self, "borderColour", "Button border",
+		"The thin edge round each button. The accent colour follows StzxUI > General > Accent colour.",
+		{ { "BLACK", "Black" }, { "ACCENT", "StzxUI accent colour" } }, Refresh)
 	StzxUI:AddCheckbox(page, self, "showKeybinds", "Show keybinds", nil, Refresh)
 	StzxUI:AddCheckbox(page, self, "shortKeybinds", "Short keybinds",
 		"\"Mouse Button 4\" shows as M4, \"SHIFT-1\" as S1, \"Num Pad 5\" as N5.", function(on)

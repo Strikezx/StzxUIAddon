@@ -5,6 +5,7 @@
 ### Added
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
+- Action Bars: "Button border" option: the 1-pixel edge round each button in black (default) or StzxUI's accent colour.
 - `/stzx buttons`: lists the addon buttons gathered from the minimap, with how faded each one is and whether its icon is tinted or greyed out.
 - Fix: the minimap addon-button panel had no place on screen until first opened, so gathered buttons had none either; Zygor asks where its button is at start-up and errored (NotificationCenter.lua:434). The panel is now placed from the start.
 - Options: StzxUI's entry under Esc > Options > AddOns is now a welcome page (big StzxUI title, version, what it does, which sections are on) with a big "Open StzxUI options" button plus Move mode and Test frames. The options that were on that page moved to StzxUI > General.

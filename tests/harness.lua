@@ -1946,6 +1946,17 @@ check(b1.NormalTexture.alpha == 0 and not b1.SlotArt.shown and b1.icon.removedMa
 	and b1.icon.texCoord[1] == 0.08, "Blizzard's rounded art gone; square, cropped icon")
 check(b1.icon.points[1].x == 1 and b1.PushedTexture.colour[4] == 0.35 and b1.CheckedTexture.colour[1] == StzxUI.ACCENT.r,
 	"icon inside a 1-pixel border; pressed and active in StzxUI colours")
+local function BorderOf(button)
+	for _, f in ipairs(frames) do
+		if f.parent == button and f.kind == "Texture" and f.allPointsOf == button and f.colour and f.colour[4] == 1 then return f end
+	end
+end
+check(BorderOf(b1) and BorderOf(b1).colour[1] == 0, "black 1-pixel border by default")
+log.settings.STZXUI_ACTIONBARS_BORDERCOLOUR:SetValue("ACCENT")
+check(BorderOf(b1).colour[1] == StzxUI.ACCENT.r and BorderOf(pet).colour[3] == StzxUI.ACCENT.b,
+	"or the StzxUI accent colour, on every bar")
+log.settings.STZXUI_ACTIONBARS_BORDERCOLOUR:SetValue("BLACK")
+check(BorderOf(b1).colour[1] == 0, "...and back to black")
 b1:UpdateButtonArt() -- Blizzard redraws its art (e.g. after an Edit Mode change)
 check(b1.NormalTexture.alpha == 0 and not b1.SlotArt.shown, "...and it stays gone after Blizzard redraws")
 
