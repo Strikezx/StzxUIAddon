@@ -11,6 +11,7 @@ Core.lua
 Profiles.lua
 Dialog.lua
 Settings.lua
+OptionsWindow.lua
 Movers.lua
 MoveMode.lua
 Auras.lua

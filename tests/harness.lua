@@ -216,6 +216,15 @@ end
 function Frame:GetNumChildren() return select("#", self:GetChildren()) end
 function Frame:IsForbidden() return self.forbidden or false end
 function Frame:EnableMouse(on) self.mouseEnabled = on and true or false end
+-- Sliders and scroll areas (the options window).
+function Frame:SetOrientation() end
+function Frame:SetObeyStepOnDrag() end
+function Frame:SetThumbTexture() end
+function Frame:SetValueStep(step) self.step = step end
+function Frame:SetVerticalScroll(y) self.scrollY = y end
+function Frame:GetVerticalScroll() return self.scrollY or 0 end
+function Frame:GetVerticalScrollRange() return 0 end
+function Frame:ClearFocus() self.focused = false end
 function Frame:IsProtected() return self.protected or false end
 function Frame:GetStatusBarTexture()
 	self.barTexture = self.barTexture or NewFrame("Texture", nil, self)
@@ -2041,8 +2050,54 @@ check(StzxUI:GetModule("Social").db.thankMessage == "Cheers %s!", "/stzx thanks 
 SlashCmdList.STZXUI("help")
 local helpText = table.concat(log.prints, "\n")
 check(helpText:find("/stzx move", 1, true) and helpText:find("/stzx profile", 1, true), "/stzx help lists move and profile")
+---------------------------------------------------------------------------
+-- 26. StzxUI options window
+---------------------------------------------------------------------------
 SlashCmdList.STZXUI("")
-check(log.opened ~= nil, "/stzx opens the settings")
+local OW = StzxUIOptions
+check(OW and OW.shown and OW.pageTitle.text == "General", "/stzx opens StzxUI's own window on General")
+local titles = {}
+for i, tab in ipairs(OW.tabs) do titles[i] = tab.entry.title end
+check(titles[1] == "General" and titles[2] == "Sections" and titles[#titles] == "Profiles" and #titles >= 12,
+	"sidebar: General, Sections, every section's page, Profiles last")
+-- Find a shown row by its label.
+local function RowFor(label)
+	for _, f in ipairs(frames) do
+		if f.item and f.item.label == label and f.shown and f.parent == OW.content then return f end
+	end
+end
+StzxUI:ShowOptionsPage("Nameplates")
+local widthRow = RowFor("Width")
+check(OW.pageTitle.text == "Nameplates" and widthRow and widthRow.slider.value == StzxUIDB.profiles.Default.modules.Nameplates.width,
+	"a page shows its options with current values")
+Script(widthRow.slider, "OnValueChanged", 150, true)
+check(StzxUIDB.profiles.Default.modules.Nameplates.width == 150 and log.settings.STZXUI_NAMEPLATES_WIDTH:GetValue() == 150,
+	"slider writes through the same setting as Blizzard's panel")
+local outline = RowFor("Outline my target")
+outline.check:SetChecked(false)
+Script(outline.check, "OnClick")
+check(StzxUIDB.profiles.Default.modules.Nameplates.targetOutline == false, "checkbox writes through too")
+log.settings.STZXUI_NAMEPLATES_HEALTHTEXT:SetValue("PERCENT")
+local ht = RowFor("Health text")
+Script(ht.button, "OnClick")
+check(StzxUIDB.profiles.Default.modules.Nameplates.healthText == "NUMBER" and RowFor("Health text").button.text == "Number",
+	"dropdown picks the next choice (the game's pop-up menu in game)")
+StzxUI:ShowOptionsPage("Sections")
+check(RowFor("Fishing") and RowFor("Fishing").check.checked, "Sections page: a switch per section")
+OW.search:SetText("cast bar")
+Script(OW.search, "OnTextChanged")
+check(OW.pageTitle.text:find("Search: ", 1, true) and RowFor("Cast bar height") and RowFor("Show the player cast bar"),
+	"search finds options on every page")
+OW.search:SetText("")
+Script(OW.search, "OnTextChanged")
+StzxUI:ShowOptionsPage("General")
+local blizz = Button("StzxUI", "StzxUI options window")
+check(blizz, "Blizzard's StzxUI page has a button into the window")
+OW:Hide()
+blizz.click()
+check(OW.shown, "...which opens it")
+StzxUI:OpenBlizzardSettings()
+check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))
 os.exit(failures == 0 and 0 or 1)

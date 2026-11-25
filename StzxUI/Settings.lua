@@ -4,6 +4,10 @@
 --   StzxUI > Social   (and one page per module)
 --   StzxUI > Profiles choose, copy, reset, delete, export, import
 -- Built on Blizzard's own Settings API so options look like the game's own.
+--
+-- Every helper below also notes what it made in StzxUI.optionPages, and
+-- StzxUI's own options window (OptionsWindow.lua) draws itself from that
+-- list. Both write through the same settings, so they always agree.
 
 local StzxUI = _G.StzxUI
 
@@ -20,21 +24,42 @@ local function LayoutFor(page)
 	return (StzxUI.layouts and StzxUI.layouts[page]) or SettingsPanel:GetLayout(page)
 end
 
+-- The list the StzxUI window draws from: { { title, items = { ... } }, ... }
+StzxUI.optionPages = {}
+local pageOf = {}
+
+function StzxUI:NoteOptionPage(page, title)
+	if pageOf[page] then return pageOf[page] end
+	local entry = { title = title, items = {} }
+	table.insert(self.optionPages, entry)
+	pageOf[page] = entry
+	return entry
+end
+
+-- item: { kind = "header" | "button" | "checkbox" | "dropdown" | "slider", label, tooltip, ... }
+function StzxUI:NoteOption(page, item)
+	local entry = pageOf[page] or self:NoteOptionPage(page, "StzxUI")
+	table.insert(entry.items, item)
+end
+
 -- A sub-page under StzxUI, e.g. StzxUI > Social.
 function StzxUI:AddSettingsPage(title)
 	local page, layout = Settings.RegisterVerticalLayoutSubcategory(self.settingsCategory, title)
 	self.layouts[page] = layout
+	self:NoteOptionPage(page, title)
 	return page
 end
 
 -- A section title inside a page.
 function StzxUI:AddHeader(page, title, tooltip)
 	LayoutFor(page):AddInitializer(CreateSettingsListSectionHeaderInitializer(title, tooltip))
+	self:NoteOption(page, { kind = "header", label = title, tooltip = tooltip })
 end
 
 -- A button row: label on the left, button on the right.
 function StzxUI:AddButton(page, label, buttonText, onClick, tooltip)
 	LayoutFor(page):AddInitializer(CreateSettingsButtonInitializer(label, buttonText, onClick, tooltip, true))
+	self:NoteOption(page, { kind = "button", label = label, buttonText = buttonText, onClick = onClick, tooltip = tooltip })
 end
 
 -- On/off option that writes straight into owner.db[key].
@@ -45,6 +70,7 @@ function StzxUI:AddCheckbox(page, owner, key, label, tooltip, onChange)
 		setting:SetValueChangedCallback(function(_, value) onChange(value) end)
 	end
 	Settings.CreateCheckbox(page, setting, tooltip)
+	self:NoteOption(page, { kind = "checkbox", setting = setting, label = label, tooltip = tooltip })
 	return setting
 end
 
@@ -65,6 +91,7 @@ function StzxUI:AddDropdown(page, owner, key, label, tooltip, choices, onChange)
 		return container:GetData()
 	end
 	Settings.CreateDropdown(page, setting, Options, tooltip)
+	self:NoteOption(page, { kind = "dropdown", setting = setting, label = label, tooltip = tooltip, choices = choices })
 	return setting
 end
 
@@ -80,6 +107,8 @@ function StzxUI:AddSlider(page, owner, key, label, tooltip, minValue, maxValue, 
 		options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, format)
 	end
 	Settings.CreateSlider(page, setting, options, tooltip)
+	self:NoteOption(page, { kind = "slider", setting = setting, label = label, tooltip = tooltip,
+		min = minValue, max = maxValue, step = step, format = format })
 	return setting
 end
 
@@ -91,6 +120,12 @@ function StzxUI:CreateSettingsPanel()
 	local category, layout = Settings.RegisterVerticalLayoutCategory("StzxUI")
 	self.settingsCategory = category
 	self.layouts = { [category] = layout }
+	self:NoteOptionPage(category, "General")
+
+	-- Blizzard's panel only: a way into the StzxUI window.
+	layout:AddInitializer(CreateSettingsButtonInitializer("StzxUI options window", "Open",
+		function() self:OpenOptionsWindow() end,
+		"StzxUI's own window: every section in a sidebar, with search. /stzx opens it too.", true))
 
 	-- The core's own options live in StzxUIDB.core (same on every character).
 	local core = { name = "Core", db = self.db.core, defaults = self.CORE_DEFAULTS }
@@ -128,8 +163,12 @@ end
 -- shared profile also carries which parts are on.
 local function AddSectionSwitches(self)
 	local category = self.settingsCategory
-	self:AddHeader(category, "Sections",
-		"Switch whole parts of StzxUI on or off for this profile. Changes apply after a reload.")
+	LayoutFor(category):AddInitializer(CreateSettingsListSectionHeaderInitializer("Sections",
+		"Switch whole parts of StzxUI on or off for this profile. Changes apply after a reload."))
+	-- In the StzxUI window, Sections is a page of its own.
+	local sections = self:NoteOptionPage("SECTIONS", "Sections")
+	table.insert(sections.items, { kind = "header", label = "Sections",
+		tooltip = "Switch whole parts of StzxUI on or off for this profile. Changes apply after a reload." })
 	for _, name in ipairs(self.moduleOrder) do
 		local module = self.modules[name]
 		local setting = Settings.RegisterProxySetting(category, "STZXUI_SECTION_" .. name:upper(),
@@ -144,8 +183,9 @@ local function AddSectionSwitches(self)
 				end
 				self:AskReload(("%s will be switched %s."):format(module.title, value and "on" or "off"))
 			end)
-		Settings.CreateCheckbox(category, setting,
-			(module.description and (module.description .. "\n\n") or "") .. "Changes apply after a reload.")
+		local tooltip = (module.description and (module.description .. "\n\n") or "") .. "Changes apply after a reload."
+		Settings.CreateCheckbox(category, setting, tooltip)
+		table.insert(sections.items, { kind = "checkbox", setting = setting, label = module.title, tooltip = tooltip })
 	end
 end
 
@@ -164,6 +204,12 @@ local function AddProfilesPage(self)
 		return container:GetData()
 	end
 	Settings.CreateDropdown(page, chosen, ProfileOptions, "Which profile this character uses.")
+	self:NoteOption(page, { kind = "dropdown", setting = chosen, label = "Profile", tooltip = "Which profile this character uses.",
+		choices = function()
+			local list = {}
+			for _, name in ipairs(self:GetProfileNames()) do list[#list + 1] = { name, name } end
+			return list
+		end })
 
 	self:AddButton(page, "New profile from this one", "New",
 		function()
@@ -262,7 +308,13 @@ function StzxUI:FinishSettingsPanel()
 	self.settingsRegistered = true
 end
 
+-- /stzx and the minimap-style shortcuts open StzxUI's own window.
 function StzxUI:OpenSettings()
+	self:OpenOptionsWindow()
+end
+
+-- Blizzard's Esc > Options > AddOns > StzxUI.
+function StzxUI:OpenBlizzardSettings()
 	if self.settingsCategory then
 		Settings.OpenToCategory(self.settingsCategory:GetID())
 	end

@@ -77,7 +77,7 @@ read_globals = {
 	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists",
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
-	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "C_NamePlate", "UnitDetailedThreatSituation", "UnitCanAttack",
+	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "MenuUtil", "C_NamePlate", "UnitDetailedThreatSituation", "UnitCanAttack",
 	"GetCreatureDifficultyColor", "UnitClassification", "UnitCastingInfo", "UnitChannelInfo", "RANGE_INDICATOR", "C_ActionBar",
 	"ActionButton_UpdateRangeIndicator", "MainActionBar", "GetInventoryItemID", "C_Item",
 	"GetRealZoneText", "IsFishingLoot", "PlaySound", "SendMailFrame", "MailFrame",
