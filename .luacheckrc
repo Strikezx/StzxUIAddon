@@ -16,7 +16,7 @@ ignore = {
 -- Globals StzxUI creates
 globals = {
 	"StzxUI",
-	"StzxUIDB", "StzxUIRunsDB", "StzxUISocialDB", "StzxUIFishingDB",
+	"StzxUIDB", "StzxUIRunsDB", "StzxUISocialDB", "StzxUIFishingDB", "StzxUIInventoryDB",
 	"SlashCmdList",
 	"SLASH_STZXUI1",
 	"SLASH_STZXUI2",
@@ -77,7 +77,8 @@ read_globals = {
 	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists",
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
-	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "MenuUtil", "C_NamePlate", "UnitDetailedThreatSituation", "UnitCanAttack",
+	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "C_Container", "GetInventoryItemLink",
+	"TooltipDataProcessor", "ItemRefTooltip", "MenuUtil", "C_NamePlate", "UnitDetailedThreatSituation", "UnitCanAttack",
 	"GetCreatureDifficultyColor", "UnitClassification", "UnitCastingInfo", "UnitChannelInfo", "RANGE_INDICATOR", "C_ActionBar",
 	"ActionButton_UpdateRangeIndicator", "MainActionBar", "GetInventoryItemID", "C_Item",
 	"GetRealZoneText", "IsFishingLoot", "PlaySound", "SendMailFrame", "MailFrame",

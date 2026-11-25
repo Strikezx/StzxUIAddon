@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Inventory
+## Notes: Remembers the bags, bank and gear of all your characters: item tooltips say who else has one, and /stzx items searches them all.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+## SavedVariables: StzxUIInventoryDB
+
+Inventory.lua
+InventoryWindow.lua

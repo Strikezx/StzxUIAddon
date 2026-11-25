@@ -32,6 +32,8 @@ local questID = 0      -- the quest open in the quest giver window
 local questLog, questOffers = {}, {}
 local instance, money, lootWindow = nil, 0, {}
 local nameplates = {}
+-- Bags and bank: containers[bag] = { { id, count, link }, ... }; gear[slot] = id
+local containers, gear = {}, {}
 local mailLoaded = true
 local fishing = { pole = false, lureMS = nil, zone = "Elwynn Forest", fishingLoot = false }
 -- Action bars: keybinds by button name, and which actions are usable.
@@ -450,10 +452,31 @@ local function InstallClient()
 	function UnitChannelInfo(u) return Cast(u, true) end
 	-- Auras
 	Enum = { UnitAuraSortRule = { Expiration = 3 }, EditModeAccountSetting = { ShowGrid = 0, GridSpacing = 1 },
+		TooltipDataType = { Item = 0 },
 		WeaponSlot = { MainHand = 0, OffHand = 1, Ranged = 2 } }
 	-- Fishing: a pole in the main hand (item 6256), an optional lure on it.
-	function GetInventoryItemID(_, slot) if slot == 16 then return fishing.pole and 6256 or 2131 end end
+	function GetInventoryItemID(_, slot)
+		if gear[slot] then return gear[slot] end
+		if slot == 16 then return fishing.pole and 6256 or 2131 end
+	end
+	function GetInventoryItemLink(_, slot) local id = GetInventoryItemID(nil, slot); return id and ("[Item " .. id .. "]") end
+	C_Container = {
+		GetContainerNumSlots = function(bag) return containers[bag] and #containers[bag] or 0 end,
+		GetContainerItemInfo = function(bag, slot)
+			local i = containers[bag] and containers[bag][slot]
+			if i then return { itemID = i[1], stackCount = i[2], hyperlink = i[3] } end
+		end,
+	}
+	local tooltipCalls = {}
+	TooltipDataProcessor = { AddTooltipPostCall = function(kind, fn) tooltipCalls[#tooltipCalls + 1] = fn end }
+	function ShowItemTooltip(id)
+		GameTooltip.lines = {}
+		for _, fn in ipairs(tooltipCalls) do fn(GameTooltip, { id = id }) end
+		return GameTooltip.lines
+	end
+	function GameTooltip:AddDoubleLine(l, r) table.insert(self.lines, l .. " " .. r) end
 	C_Item = {
+		GetItemIconByID = function() return 134400 end,
 		GetItemInfoInstant = function(id) if id == 6256 then return id, "Weapon", "Fishing Poles", "INVTYPE_2HWEAPON", 1, 2, 20 end return id, "Weapon", "Daggers", "INVTYPE_WEAPON", 1, 2, 15 end,
 		GetWeaponEnchantInfo = function(slot)
 			if slot == 0 and fishing.lureMS then return { { hasEnchant = true, timeLeft = fishing.lureMS, charges = 0 } } end
@@ -664,7 +687,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -2077,6 +2100,64 @@ Reload()
 check(not StzxUI.movers.BlizzErrors and StzxUI.movers.BlizzZoneText, "switched off: left to Blizzard; the others stay")
 log.settings.STZXUI_BLIZZARDFRAMES_ERRORS:SetValue(true)
 StzxUIDialog.cancelButton:Click()
+
+---------------------------------------------------------------------------
+-- 28. Inventory across characters
+---------------------------------------------------------------------------
+StzxUIInventoryDB = { chars = {
+	["Sorchawyn Ashvale"] = { class = "DRUID", bags = { [2770] = 12 }, bank = { [2589] = 40 }, equipped = {} },
+}, links = { [2770] = "[Copper Ore]", [2589] = "[Linen Cloth]" } }
+containers = { [0] = { { 2770, 6, "[Copper Ore]" }, { 2770, 4, "[Copper Ore]" } }, [1] = { { 4306, 20, "[Silk Cloth]" } } }
+gear = { [1] = 7997 }
+StartGame(nil)
+local INV = StzxUI:GetModule("Inventory")
+local me = StzxUIInventoryDB.chars["Strikezx Kincrag"]
+check(INV.enabled and Category("Inventory") and me, "Inventory section; this character noted at login")
+check(me.bags[2770] == 10 and me.bags[4306] == 20 and me.equipped[7997] == 1, "bags (stacks added up) and gear")
+local lines = ShowItemTooltip(2770)
+check(#lines == 1 and lines[1] == "Sorchawyn Ashvale: 12 (bags)", "tooltip: who else has it (not you, by default)")
+log.settings.STZXUI_INVENTORY_TOOLTIPTHISCHARACTER:SetValue(true)
+lines = ShowItemTooltip(2770)
+check(#lines == 2 and lines[1] == "Sorchawyn Ashvale: 12 (bags)" and lines[2] == "Strikezx Kincrag: 10 (bags)",
+	"...and you too if you like, most first")
+log.settings.STZXUI_INVENTORY_TOOLTIPTHISCHARACTER:SetValue(false)
+
+-- The bank, when opened.
+containers[6] = { { 2770, 5, "[Copper Ore]" } }
+containers[15] = { { 2589, 10, "[Linen Cloth]" } }
+Fire("BANKFRAME_OPENED")
+check(me.bank[2770] == 5 and StzxUIInventoryDB.chars["Account bank"].bank[2589] == 10, "bank tabs and the account bank")
+lines = ShowItemTooltip(2589)
+check(lines[1] == "Sorchawyn Ashvale: 40 (bank)" and lines[2] == "Account bank: 10 (bank)", "bank counts in tooltips")
+containers[6] = { { 2770, 9, "[Copper Ore]" } }
+Fire("BAG_UPDATE", 6)
+RunAfters()
+check(me.bank[2770] == 9, "bank changes while open are picked up")
+Fire("BANKFRAME_CLOSED")
+containers[6] = {}
+Fire("BAG_UPDATE", 6)
+RunAfters()
+check(me.bank[2770] == 9, "closed bank: last seen counts kept")
+
+-- Bags change.
+containers[0] = { { 2770, 6, "[Copper Ore]" } }
+Fire("BAG_UPDATE_DELAYED")
+check(me.bags[2770] == 6, "bags update as they change")
+
+-- Search window.
+SlashCmdList.STZXUI("items ore")
+local IW = StzxUIItems
+check(IW and IW.shown and IW.rows[1].name.text == "[Copper Ore]" and IW.rows[1].total.text == 27 and not IW.rows[2].shown,
+	"/stzx items ore: one match, 27 across characters")
+check(IW.rows[1].who.text == "Strikezx 15, Sorchawyn 12", "...with who has how many, most first")
+IW.search:SetText("")
+Script(IW.search, "OnTextChanged")
+check(IW.rows[4] and IW.rows[4].shown, "empty search lists everything")
+log.settings.STZXUI_INVENTORY_TOOLTIPS:SetValue(false)
+check(#ShowItemTooltip(2770) == 0, "tooltip lines can be switched off")
+log.settings.STZXUI_INVENTORY_TOOLTIPS:SetValue(true)
+IW:Hide()
+containers, gear, StzxUIInventoryDB = {}, {}, nil
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands
