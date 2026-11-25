@@ -39,14 +39,15 @@ Skins.WINDOWS = {
 	-- Items and money
 	"MailFrame", "OpenMailFrame", "BankFrame", "GuildBankFrame", "TradeFrame", "LootFrame",
 	"AuctionHouseFrame", "ProfessionsFrame", "ItemSocketingFrame", "ItemUpgradeFrame",
-	"ContainerFrameCombinedBags",
+	"ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3", "ContainerFrame4",
+	"ContainerFrame5", "ContainerFrame6",
 	-- Groups and PvP
 	"LFGParentFrame", "PVEFrame", "PVPUIFrame", "PVPFrame", "HonorFrame",
 	-- Collections, journals, calendar
 	"CollectionsJournal", "EncounterJournal", "AchievementFrame", "CalendarFrame", "TimeManagerFrame",
 	-- System
 	"GameMenuFrame", "AddonList", "MacroFrame", "ClickBindingFrame", "HelpFrame", "ChatConfigFrame",
-	"ColorPickerFrame",
+	"ColorPickerFrame", "SettingsPanel", "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4",
 }
 
 local pending = false -- something to skin once combat ends
