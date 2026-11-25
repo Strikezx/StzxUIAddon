@@ -217,6 +217,10 @@ local function Build()
 	AccentEdges(panel)
 	table.insert(UISpecialFrames, "StzxUIMinimapButtons") -- Escape closes it
 	panel:SetScript("OnShow", function() Scan(); UpdateToggle() end)
+	-- Placed from the start, not only when opened: gathered buttons must
+	-- always have a place on screen, because their addons may ask where
+	-- they are (Zygor does at start-up, and errored when they had none).
+	PlacePanel()
 	panel:SetScript("OnHide", function() UpdateToggle() end)
 
 	toggle = CreateFrame("Button", nil, map)
