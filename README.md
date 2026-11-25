@@ -9,7 +9,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 |---|---|
 | `StzxUI` | Core: StzxUI options window (`/stzx`; Esc > Options > AddOns > StzxUI has a welcome page with a button into it), profiles, move mode, section on/off switches, `/stzx` |
 | `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player); recent mail names and your own characters beside Send Mail |
-| `StzxUI_Info` | Small movable readouts: FPS, latency and clock; map coordinates; levelling pace (XP per hour, time to level) |
+| `StzxUI_Info` | Info bar across the top of the screen (StzxUI style, length and position adjustable) holding FPS/latency/clock, map coordinates and levelling pace (XP/hour, time to level, `/stzx xp`), each left, centre or right; one text size for all. Or turn the bar off and place each readout on its own |
 | `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars, plus party and raid frames (a separate Party & Raid section); hides Blizzard's |
 | `StzxUI_Quests` | Tints quests that are new to WoW: Forever (glow on the quest parchment, colour and strength adjustable) and keeps the loot sparkle on quest items; `/stzx quest` says whether the open quest is new; a party panel shows who's on the open quest, with Share and Share all |
 | `StzxUI_Runs` | Dungeon and raid run history: time, XP, gold, bosses, deaths and the loot you picked up, per character; a movable run timer while inside; `/stzx runs` opens the history |

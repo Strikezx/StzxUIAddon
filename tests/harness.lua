@@ -835,9 +835,45 @@ Social.db.thankMode = "WHISPER"; Buffed("nameplate1")
 check(log.whispers[1] == "WHISPER>Petra Stonewell>Thanks for the buff, Petra!", "whisper to full name")
 
 ---------------------------------------------------------------------------
--- 4. Info readouts
+-- 4a. Info bar (on by default)
 ---------------------------------------------------------------------------
 local stats, coords = StzxUIInfoStats, StzxUIInfoCoords
+local infoBar = StzxUIInfoBar
+check(infoBar:IsShown() and infoBar.w == SCREEN_W and infoBar.h == 13 + 12, "info bar across the top of the screen")
+check(infoBar:GetTop() == SCREEN_H and StzxUI.movers.InfoBar, "...at the very top, and movable")
+check(infoBar.bottom.colour[1] == StzxUI.ACCENT.r and not infoBar.ends[1].shown, "accent line along its bottom")
+check(stats.points[1].rel == infoBar and stats.points[1].point == "RIGHT", "stats sit at the bar's right")
+check(coords.points[1].rel == infoBar and coords.points[1].relPoint == "CENTER", "coordinates in its centre")
+check(stats.text.font.size == 13, "bigger text than before (13)")
+check(not StzxUI.movers.InfoStats.isShown() and StzxUI.movers.InfoBar.isShown(),
+	"in the bar, readouts have no box of their own in move mode; the bar does")
+log.settings.STZXUI_INFO_TEXTSIZE:SetValue(18)
+check(stats.text.font.size == 18 and infoBar.h == 30 and stats.w == 12.5 * 18, "text size: readouts and bar grow")
+log.settings.STZXUI_INFO_BARLENGTH:SetValue(50)
+check(infoBar.w == SCREEN_W / 2 and infoBar.ends[1].shown and StzxUI.movers.InfoBar.w == SCREEN_W / 2,
+	"shorter bar: ends get an accent line, its box follows")
+log.settings.STZXUI_INFO_BARSTATS:SetValue("LEFT")
+check(stats.points[1].point == "LEFT" and stats.points[1].rel == infoBar, "a readout can move to the bar's left")
+log.settings.STZXUI_INFO_BARCOORDS:SetValue("LEFT")
+check(coords.points[1].x < stats.points[1].x and stats.points[1].x - coords.points[1].x >= coords.w, "two on one side sit side by side, not on top of each other")
+log.settings.STZXUI_INFO_SHOWCOORDS:SetValue(false)
+log.settings.STZXUI_INFO_SHOWCOORDS:SetValue(true)
+check(coords.points[1].point == "LEFT", "...and stay put through hide and show")
+-- Off: each readout on its own again, sized by the text size.
+log.settings.STZXUI_INFO_TOPBAR:SetValue(false)
+check(not infoBar:IsShown() and stats.points[1].rel == StzxUI.movers.InfoStats and stats.w == 170 * 1.8,
+	"bar off: readouts back in their own boxes, sized to the text")
+check(StzxUI.movers.InfoStats.isShown() and StzxUI.movers.InfoStats.w == 170 * 1.8, "...and movable on their own again")
+-- The rest of the tests use the readouts on their own at the old size.
+log.settings.STZXUI_INFO_TEXTSIZE:SetValue(10)
+log.settings.STZXUI_INFO_BARSTATS:SetValue("RIGHT")
+log.settings.STZXUI_INFO_BARCOORDS:SetValue("CENTER")
+log.settings.STZXUI_INFO_BARLENGTH:SetValue(100)
+check(stats.w == 170 and stats.h == 20, "text size 10: the old size")
+
+---------------------------------------------------------------------------
+-- 4. Info readouts
+---------------------------------------------------------------------------
 check(stats.text.text:find("60 fps", 1, true) and stats.text.text:find("61 ms", 1, true), "stats show fps and the higher latency")
 mapPos = { 0.4523, 0.6781 }; for _, t in ipairs(tickers) do t.fn(t) end
 check(coords.text.text == "45.2, 67.8", "coordinates shown to one decimal")
