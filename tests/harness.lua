@@ -238,6 +238,20 @@ function Frame:SetVertexColorFromBoolean(v, yes, no)
 	self.vertex = { c.r, c.g, c.b }
 end
 function Frame:GetParent() return self.parent end
+function Frame:GetName() return self.name end
+function Frame:GetObjectType() return self.kind end
+function Frame:GetScript(name) return self.scripts[name] end
+function Frame:GetNumPoints() return #self.points end
+function Frame:GetPoint(i)
+	local p = self.points[i or 1]
+	if p then return p.point, p.rel, p.relPoint, p.x, p.y end
+end
+-- SetPoint on a point the frame already has replaces it, as in the game.
+local AddPoint = Frame.SetPoint
+function Frame:SetPoint(point, ...)
+	for i, p in ipairs(self.points) do if p.point == point then table.remove(self.points, i) break end end
+	return AddPoint(self, point, ...)
+end
 function Frame:SetCooldown(start, duration) self.cooldownStart, self.cooldownDuration, self.durationObject = start, duration, nil end
 function Frame:SetCooldownFromDurationObject(d) self.durationObject, self.cooldownStart = d, nil end
 function Frame:Clear() self.cooldownStart, self.durationObject = nil, nil end
@@ -537,6 +551,16 @@ local function InstallClient()
 		MinimapCompassTexture:SetAlpha(1)
 	end
 	GetMinimapShape = nil
+	MinimapBackdrop = NewFrame("Frame", "MinimapBackdrop", MinimapCluster)
+	-- Globals Blizzard made are "secure"; an addon's (marked .addon here) aren't.
+	function issecurevariable(t, k)
+		if k == nil then k = t end
+		local v = _G[k]
+		return not (type(v) == "table" and v.addon)
+	end
+	-- Blizzard's own named button on the minimap: must stay.
+	NewFrame("Button", "MiniMapTrackingButton", Minimap):SetSize(20, 20)
+	LibStub = nil
 	PetActionBar = NewFrame("Frame", "PetActionBar")
 	PetActionBar.actionButtons = { ActionButton("PetActionButton1", 30, 121) }
 	function ActionButton_UpdateRangeIndicator(button, checksRange, inRange)
@@ -709,9 +733,12 @@ local function LoadAddon(folder)
 	end
 	Fire("ADDON_LOADED", folder)
 end
-local function StartGame(savedDB)
+-- beforeAddons: runs once the fake client is up, before StzxUI loads
+-- (e.g. to add what other addons would have made first).
+local function StartGame(savedDB, beforeAddons)
 	ResetLog()
 	InstallClient()
+	if beforeAddons then beforeAddons() end
 	StzxUI, StzxUIDB = nil, savedDB
 	for _, folder in ipairs(ADDONS) do LoadAddon(folder) end
 	Fire("PLAYER_LOGIN")
@@ -2194,6 +2221,114 @@ log.settings.STZXUI_MINIMAP_SQUARE:SetValue(false)
 check(GetMinimapShape() == "ROUND" and DialogShown(), "round again: needs a reload, and says so")
 StzxUIDialog.cancelButton:Click()
 log.settings.STZXUI_MINIMAP_SQUARE:SetValue(true)
+
+---------------------------------------------------------------------------
+-- 30. Minimap: addon buttons in a fly-out
+---------------------------------------------------------------------------
+-- A fake LibDBIcon (the library most addons use) with two buttons, made
+-- before StzxUI starts, like addons that load first.
+local function FakeLibDBIcon()
+	local dbi = { objects = {}, refreshed = {}, callbacks = {} }
+	function dbi:GetButtonList() local t = {} for n in pairs(self.objects) do t[#t + 1] = n end return t end
+	function dbi:GetMinimapButton(n) return self.objects[n] end
+	function dbi:IsRegistered(n) return self.objects[n] ~= nil end
+	function dbi:Refresh(n) self.refreshed[n] = true end
+	function dbi.RegisterCallback(_, event, fn) dbi.callbacks[event] = fn end
+	function dbi:Make(n, angle)
+		local b = NewFrame("Button", "LibDBIcon10_" .. n, Minimap)
+		b.addon = true
+		b:SetSize(31, 31)
+		b:SetPoint("CENTER", Minimap, "CENTER", angle, angle)
+		b:SetScript("OnDragStart", function() end)
+		b:SetScript("OnDragStop", function() end)
+		b:SetScript("OnClick", function(self) self.clicked = true end)
+		self.objects[n] = b
+		if self.callbacks.LibDBIcon_IconCreated then self.callbacks.LibDBIcon_IconCreated("LibDBIcon_IconCreated", b, n) end
+		return b
+	end
+	local pins = { minimapPins = {} }
+	LibStub = function(name) return (name == "LibDBIcon-1.0" and dbi) or (name == "HereBeDragons-Pins-2.0" and pins) or nil end
+	return dbi, pins
+end
+
+local dbi, pins, questie, details, other, pin, bigOverlay
+StartGame(nil, function()
+dbi, pins = FakeLibDBIcon()
+questie = dbi:Make("Questie", 80)
+details = dbi:Make("Details", -80)
+details.showOnMouseover = true
+-- An addon button made without LibDBIcon, and a Questie map pin (also a named button).
+other = NewFrame("Button", "OtherAddonMinimapButton", Minimap)
+other.addon = true
+other:SetSize(24, 24)
+other:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 5, -5)
+pin = NewFrame("Button", "QuestieFrame12", Minimap)
+pin.addon = true
+pin:SetSize(16, 16)
+pins.minimapPins[pin] = true
+bigOverlay = NewFrame("Button", "SomeAddonMapOverlay", Minimap)
+bigOverlay.addon = true
+bigOverlay:SetSize(198, 198)
+end)
+local flyout = StzxUIMinimapButtons
+local corner
+for _, f in ipairs(frames) do
+	if f.parent == Minimap and f.kind == "Button" and f.glyph then corner = f end
+end
+check(corner and corner:IsShown() and corner.glyph:GetText() == "+", "corner button in the minimap's corner")
+check(corner.points[1].point == "BOTTOMRIGHT", "...bottom right")
+check(questie.parent == flyout and details.parent == flyout and other.parent == flyout, "addon buttons gathered into the panel")
+check(MiniMapTrackingButton.parent == Minimap, "Blizzard's own buttons stay")
+check(pin.parent == Minimap, "map pins (Questie, HandyNotes) stay")
+check(bigOverlay.parent == Minimap, "things that aren't button-sized stay")
+check(questie:GetScript("OnDragStart") == nil, "no dragging around the minimap while gathered")
+check(details.showOnMouseover == false and details.alpha == 1, "'show on mouse-over' buttons are visible in the panel")
+check(not flyout:IsShown(), "panel starts closed")
+corner:Click()
+check(flyout:IsShown() and corner.glyph:GetText() == "-", "corner button opens the panel")
+check(flyout.points[1].point == "BOTTOMRIGHT" and flyout.points[1].relPoint == "BOTTOMLEFT", "...left of the minimap")
+-- Sorted by name: LibDBIcon10_Details, LibDBIcon10_Questie, OtherAddonMinimapButton; 4 per row.
+check(details.points[1].x < questie.points[1].x and questie.points[1].x < other.points[1].x
+	and details.points[1].y == other.points[1].y, "laid out in a row, in name order")
+check(flyout.w == 4 * 2 + 3 * 33 and flyout.h == 4 * 2 + 33, "panel sized to its buttons")
+-- LibDBIcon puts a button back on the minimap's edge (it does at login).
+questie:SetPoint("CENTER", Minimap, "CENTER", 80, 80)
+check(questie.points[1].rel == flyout and #questie.points == 1, "an addon moving its button back: put back in the panel")
+log.settings.STZXUI_MINIMAP_BUTTONCOLUMNS:SetValue(2)
+check(flyout.w == 4 * 2 + 2 * 33 and flyout.h == 4 * 2 + 2 * 33, "buttons per row")
+-- A hidden button (the addon hid its icon) leaves no gap.
+questie:Hide()
+corner:Click(); corner:Click()
+check(flyout.w == 4 * 2 + 2 * 33 and flyout.h == 4 * 2 + 33, "hidden buttons leave no gap")
+questie:Show()
+-- A new LibDBIcon button made later is gathered too.
+local late = dbi:Make("Bagnon", 30)
+RunAfters()
+check(late.parent == flyout, "buttons made later are gathered")
+-- Clicking an addon button can close the panel.
+other:Click()
+check(other.clicked == nil and flyout:IsShown(), "panel stays open after a click by default")
+log.settings.STZXUI_MINIMAP_CLOSEONCLICK:SetValue(true)
+questie:Click()
+check(questie.clicked and not flyout:IsShown(), "...or closes, if asked")
+local onEscape = false
+for _, n in ipairs(UISpecialFrames) do if n == "StzxUIMinimapButtons" then onEscape = true end end
+check(onEscape, "Escape closes the panel")
+log.settings.STZXUI_MINIMAP_BUTTONSOPEN:SetValue("DOWN")
+corner:Click()
+check(flyout.points[1].point == "TOPRIGHT" and flyout.points[1].relPoint == "BOTTOMRIGHT", "panel can open below the minimap")
+-- Only LibDBIcon ones.
+log.settings.STZXUI_MINIMAP_COLLECTOTHERBUTTONS:SetValue(false)
+check(other.parent == Minimap and other.points[1].point == "TOPLEFT" and questie.parent == flyout,
+	"other addons' buttons can be left on the minimap")
+-- Off: everything goes back.
+log.settings.STZXUI_MINIMAP_COLLECTBUTTONS:SetValue(false)
+check(questie.parent == Minimap and dbi.refreshed.Questie and details.showOnMouseover == true
+	and questie:GetScript("OnDragStart") ~= nil, "gathering off: buttons go back, LibDBIcon re-places them")
+check(not corner:IsShown() and not flyout:IsShown(), "...and the corner button goes")
+log.settings.STZXUI_MINIMAP_COLLECTBUTTONS:SetValue(true)
+check(questie.parent == flyout and corner:IsShown(), "on again: gathered again")
+LibStub = nil
 
 ---------------------------------------------------------------------------
 -- 8. Slash commands

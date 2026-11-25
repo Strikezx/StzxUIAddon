@@ -18,7 +18,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Nameplates` | StzxUI nameplates: health, name and level, raid marker, target outline with other plates faded, red edge when a mob attacks you, cast bars coloured by whether you can interrupt, your debuffs. Blizzard's plate stays (invisible) so clicking works; `/stzx test` shows pretend plates |
 | `StzxUI_Blizzard` | Blizzard frames Edit Mode can't place, in StzxUI move mode (Blizzard group): alerts, error messages, zone text, capture bars and scores, boss banner, level-up toasts. Each can be switched off |
 | `StzxUI_Inventory` | Remembers the bags, gear and bank of all your characters (and the account bank): item tooltips list who else has it, `/stzx items` searches them all. Read-only |
-| `StzxUI_Minimap` | Square minimap with a 1-pixel border (black or accent), round frame art and zoom buttons hidden; tells minimap-button addons it's square. Edit Mode still places it |
+| `StzxUI_Minimap` | Square minimap with a 1-pixel border (black or accent), round frame art and zoom buttons hidden; tells minimap-button addons it's square; gathers addons' minimap buttons into a fly-out panel opened from the corner. Edit Mode still places it |
 
 ## Optional: JiberishUI Icons
 

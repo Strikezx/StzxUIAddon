@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: |cff4fc3f7Stzx|rUI - Minimap
-## Notes: A square minimap with a thin border and less clutter. Edit Mode still places it.
+## Notes: A square minimap with a thin border, less clutter, and addon buttons gathered into a fly-out. Edit Mode still places it.
 ## Author: Strikezx
 ## Category: |cff4fc3f7Stzx|rUI
 ## Group: StzxUI
@@ -8,3 +8,4 @@
 ## Dependencies: StzxUI
 
 Minimap.lua
+AddonButtons.lua

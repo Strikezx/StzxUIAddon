@@ -4,6 +4,7 @@
 --   * the round frame art and compass ring hidden
 --   * the + and - zoom buttons hidden (the mouse wheel already zooms: that's
 --     Blizzard's own)
+--   * addons' minimap buttons gathered into a fly-out panel (AddonButtons.lua)
 --
 -- Edit Mode still places and sizes the minimap. StzxUI repaints right after
 -- Blizzard's own minimap setup (which runs again when you turn on "rotate
@@ -11,7 +12,7 @@
 -- buttons move to the corners. For a clock and coordinates under the map,
 -- place StzxUI's Info readouts there in move mode.
 
-local ADDON_NAME = ...
+local ADDON_NAME, ns = ...
 local StzxUI = _G.StzxUI
 local A = StzxUI.ACCENT
 
@@ -19,10 +20,16 @@ local MinimapModule = StzxUI:NewModule("Minimap", ADDON_NAME, {
 	square = true,
 	accentBorder = false, -- border in StzxUI's accent colour instead of black
 	hideZoomButtons = true,
+	collectButtons = true, -- addon buttons into the fly-out panel
+	collectOtherButtons = true, -- not only LibDBIcon ones
+	buttonColumns = 4,
+	buttonsOpen = "LEFT", -- LEFT, RIGHT, DOWN or UP of the minimap
+	closeOnClick = false,
 }, {
 	title = "Minimap",
 	description = "A square minimap with a thin border and less clutter. Edit Mode still places it.",
 })
+ns.module = MinimapModule
 
 local border
 
@@ -69,6 +76,7 @@ function MinimapModule:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "accentBorder", "Border in StzxUI's accent colour", "Black otherwise.", Paint)
 	StzxUI:AddCheckbox(page, self, "hideZoomButtons", "Hide the + and - buttons",
 		"The mouse wheel zooms the minimap anyway.", Paint)
+	ns.AddButtonSettings(page, self)
 end
 
 function MinimapModule:OnEnable()
@@ -91,4 +99,5 @@ function MinimapModule:OnEnable()
 		hooksecurefunc(MinimapCluster, "UpdateMinimapConfig", Paint)
 	end
 	Paint()
+	ns.StartAddonButtons()
 end
