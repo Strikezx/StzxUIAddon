@@ -358,6 +358,13 @@ function Skin.Window(frame, opts)
 			Skin.Tab(tab)
 		end
 	end
-	if opts.controls ~= false then Skin.Controls(frame) end
+	if opts.controls ~= false then
+		Skin.Controls(frame)
+		-- Some windows make their buttons only when first opened (the game
+		-- menu does): look again each time it opens, out of combat.
+		frame:HookScript("OnShow", function(shown)
+			if not InCombatLockdown() then Skin.Controls(shown) end
+		end)
+	end
 	return true
 end

@@ -2608,6 +2608,11 @@ check(btnEdge.colour[1] == StzxUI.ACCENT.r, "buttons light up in the accent on h
 Script(charButton, "OnLeave")
 check(btnEdge.colour[1] == softR, "...and settle back")
 check(charScroll.Track.Begin.alpha == 0 and charScroll.Track.Thumb.Begin.alpha == 0, "slim scrollbars")
+-- A button the window makes only when it opens (like the game menu's).
+local late = NewFrame("Button", nil, charWin)
+late.Left, late.Middle, late.Right = late:CreateTexture(), late:CreateTexture(), late:CreateTexture()
+charWin:Hide(); charWin:Show()
+check(late.Left.alpha == 0, "buttons a window makes when it opens are flattened too")
 check(TaxiFrame.art.alpha == 0 and TaxiFrame.text.alpha == nil, "old-style windows: frame art hidden, content kept")
 check(SomeOtherAddonFrame.NineSlice.alpha == nil, "windows not on the list are left alone")
 -- Windows Blizzard loads later.
