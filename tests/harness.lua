@@ -3354,6 +3354,17 @@ check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 	check(UIErrorsFrame.typeOn[LE_GAME_ERR_OUT_OF_MANA] == false, "\"Not enough mana\" and friends hidden")
 	log.settings.STZXUI_HELPERS_ERRORFILTER:SetValue(false)
 	check(UIErrorsFrame.typeOn[LE_GAME_ERR_OUT_OF_MANA] == true, "...and back when switched off")
+	-- Blizzard's bank money display: stops listening for gold while the bank is closed.
+	local bank = BankFrame or NewFrame("Frame", "BankFrame", UIParent)
+	bank.BankPanel = bank.BankPanel or NewFrame("Frame", nil, bank)
+	local display = NewFrame("Frame", nil, bank.BankPanel)
+	bank.BankPanel.MoneyDisplay = display
+	display:RegisterEvent("PLAYER_MONEY")
+	bank.shown = true
+	Fire("BANKFRAME_CLOSED")
+	bank.shown = false
+	RunAfters()
+	check(not display.events.PLAYER_MONEY, "bank error fix: the bank's money display stops listening once the bank closes")
 end)()
 
 ---------------------------------------------------------------------------

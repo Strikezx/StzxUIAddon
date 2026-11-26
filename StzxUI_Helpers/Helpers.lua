@@ -7,6 +7,8 @@
 --              banker...) goes straight to it; hold Shift to see the chat
 --   Errors     hides the red "Not enough mana", "Out of range"... errors that
 --              repeat all through a fight (each kind can be kept on)
+--   Bank fix   stops a Blizzard error (BankFrame.lua:43, FetchNumPurchasedBankTabs)
+--              that fires when your gold changes after you've used the bank
 --
 -- Everything here only does what you could click yourself, out of combat
 -- where the game requires it. Each has its own switch.
@@ -23,6 +25,7 @@ local Helpers = StzxUI:NewModule("Helpers", ADDON_NAME, {
 	fastLoot = true,       -- take all loot at once (auto loot)
 	skipGossip = true,     -- one chat option, no quests: pick it
 	errorFilter = true,    -- hide repeating combat errors
+	bankMoneyFix = true,   -- stop Blizzard's bank money-display error
 }, {
 	title = "Helpers",
 	description = "Sell greys and repair, faster looting, skip one-option NPC chat, quieter error messages.",
@@ -161,6 +164,29 @@ function Helpers.ApplyErrorFilter()
 end
 
 ---------------------------------------------------------------------------
+-- Blizzard's bank error
+---------------------------------------------------------------------------
+-- Forever's bank window has a small "cost of the next bank tab" money
+-- display. It listens for every change to your gold, even while the bank is
+-- closed, and then asks the bank which tab is open; with the bank closed the
+-- answer is "none" and Blizzard's code errors (BankFrame.lua:43). While the
+-- bank is closed StzxUI tells that one display to stop listening; Blizzard's
+-- own code starts it listening again when the bank opens (its OnShow).
+
+local function BankMoneyDisplay()
+	local bank = _G.BankFrame
+	return bank, bank and bank.BankPanel and bank.BankPanel.MoneyDisplay
+end
+
+function Helpers.QuietBankMoney()
+	if not Helpers.db.bankMoneyFix then return end
+	local bank, display = BankMoneyDisplay()
+	if bank and display and display.UnregisterEvent and not bank:IsShown() then
+		display:UnregisterEvent("PLAYER_MONEY")
+	end
+end
+
+---------------------------------------------------------------------------
 -- Module
 ---------------------------------------------------------------------------
 
@@ -185,6 +211,11 @@ function Helpers:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "errorFilter", "Hide repeating combat errors",
 		"The red \"Not enough mana\", \"Out of range\", \"Not ready yet\" and similar messages that repeat "
 		.. "through every fight. Other errors still show.", Helpers.ApplyErrorFilter)
+	StzxUI:AddCheckbox(page, self, "bankMoneyFix", "Fix Blizzard's bank error",
+		"Stops a Blizzard error (BankFrame.lua:43) that pops up when your gold changes after you've used the bank. "
+		.. "Turning it off needs a reload.", function(on)
+			if on then Helpers.QuietBankMoney() else StzxUI:AskReload() end
+		end)
 end
 
 function Helpers:OnEnable()
@@ -195,7 +226,14 @@ function Helpers:OnEnable()
 	events:RegisterEvent("MERCHANT_CLOSED")
 	events:RegisterEvent("LOOT_READY")
 	events:RegisterEvent("GOSSIP_SHOW")
+	events:RegisterEvent("PLAYER_ENTERING_WORLD")
+	events:RegisterEvent("BANKFRAME_CLOSED")
 	events:SetScript("OnEvent", function(_, event)
+		if event == "PLAYER_ENTERING_WORLD" or event == "BANKFRAME_CLOSED" then
+			-- After Blizzard has closed its window (it hides on this same event).
+			C_Timer.After(0, Helpers.QuietBankMoney)
+			return
+		end
 		if event == "MERCHANT_SHOW" then
 			merchantOpen = true
 			if db.repair then Repair() end
