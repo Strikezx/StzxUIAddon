@@ -772,6 +772,18 @@ local function InstallClient()
 	function RaidNotice_AddMessage(_, text) log.raidWarning = text end
 	RaidWarningFrame = RaidWarningFrame or {}
 	SOUNDKIT = SOUNDKIT or { RAID_WARNING = 8959, UI_BNET_TOAST = 18019 }
+	function strsplit(sep, text)
+		local parts = {}
+		for part in (text .. sep):gmatch("(.-)" .. sep:gsub("%p", "%%%0")) do parts[#parts + 1] = part end
+		return unpack(parts)
+	end
+	WorldFrame = WorldFrame or NewFrame("Frame", "WorldFrame", UIParent)
+	function SetOverrideBindingClick(owner, _, key, name) log.binding = { owner = owner, key = key, name = name } end
+	function ClearOverrideBindings() log.binding = nil end
+	C_VignetteInfo = {
+		GetVignettes = function() local list = {} for guid in pairs(extra.vignettes or {}) do list[#list + 1] = guid end return list end,
+		GetVignetteInfo = function(guid) return (extra.vignettes or {})[guid] end,
+	}
 	function UnitOnTaxi() return extra.taxi or false end
 	function UnitHasVehicleUI() return false end
 	function IsMounted() return extra.mounted or false end
@@ -1932,6 +1944,29 @@ unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, n
 	check(lines:find("XP gained 300", 1, true) and lines:find("Last gain 300 XP", 1, true)
 		and lines:find("about 18 more to level", 1, true), "...this session: gained, last gain, how many more like it")
 	questLog = saved
+	-- Layer: read from creatures' IDs.
+	check(InfoMod.LayerFromGUID("Creature-0-4372-0-48-1234-0000AB12") == 48 and InfoMod.LayerFromGUID("Player-4372-0ABC") == nil,
+		"layer number read from a creature's ID (not a player's)")
+	log.settings.STZXUI_INFO_SHOWLAYER:SetValue(true)
+	check(R.layer.shown and R.layer.text.text == "Layer --", "layer readout (off by default): nothing read yet")
+	local savedTarget = unitState.target
+	unitState.target = { guid = "Creature-0-4372-0-48-1234-0000AB12" }
+	units.target = { name = "Stormwind Guard" }
+	Fire("PLAYER_TARGET_CHANGED")
+	check(R.layer.text.text == "Layer 48", "...target a creature: its layer")
+	unitState.target.guid = "Creature-0-4372-0-52-1234-0000AB13"
+	Fire("PLAYER_TARGET_CHANGED")
+	GameTooltip.lines = {}
+	Script(R.layer, "OnEnter")
+	lines = table.concat(GameTooltip.lines, "\n")
+	check(R.layer.text.text == "Layer 52" and lines:find("Before that 48", 1, true) and lines:find("Stormwind Guard", 1, true),
+		"...moved layer: the new number, the old one in the tooltip")
+	Fire("ZONE_CHANGED_NEW_AREA")
+	unitState.target = savedTarget
+	units.target = nil
+	TickAll(tickers)
+	check(R.layer.text.text == "Layer --", "...a new zone reads it afresh")
+	log.settings.STZXUI_INFO_SHOWLAYER:SetValue(false)
 	-- In the bar: the new ones sit beside the old ones without overlapping.
 	local rightmost = R.stats.points[1]
 	check(rightmost.point == "RIGHT" and R.gold.points[1].point == "RIGHT" and R.gold.points[1].x < rightmost.x,
@@ -2260,9 +2295,35 @@ check(lastPrint():find("Sealed Crate", 1, true), "/stzx fishing lists them")
 fishing.zone = "Westfall"
 Fire("ZONE_CHANGED_NEW_AREA")
 check(readout.text.text == "No lure" and select(2, Fish.Catches()) == 0, "each zone has its own log")
+do -- Easy cast: double right-click the world casts Fishing (out of combat, pole in hand).
+	extra.known = { [7620] = true }
+	log.binding, GameTooltip.shown = nil, false
+	Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(log.binding == nil, "easy cast: one right-click does nothing extra")
+	now = now + 0.2
+	Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(log.binding and log.binding.key == "BUTTON2" and log.binding.name == "StzxUIFishingCast"
+		and StzxUIFishingCast:GetAttribute("spell") == 7620, "...a double right-click casts Fishing")
+	Script(StzxUIFishingCast, "PostClick")
+	check(log.binding == nil, "...and right-click is back to normal after")
+	now = now + 1
+	GameTooltip.shown = true
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(log.binding == nil, "...not over the bobber (its tooltip is showing): that click loots it")
+	GameTooltip.shown = false
+	now = now + 1
+	inCombat = true
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	inCombat = false
+	check(log.binding == nil, "...not in a fight")
+	extra.known = nil
+end
 fishing.pole = false
 Fire("PLAYER_EQUIPMENT_CHANGED")
 check(not readout.shown, "pole put away: readout hides")
+now = now + 1
+Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+check(log.binding == nil, "no pole: right-clicks are left alone")
 Reload()
 check(select(2, Fish.Catches("Elwynn Forest")) == 3, "the log is kept")
 fishing.zone, lootWindow, StzxUIFishingDB = "Elwynn Forest", {}, nil
@@ -3759,6 +3820,36 @@ end)()
 	check(not StzxUIEnemiesNearby.shown, "the list empties when nobody's been seen for a while")
 	units.nameplate7, units.nameplate8, units.nameplate9 = nil, nil, nil
 	unitState.nameplate7, unitState.nameplate8, unitState.nameplate9 = nil, nil, nil
+end)()
+
+---------------------------------------------------------------------------
+-- 41. Rare and treasure alerts
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB = nil
+	StartGame(nil)
+	units.nameplate11 = { name = "Foreman Rigger" }
+	unitState.nameplate11 = { classification = "rareelite", level = 24 }
+	log.raidWarning = nil
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate11")
+	check(log.raidWarning == "Rare elite: Foreman Rigger (24)", "rare elite's nameplate: a warning")
+	log.raidWarning = nil
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate11")
+	check(log.raidWarning == nil, "...once, not every time its plate comes back")
+	units.nameplate12 = { name = "Kobold Miner" }
+	unitState.nameplate12 = { level = 7 }
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate12")
+	check(log.raidWarning == nil, "ordinary creatures: nothing")
+	extra.vignettes = { ["V-1"] = { name = "Battered Chest", type = 3, onMinimap = true, isDead = false, vignetteID = 77, objectGUID = "G1" } }
+	Fire("VIGNETTE_MINIMAP_UPDATED", "V-1")
+	check(log.raidWarning == "Treasure: Battered Chest", "a treasure on the minimap: a warning")
+	log.raidWarning = nil
+	log.settings.STZXUI_RARES_TREASURES:SetValue(false)
+	extra.vignettes["V-2"] = { name = "Old Crate", type = 3, onMinimap = true, isDead = false, vignetteID = 78, objectGUID = "G2" }
+	Fire("VIGNETTES_UPDATED")
+	check(log.raidWarning == nil, "...with its own switch")
+	extra.vignettes = nil
+	units.nameplate11, units.nameplate12, unitState.nameplate11, unitState.nameplate12 = nil, nil, nil, nil
 end)()
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))

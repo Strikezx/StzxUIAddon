@@ -7,6 +7,7 @@
 --   Hearthstone  "Hearth: Ironforge", or its cooldown "Hearth 23m"; hover for every
 --                travel option you have, click for a menu that casts them (Travel.lua)
 --   Coordinates  "45.2, 67.8" (blank where the game hides your position, e.g. dungeons)
+--   Layer        which server layer you're on, read from creatures nearby (off by default)
 --   Gold         your gold; its tooltip lists every character's and the total
 --   Bags         free bag slots
 --   Durability   your most worn item's durability, yellow then red as it drops
@@ -32,6 +33,7 @@ local Info = StzxUI:NewModule("Info", ADDON_NAME, {
 	showGold = true,
 	showBags = true,
 	showDurability = true,
+	showLayer = false,    -- which server layer you're on (read from creatures nearby)
 	showHearth = true,
 	travelMenu = true,    -- click the hearthstone readout: travel menu (Travel.lua)
 	topBar = true,        -- readouts sit in the info bar
@@ -43,6 +45,7 @@ local Info = StzxUI:NewModule("Info", ADDON_NAME, {
 	barGold = "RIGHT",
 	barBags = "RIGHT",
 	barDurability = "RIGHT",
+	barLayer = "CENTER",
 	textSize = 13,
 }, {
 	title = "Info",
@@ -458,6 +461,76 @@ local function DurabilityTooltip(frame)
 end
 
 ---------------------------------------------------------------------------
+-- Layer
+---------------------------------------------------------------------------
+-- Busy zones are split into copies ("layers"). The game doesn't say which
+-- one you're on, but every creature's ID carries a number for it (the 5th
+-- part of "Creature-0-server-instance-ZONE-npc-spawn"); layer addons read
+-- the same. StzxUI shows that number from the creatures around you, so you
+-- can see when it changes. Not in dungeons. It can't switch layers.
+
+local layer = { id = nil, from = nil, at = nil, previous = nil }
+
+-- The layer number in a creature's ID, or nil (also used by the tests).
+function Info.LayerFromGUID(guid)
+	if type(guid) ~= "string" then return nil end
+	local kind, _, _, _, zone = strsplit("-", guid)
+	if kind ~= "Creature" and kind ~= "Vehicle" then return nil end
+	return tonumber(zone)
+end
+
+local function ReadLayer()
+	if IsInInstance and Plain((IsInInstance())) then return end
+	local units = { "target", "mouseover" }
+	if C_NamePlate and C_NamePlate.GetNamePlates then
+		for _, plate in ipairs(C_NamePlate.GetNamePlates() or {}) do
+			if plate.namePlateUnitToken then units[#units + 1] = plate.namePlateUnitToken end
+			if #units >= 8 then break end
+		end
+	end
+	for _, unit in ipairs(units) do
+		local id = Info.LayerFromGUID(Plain(UnitGUID(unit)))
+		if id then
+			if layer.id and layer.id ~= id then layer.previous = layer.id end
+			layer.id, layer.from, layer.at = id, Plain(UnitName(unit)), GetTime()
+			return
+		end
+	end
+end
+
+local function UpdateLayer(frame)
+	ReadLayer()
+	if IsInInstance and Plain((IsInInstance())) then
+		frame.text:SetText("Layer: instance")
+	elseif layer.id then
+		frame.text:SetText(("Layer %d"):format(layer.id))
+	else
+		frame.text:SetText("Layer --")
+	end
+end
+
+local function LayerTooltip(frame)
+	local tip = Tooltip(frame)
+	tip:AddLine("Layer", 1, 1, 1)
+	if layer.id then
+		tip:AddDoubleLine("Layer number", tostring(layer.id), 0.8, 0.8, 0.8, 1, 1, 1)
+		if layer.from then
+			tip:AddDoubleLine("Read from", ("%s, %s ago"):format(layer.from, Duration(math.max(1, GetTime() - layer.at))),
+				0.8, 0.8, 0.8, 1, 1, 1)
+		end
+		if layer.previous then tip:AddDoubleLine("Before that", tostring(layer.previous), 0.8, 0.8, 0.8, 1, 1, 1) end
+	else
+		tip:AddLine("Target or mouse over a creature to read it.", 0.8, 0.8, 0.8)
+	end
+	tip:AddLine(" ")
+	tip:AddLine("The number changes when you move to another layer.", 0.6, 0.6, 0.6)
+	tip:Show()
+end
+
+local function ResetLayer() layer.id, layer.from, layer.at, layer.previous = nil, nil, nil, nil end
+Info.ResetLayer = ResetLayer
+
+---------------------------------------------------------------------------
 -- The readouts
 ---------------------------------------------------------------------------
 -- Bar order, left to right within each side. width: room in the bar per point
@@ -473,6 +546,9 @@ local READOUTS = {
 		tooltip = HearthTooltip, events = { "HEARTHSTONE_BOUND", "BAG_UPDATE_COOLDOWN" } },
 	{ id = "coords", frameName = "StzxUIInfoCoords", mover = "InfoCoords", label = "Info: coordinates",
 		show = "showCoords", place = "barCoords", width = 6.5, free = 170, every = 0.2, update = UpdateCoords },
+	{ id = "layer", frameName = "StzxUIInfoLayer", mover = "InfoLayer", label = "Info: layer",
+		show = "showLayer", place = "barLayer", width = 6, free = 110, every = 5, update = UpdateLayer,
+		tooltip = LayerTooltip, events = { "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "NAME_PLATE_UNIT_ADDED" } },
 	{ id = "gold", frameName = "StzxUIInfoGold", mover = "InfoGold", label = "Info: gold",
 		show = "showGold", place = "barGold", width = 8.5, free = 170, update = UpdateGold,
 		tooltip = GoldTooltip, events = { "PLAYER_MONEY" } },
@@ -710,6 +786,11 @@ function Info:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "showDurability", "Show durability",
 		"Your most worn item: yellow under 50%, red under 25%. Hover for each worn item.", Refresh)
 	StzxUI:AddDropdown(page, self, "barDurability", "Place in the bar", nil, SIDES, Refresh)
+	StzxUI:AddHeader(page, "Layer")
+	StzxUI:AddCheckbox(page, self, "showLayer", "Show which layer you're on",
+		"Busy zones are split into copies (layers). Read from the creatures around you (target or mouse over one); "
+		.. "the number changes when you move to another layer. Showing only: it can't switch layers.", Refresh)
+	StzxUI:AddDropdown(page, self, "barLayer", "Place in the bar", nil, SIDES, Refresh)
 	StzxUI:AddHeader(page, "Stats")
 	StzxUI:AddCheckbox(page, self, "showStats", "Show FPS and latency",
 		"Frame rate and the higher of your home/world latency.", Refresh)
@@ -764,6 +845,7 @@ function Info:OnEnable()
 	events:RegisterEvent("PLAYER_ENTERING_WORLD")
 	events:RegisterEvent("DISPLAY_SIZE_CHANGED")
 	events:RegisterEvent("UI_SCALE_CHANGED")
+	events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 	for event in pairs(byEvent) do events:RegisterEvent(event) end
 	events:SetScript("OnEvent", function(_, event)
 		if byEvent[event] then
@@ -776,8 +858,9 @@ function Info:OnEnable()
 			PlaceReadouts() -- the screen's width changed: the bar follows
 			return
 		end
-		if event == "PLAYER_ENTERING_WORLD" then
-			Refresh()
+		if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+			ResetLayer() -- a new zone (or a loading screen): read the layer afresh
+			if event == "PLAYER_ENTERING_WORLD" then Refresh() end
 			return
 		end
 		CountXP()

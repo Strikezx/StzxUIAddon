@@ -4,6 +4,11 @@
 --     30 seconds, with a sound when it runs out. "No lure" when there isn't one.
 --   * Catch log: everything you fish up is counted per zone. Hover the
 --     readout to see this zone's catches; /stzx fishing lists them in chat.
+--   * Easy cast: while you hold a fishing pole, double right-click the world
+--     to cast Fishing (out of combat). A single right-click still loots the
+--     bobber. How: on the second click StzxUI briefly binds right-click to a
+--     secure button that casts Fishing (the only way an addon may cast for
+--     you), then takes the binding off again.
 --
 -- All from the game itself: the lure is a weapon enchant on the pole, and
 -- the loot window says when loot came from fishing. The log is saved for
@@ -23,6 +28,7 @@ local Fishing = StzxUI:NewModule("Fishing", ADDON_NAME, {
 	lureTimer = true,
 	lureSound = true,
 	catchLog = true,
+	easyCast = true,   -- double right-click to cast while holding a pole
 }, {
 	title = "Fishing",
 	description = "A lure timer while you hold a fishing pole, and a log of what you catch in each zone.",
@@ -54,6 +60,61 @@ function Fishing.LureLeft()
 		if has and left then return left / 1000 end
 	end
 	return nil
+end
+
+---------------------------------------------------------------------------
+-- Easy cast
+---------------------------------------------------------------------------
+
+local FISHING_SPELLS = { 131474, 18248, 7732, 7731, 7620 } -- Fishing, highest rank first
+local DOUBLE_CLICK = 0.4 -- seconds between the two right-clicks
+local castButton
+local lastRight = 0
+
+function Fishing.FishingSpell()
+	for _, id in ipairs(FISHING_SPELLS) do
+		if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id) then return id end
+	end
+	return nil
+end
+
+local function Unbind()
+	if castButton and castButton.bound and not InCombatLockdown() then
+		ClearOverrideBindings(castButton)
+		castButton.bound = false
+	end
+end
+
+-- A right mouse press on the world (also used by the tests).
+function Fishing.WorldRightClick()
+	if not Fishing.db.easyCast or InCombatLockdown() or not Fishing.HoldingPole() then return false end
+	if GameTooltip:IsShown() then -- the mouse is over the bobber (or something else to click)
+		lastRight = 0
+		return false
+	end
+	local now = GetTime()
+	if now - lastRight > DOUBLE_CLICK then
+		lastRight = now
+		return false
+	end
+	lastRight = 0
+	local spell = Fishing.FishingSpell()
+	if not spell then return false end
+	castButton:SetAttribute("type", "spell")
+	castButton:SetAttribute("spell", spell)
+	SetOverrideBindingClick(castButton, true, "BUTTON2", "StzxUIFishingCast")
+	castButton.bound = true
+	C_Timer.After(1, Unbind) -- in case the click never reaches it
+	return true
+end
+
+local function SetUpEasyCast()
+	castButton = CreateFrame("Button", "StzxUIFishingCast", UIParent, "SecureActionButtonTemplate")
+	castButton:RegisterForClicks("AnyUp", "AnyDown")
+	castButton:SetScript("PostClick", Unbind)
+	WorldFrame:HookScript("OnMouseDown", function(_, button)
+		if button == "RightButton" then Fishing.WorldRightClick() end
+	end)
 end
 
 ---------------------------------------------------------------------------
@@ -173,6 +234,9 @@ function Fishing:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "lureSound", "Chime when the lure runs out", nil)
 	StzxUI:AddCheckbox(page, self, "catchLog", "Log what I catch in each zone",
 		"Saved for all your characters. /stzx fishing lists this zone's catches.")
+	StzxUI:AddCheckbox(page, self, "easyCast", "Double right-click to cast",
+		"While you hold a fishing pole and aren't in a fight, double right-click the world to cast Fishing. "
+		.. "A single right-click still loots the bobber.")
 	StzxUI:AddButton(page, "Clear the catch log", "Clear", function()
 		StzxUI:ShowDialog({
 			title = "Clear catch log",
@@ -185,6 +249,7 @@ end
 
 function Fishing:OnEnable()
 	Data()
+	SetUpEasyCast()
 	readout = CreateFrame("Frame", "StzxUIFishing", UIParent)
 	readout:SetSize(200, 20)
 	readout.text = readout:CreateFontString(nil, "OVERLAY", "GameFontHighlight")

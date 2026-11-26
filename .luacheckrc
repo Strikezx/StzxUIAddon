@@ -35,7 +35,7 @@ read_globals = {
 	"GetNumAvailableQuests", "GetNumQuestChoices", "GetQuestItemInfo", "GetQuestItemLink", "GetQuestMoneyToGet",
 	"GetQuestReward", "IsQuestCompletable", "QuestFlagsPVP", "QuestGetAutoAccept", "QuestInfoFrame",
 	"SelectActiveQuest", "SelectAvailableQuest",
-	"SOUNDKIT", "RaidNotice_AddMessage", "RaidWarningFrame", "ChatEdit_InsertLink", "GetGuildInfo", "UnitIsEnemy", "UnitIsPlayer",
+	"strsplit", "IsInInstance", "SetOverrideBindingClick", "ClearOverrideBindings", "WorldFrame", "C_VignetteInfo", "UnitClassification", "SOUNDKIT", "RaidNotice_AddMessage", "RaidWarningFrame", "ChatEdit_InsertLink", "GetGuildInfo", "UnitIsEnemy", "UnitIsPlayer",
 	"GetQuestLogRewardXP", "GetNumBattlefieldScores", "GetBattlefieldWinner", "GetBattlefieldInstanceRunTime", "C_PvP",
 	"issecretvalue", "AuraUtil", "UnitFactionGroup", "GetBindLocation", "GetXPExhaustion", "GetInventoryItemDurability",
 	"UpdateAddOnMemoryUsage", "GetAddOnMemoryUsage",
