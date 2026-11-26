@@ -259,6 +259,7 @@ function Frame:GetName() return self.name end
 function Frame:SetIgnoreParentAlpha(v) self.ignoreParentAlpha = v and true or false end
 function Frame:GetAtlas() return self.atlas end
 function Frame:SetSwipeTexture(t) self.swipeTexture = t end
+function Frame:IsMouseOver() return self.mouseOver or false end
 function Frame:SetID(id) self.id = id end
 function Frame:GetID() return self.id or 0 end
 function Frame:GetNumMaskTextures() return #(self.masks or {}) end
@@ -292,7 +293,7 @@ function Frame:IsVisible() local f = self while f do if not f.shown then return 
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetSwipeColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
-	"SetScrollChild", "SetOwner", "AddLine", "ClearLines", "SetShadowColor", "SetWordWrap",
+	"SetScrollChild", "SetOwner", "AddLine", "ClearLines", "SetSpellByID", "SetItemByID", "SetShadowColor", "SetWordWrap",
 	"SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
@@ -809,7 +810,18 @@ local function InstallClient()
 		ForceGossip = function() return false end,
 	}
 	C_SpellBook = { IsSpellKnown = function(id) return extra.known and extra.known[id] or false end }
-	C_Spell = { GetSpellName = function(id) return "Spell " .. id end }
+	C_Spell = {
+		GetSpellName = function(id) return "Spell " .. id end,
+		GetSpellTexture = function(id) return id end,
+		GetSpellCooldown = function(id)
+			local cd = extra.spellCD and extra.spellCD[id]
+			return { startTime = cd and cd[1] or 0, duration = cd and cd[2] or 0, isEnabled = true }
+		end,
+	}
+	C_Item.GetItemCount = function(id) return (extra.items or { [6948] = 1 })[id] or 0 end
+	C_Item.IsEquippedItem = function(id) return extra.equipped and extra.equipped[id] or false end
+	C_Item.GetItemNameByID = function(id) return "Item " .. id end
+	C_Item.GetItemIconByID = function(id) return id end
 	C_Minimap = {
 		GetNumTrackingTypes = function() return #(extra.tracking or {}) end,
 		GetTrackingInfo = function(i) return extra.tracking[i] end,
@@ -1843,6 +1855,42 @@ unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, n
 	TickAll(tickers)
 	check(R.hearth.text.text:find("20m", 1, true), "...or how long until it's ready")
 	extra.hearthStart, extra.hearthDuration = nil, nil
+	-- Travel: only what this character has; Astral Recall when the hearthstone is cooling down.
+	extra.known = { [556] = true } -- a shaman
+	extra.hearthStart, extra.hearthDuration = now - 600, 1800
+	TickAll(tickers)
+	check(R.hearth.text.text:find("Recall: ", 1, true) and R.hearth.text.text:find("Ironforge", 1, true),
+		"hearthstone cooling down, Astral Recall ready: \"Recall: Ironforge\"")
+	extra.spellCD = { [556] = { now - 60, 900 } }
+	TickAll(tickers)
+	check(R.hearth.text.text:find("Recall ", 1, true) and R.hearth.text.text:find("14m", 1, true),
+		"...both cooling down: the one ready first, and when")
+	GameTooltip.lines = {}
+	Script(R.hearth, "OnEnter")
+	local tip = table.concat(GameTooltip.lines, "\n")
+	check(tip:find("Item 6948", 1, true) and tip:find("Spell 556", 1, true) and not tip:find("Spell 18960", 1, true),
+		"travel tooltip: this character's options only (no Moonglade for a shaman)")
+	Script(R.hearth, "OnMouseUp", "LeftButton")
+	local menu = StzxUITravelMenu
+	check(menu and menu.shown and StzxUITravelButton1.shown and StzxUITravelButton2.shown
+		and not (StzxUITravelButton3 and StzxUITravelButton3.shown), "click: a travel menu with a row each")
+	check(StzxUITravelButton1:GetAttribute("type") == "item" and StzxUITravelButton1:GetAttribute("item") == "item:6948"
+		and StzxUITravelButton2:GetAttribute("type") == "spell" and StzxUITravelButton2:GetAttribute("spell") == 556,
+		"...rows are secure buttons that use the hearthstone / cast Astral Recall")
+	Script(StzxUITravelButton2, "PostClick")
+	check(not menu.shown, "...and the menu closes after one is clicked")
+	Script(R.hearth, "OnMouseUp", "LeftButton")
+	Fire("PLAYER_REGEN_DISABLED")
+	check(not menu.shown, "...and when a fight starts")
+	inCombat = true; log.prints = {}
+	Script(R.hearth, "OnMouseUp", "LeftButton")
+	check(not menu.shown and lastPrint():find("out of combat", 1, true), "it doesn't open in a fight")
+	inCombat = false
+	log.settings.STZXUI_INFO_TRAVELMENU:SetValue(false)
+	Script(R.hearth, "OnMouseUp", "LeftButton")
+	check(not menu.shown, "...and it has its own switch")
+	log.settings.STZXUI_INFO_TRAVELMENU:SetValue(true)
+	extra.known, extra.spellCD, extra.hearthStart, extra.hearthDuration = nil, nil, nil, nil
 	-- XP bar under the info bar, rested lighter.
 	check(StzxUIInfoXPBar.shown and StzxUIInfoXPBar.value == 4500 and StzxUIInfoXPBar.rested.value == 6500,
 		"XP bar along the info bar, rested XP lighter behind it")

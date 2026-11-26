@@ -4,7 +4,8 @@
 --   Levelling    "Lv 18  45%  12.3k xp/h  1h 05m" (XP per hour this session and the
 --                time to the next level at that pace; hidden at max level). Hover:
 --                exact XP, rested, quests ready to hand in, this session's numbers
---   Hearthstone  "Hearth: Ironforge", or its cooldown "Hearth 23m"
+--   Hearthstone  "Hearth: Ironforge", or its cooldown "Hearth 23m"; hover for every
+--                travel option you have, click for a menu that casts them (Travel.lua)
 --   Coordinates  "45.2, 67.8" (blank where the game hides your position, e.g. dungeons)
 --   Gold         your gold; its tooltip lists every character's and the total
 --   Bags         free bag slots
@@ -32,6 +33,7 @@ local Info = StzxUI:NewModule("Info", ADDON_NAME, {
 	showBags = true,
 	showDurability = true,
 	showHearth = true,
+	travelMenu = true,    -- click the hearthstone readout: travel menu (Travel.lua)
 	topBar = true,        -- readouts sit in the info bar
 	barLength = 100,      -- % of the screen's width
 	barStats = "RIGHT",   -- where each readout sits in the bar: LEFT, CENTER, RIGHT
@@ -513,6 +515,10 @@ local function MakeReadout(def)
 		frame:SetScript("OnEnter", def.tooltip)
 		frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	end
+	if def.click then
+		frame:EnableMouse(true)
+		frame:SetScript("OnMouseUp", def.click)
+	end
 	def.frame = frame
 	return frame
 end
@@ -682,7 +688,11 @@ function Info:OnInitialize()
 		"A thin experience bar just under the info bar, rested XP shown lighter. Hidden at max level.", Refresh)
 	StzxUI:AddHeader(page, "Hearthstone")
 	StzxUI:AddCheckbox(page, self, "showHearth", "Show your hearthstone",
-		"Where it's set, or how long until it's ready.", Refresh)
+		"Where it's set, or how long until it's ready (or Astral Recall's, for shamans). Hover for every travel "
+		.. "option this character has: hearthstone, Astral Recall, Teleport: Moonglade, mage teleports and portals, "
+		.. "engineering teleporters.", Refresh)
+	StzxUI:AddCheckbox(page, self, "travelMenu", "Click it for a travel menu",
+		"A small menu of this character's travel options; click one to cast it or use the item. Out of combat only.")
 	StzxUI:AddDropdown(page, self, "barHearth", "Place in the bar", nil, SIDES, Refresh)
 	StzxUI:AddHeader(page, "Coordinates")
 	StzxUI:AddCheckbox(page, self, "showCoords", "Show map coordinates",
