@@ -2,10 +2,14 @@
 -- StzxUI's look for frames StzxUI didn't make: Blizzard's windows (the
 -- Skins section), the tooltip, and later other addons' windows.
 --
--- The look: a dark fill, a 1-pixel edge in the skin colour (StzxUI's
--- accent, your class colour, or black), a darker title strip with an accent
--- line under it, flat tabs and buttons, a flat close button and slim
--- scrollbars.
+-- The look: a near-black fill, a 1-pixel edge in the skin colour (StzxUI's
+-- accent, your class colour, or black) drawn above everything in the window,
+-- a darker title strip with an accent line under it, flat tabs and buttons,
+-- a flat close button and slim scrollbars. With the "full" level, everything
+-- inside a window too: panels get black backgrounds with softer accent
+-- edges, bars go flat, checkboxes become flat boxes, list rows lose their
+-- art. Anything with an icon (items, spells, talents) and anything
+-- protected is never touched.
 --
 -- How it stays safe:
 --   * only looks change: Blizzard's art is made invisible (alpha 0) and
@@ -27,15 +31,19 @@ local Skin = {}
 StzxUI.Skin = Skin
 
 local FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-local FILL = { 0.06, 0.065, 0.075 }
-local TITLE = { 0.03, 0.03, 0.035 }
-local SOFT_EDGE = { 0.22, 0.22, 0.25 } -- buttons, tabs, insets: a quieter edge
+local FLAT = "Interface\\Buttons\\WHITE8x8"
+local FILL = { 0.025, 0.028, 0.035 }
+local TITLE = { 0, 0, 0 }
+local SOFT_ALPHA = 0.45 -- buttons, tabs, panels: the skin colour, quieter
 
 local skinned = setmetatable({}, { __mode = "k" })  -- frame -> what it was skinned as
 local edges = setmetatable({}, { __mode = "k" })    -- texture -> "accent" | "soft"
 local fills = setmetatable({}, { __mode = "k" })    -- texture -> its base alpha (scaled by opacity)
 local tabs = setmetatable({}, { __mode = "k" })     -- tab -> its StzxUI parts
+local sideTabs = setmetatable({}, { __mode = "k" }) -- side tab -> its backdrop
+local PaintSideTab -- defined with the side tabs, below
 local mode, opacity = "ACCENT", 0.92
+local level = "FULL" -- FULL: everything inside windows too; FRAMES: window frames, tabs, buttons only
 
 ---------------------------------------------------------------------------
 -- Colours
@@ -53,10 +61,11 @@ function Skin.EdgeColour()
 end
 
 local function PaintEdge(texture)
+	local r, g, b = Skin.EdgeColour()
 	if edges[texture] == "soft" then
-		texture:SetColorTexture(SOFT_EDGE[1], SOFT_EDGE[2], SOFT_EDGE[3], 1)
+		if mode == "BLACK" then r, g, b = 0.22, 0.22, 0.25 end -- black on black wouldn't show
+		texture:SetColorTexture(r, g, b, SOFT_ALPHA)
 	else
-		local r, g, b = Skin.EdgeColour()
 		texture:SetColorTexture(r, g, b, 1)
 	end
 end
@@ -71,6 +80,7 @@ function Skin.Refresh()
 	for texture in pairs(edges) do PaintEdge(texture) end
 	for texture in pairs(fills) do PaintFill(texture) end
 	for tab in pairs(tabs) do Skin.PaintTab(tab) end
+	for tab in pairs(sideTabs) do PaintSideTab(tab) end
 end
 
 -- One backdrop's edge in a colour of its own (e.g. a tooltip in its item's
@@ -83,12 +93,22 @@ function Skin.ResetEdges(backdrop)
 end
 
 function Skin.SetColourMode(newMode) mode = newMode or "ACCENT"; Skin.Refresh() end
+function Skin.SetLevel(newLevel) level = newLevel or "FULL" end
 function Skin.SetOpacity(value) opacity = math.max(0.3, math.min(1, value or 0.92)); Skin.Refresh() end
 function Skin.IsSkinned(frame) return skinned[frame] ~= nil end
 
 ---------------------------------------------------------------------------
 -- Building blocks
 ---------------------------------------------------------------------------
+
+-- A frame of StzxUI's own inside someone else's (marked, so the deep pass
+-- never strips it).
+local function OwnFrame(parent)
+	local f = CreateFrame("Frame", nil, parent)
+	f:EnableMouse(false)
+	skinned[f] = "stzxui"
+	return f
+end
 
 local function Hide(region)
 	if region and region.SetAlpha then region:SetAlpha(0) end
@@ -149,7 +169,7 @@ function Skin.Button(button)
 	if button.GetPushedTexture then Hide(button:GetPushedTexture()) end
 	if button.GetDisabledTexture then Hide(button:GetDisabledTexture()) end
 	if button.GetHighlightTexture then Hide(button:GetHighlightTexture()) end
-	local back = Skin.Backdrop(button, { edge = "soft", fill = { 0.12, 0.125, 0.14 } })
+	local back = Skin.Backdrop(button, { edge = "soft", fill = { 0.05, 0.055, 0.07 } })
 	HoverEdges(button, back.edges)
 end
 
@@ -162,7 +182,7 @@ function Skin.CloseButton(button)
 	if button.GetDisabledTexture then Hide(button:GetDisabledTexture()) end
 	if button.GetHighlightTexture then Hide(button:GetHighlightTexture()) end
 	-- Its own box, a little inside the button's (Blizzard's is 24 px with padding).
-	local box = CreateFrame("Frame", nil, button)
+	local box = OwnFrame(button)
 	box:SetPoint("TOPLEFT", 4, -4)
 	box:SetPoint("BOTTOMRIGHT", -4, 4)
 	box:EnableMouse(false)
@@ -196,7 +216,7 @@ function Skin.PaintTab(tab)
 	local selected = TabSelected(tab)
 	parts.top:SetShown(selected)
 	local f = fills[parts.back.fill]
-	if selected then f.r, f.g, f.b = 0.14, 0.145, 0.165 else f.r, f.g, f.b = 0.07, 0.075, 0.085 end
+	if selected then f.r, f.g, f.b = 0.08, 0.09, 0.11 else f.r, f.g, f.b = 0.02, 0.022, 0.028 end
 	PaintFill(parts.back.fill)
 	local text = tab.Text or (tab.GetFontString and tab:GetFontString())
 	if text then
@@ -223,7 +243,7 @@ function Skin.Tab(tab)
 	end
 	if tab.GetHighlightTexture then Hide(tab:GetHighlightTexture()) end
 	-- Inset a little so neighbouring tabs don't touch.
-	local box = CreateFrame("Frame", nil, tab)
+	local box = OwnFrame(tab)
 	box:SetPoint("TOPLEFT", 3, -3)
 	box:SetPoint("BOTTOMRIGHT", -3, 3)
 	box:SetFrameLevel(math.max(0, tab:GetFrameLevel() - 1))
@@ -237,6 +257,46 @@ function Skin.Tab(tab)
 	PaintEdge(top)
 	tabs[tab] = { back = back, top = top }
 	Skin.PaintTab(tab)
+end
+
+-- Side tabs (LargeSideTabButtonTemplate: the round icon tabs down the side of
+-- the Character window): a square, cropped icon in a black box; the chosen
+-- one edged in the full skin colour. Re-painted after Blizzard's SetChecked.
+function PaintSideTab(tab)
+	local back = sideTabs[tab]
+	if not back then return end
+	local chosen = tab.SelectedTexture and tab.SelectedTexture:IsShown()
+	for _, line in ipairs(back.edges) do
+		if chosen then
+			local r, g, b = Skin.EdgeColour()
+			line:SetColorTexture(r, g, b, 1)
+		else
+			PaintEdge(line)
+		end
+	end
+end
+
+function Skin.SideTab(tab)
+	if not tab or skinned[tab] then return end
+	skinned[tab] = "sidetab"
+	Hide(tab.Background)
+	Hide(tab.SelectedTexture)
+	local icon = tab.Icon
+	if icon then
+		if tab.Mask and icon.RemoveMaskTexture then icon:RemoveMaskTexture(tab.Mask) end
+		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	end
+	local box = OwnFrame(tab)
+	if icon then
+		box:SetPoint("TOPLEFT", icon, "TOPLEFT", -2, 2)
+		box:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -2)
+	else
+		box:SetAllPoints()
+	end
+	box:SetFrameLevel(math.max(0, tab:GetFrameLevel() - 1))
+	sideTabs[tab] = Skin.Backdrop(box, { edge = "soft", fill = { 0, 0, 0 }, alpha = 0.85 })
+	if tab.SetChecked then hooksecurefunc(tab, "SetChecked", PaintSideTab) end
+	PaintSideTab(tab)
 end
 
 -- Modern scrollbars (Track and Thumb, each with Begin / Middle / End pieces).
@@ -287,24 +347,147 @@ local function HideOwnArt(frame, keep)
 	end
 end
 
--- Buttons and scrollbars inside a window (a few levels down).
+-- Inside a window ------------------------------------------------------
+
 local function IsPanelButton(child)
 	return child.GetObjectType and child:GetObjectType() == "Button" and child.Left and child.Right and child.Middle
 end
 
+-- Never restyled: anything showing an icon (item slots, spells, talents,
+-- action buttons) and anything protected (it may cast or use something).
+local function Untouchable(f)
+	if (f.IsForbidden and f:IsForbidden()) or (f.IsProtected and f:IsProtected()) then return true end
+	return f.icon ~= nil or f.Icon ~= nil or f.IconTexture ~= nil or f.IconBorder ~= nil
+		or f.GetItemButtonIconTexture ~= nil
+end
+
+-- A bar (reputation, skill...): flat, on black, with a thin edge. Keeps
+-- Blizzard's colour.
+function Skin.StatusBar(bar)
+	if skinned[bar] then return end
+	skinned[bar] = "bar"
+	local texture = bar:GetStatusBarTexture()
+	for _, region in ipairs({ bar:GetRegions() }) do
+		if region ~= texture and region:GetObjectType() == "Texture" then Hide(region) end
+	end
+	for _, key in ipairs({ "LeftTexture", "RightTexture", "MiddleTexture", "BarBG", "Background", "Border" }) do
+		Hide(bar[key])
+	end
+	local r, g, b, a = bar:GetStatusBarColor()
+	bar:SetStatusBarTexture(FLAT)
+	if r then bar:SetStatusBarColor(r, g, b, a) end
+	Skin.Backdrop(bar, { edge = "soft", fill = { 0, 0, 0 }, alpha = 0.7 })
+end
+
+-- A checkbox: a flat box with a square of the skin colour when ticked.
+function Skin.CheckBox(box)
+	if skinned[box] then return end
+	skinned[box] = "checkbox"
+	Hide(box:GetNormalTexture())
+	Hide(box:GetPushedTexture())
+	Hide(box:GetHighlightTexture())
+	Hide(box:GetDisabledTexture())
+	local size = math.max(10, math.min(16, math.floor(math.min(box:GetWidth(), box:GetHeight()) * 0.5)))
+	local square = OwnFrame(box)
+	square:SetSize(size, size)
+	square:SetPoint("CENTER")
+	square:EnableMouse(false)
+	local back = Skin.Backdrop(square, { edge = "soft", fill = { 0, 0, 0 }, alpha = 0.8 })
+	HoverEdges(box, back.edges)
+	box:SetCheckedTexture(FLAT)
+	local tick = box:GetCheckedTexture()
+	if tick then
+		tick:ClearAllPoints()
+		tick:SetPoint("TOPLEFT", square, "TOPLEFT", 3, -3)
+		tick:SetPoint("BOTTOMRIGHT", square, "BOTTOMRIGHT", -3, 3)
+		edges[tick] = "accent" -- coloured with the edges
+		PaintEdge(tick)
+	end
+	if box.GetDisabledCheckedTexture and box:GetDisabledCheckedTexture() then
+		local grey = box:GetDisabledCheckedTexture()
+		grey:SetTexture(FLAT)
+		grey:SetVertexColor(0.4, 0.4, 0.4)
+		grey:ClearAllPoints()
+		grey:SetPoint("TOPLEFT", square, "TOPLEFT", 3, -3)
+		grey:SetPoint("BOTTOMRIGHT", square, "BOTTOMRIGHT", -3, 3)
+	end
+end
+
+-- Scrollbar arrows: Blizzard's gold arrows toned to grey.
+local function GreyArrows(bar)
+	for _, key in ipairs({ "Back", "Forward", "ScrollUpButton", "ScrollDownButton" }) do
+		local button = bar[key]
+		if button and button.GetRegions then
+			for _, region in ipairs({ button:GetRegions() }) do
+				if region:GetObjectType() == "Texture" and region.SetDesaturated then
+					region:SetDesaturated(true)
+					region:SetVertexColor(0.75, 0.75, 0.78)
+				end
+			end
+		end
+	end
+end
+
+-- A panel's own frame art: Blizzard's usual names, and (old-style panels)
+-- textures drawn straight onto it in its background and border layers.
+-- Returns true if it had any.
+local PANEL_PARTS = { "NineSlice", "Border", "Bg", "Background", "TopTileStreaks", "BackgroundTexture" }
+local function StripPanel(f)
+	local had = false
+	for _, key in ipairs(PANEL_PARTS) do
+		local part = f[key]
+		if type(part) == "table" and part.SetAlpha and part ~= f then
+			Hide(part)
+			had = true
+		end
+	end
+	for _, region in ipairs({ f:GetRegions() }) do
+		if region:GetObjectType() == "Texture" then
+			local layer = region:GetDrawLayer()
+			if layer == "BACKGROUND" or layer == "BORDER" then
+				Hide(region)
+				had = true
+			end
+		end
+	end
+	return had
+end
+
+-- Everything inside a window, `depth` levels down. FRAMES level: only panel
+-- buttons, scrollbars and insets; FULL: panels, bars, checkboxes, rows too.
 function Skin.Controls(frame, depth)
-	depth = depth or 4
+	depth = depth or (level == "FULL" and 8 or 4)
 	if depth <= 0 or not frame.GetChildren then return end
 	for _, child in ipairs({ frame:GetChildren() }) do
-		if not skinned[child] and not (child.IsForbidden and child:IsForbidden()) then
+		if not skinned[child] and not Untouchable(child) then
+			local kind = child:GetObjectType()
 			if IsPanelButton(child) then
 				Skin.Button(child)
 			elseif child.Track and (child.Track.Thumb or child.Thumb) then
 				Skin.ScrollBar(child)
+				GreyArrows(child)
 			elseif child.layoutType == "InsetFrameTemplate" then
 				Skin.Inset(child)
 				Skin.Controls(child, depth - 1)
+			elseif level ~= "FULL" then
+				Skin.Controls(child, depth - 1)
+			elseif kind == "StatusBar" then
+				Skin.StatusBar(child)
+			elseif kind == "CheckButton" then
+				Skin.CheckBox(child)
+			elseif kind == "Slider" or kind == "EditBox" or kind == "ScrollFrame" or kind == "Model"
+				or kind == "PlayerModel" or kind == "ModelScene" then
+				-- Leave these as they are (sliders and text boxes have their own
+				-- art that shows how to use them); look inside scroll frames.
+				if kind == "ScrollFrame" then Skin.Controls(child, depth - 1) end
 			else
+				if child.ScrollUpButton or child.ScrollDownButton then GreyArrows(child) end
+				local had = StripPanel(child)
+				-- Panels (not small things like rows) get a black background and an edge.
+				if had and kind == "Frame" and child:GetWidth() >= 60 and child:GetHeight() >= 40 then
+					skinned[child] = "panel"
+					Skin.Backdrop(child, { edge = "soft", fill = { 0, 0, 0 }, alpha = 0.45 })
+				end
 				Skin.Controls(child, depth - 1)
 			end
 		end
@@ -327,10 +510,16 @@ function Skin.Window(frame, opts)
 		Hide(_G[frame:GetName() .. "Portrait"])
 		Hide(_G[frame:GetName() .. "Bg"])
 	end
-	local back = Skin.Backdrop(frame, { alpha = 1 })
-	local keep = { [back.fill] = true }
-	for _, line in ipairs(back.edges) do keep[line] = true end
-	HideOwnArt(frame, keep)
+	-- The background on the window itself; its edge on a layer above
+	-- everything inside, so panels can't cover it.
+	local fill = Fill(frame, "BACKGROUND", -8, FILL, 1)
+	fill:SetAllPoints(frame)
+	HideOwnArt(frame, { [fill] = true })
+	local overlay = OwnFrame(frame)
+	overlay:SetAllPoints()
+	overlay:SetFrameLevel(frame:GetFrameLevel() + 40)
+	overlay:EnableMouse(false)
+	Edges(overlay, frame)
 	-- A darker title strip with an accent line under it.
 	local title = Fill(frame, "BACKGROUND", -7, TITLE, 1)
 	title:SetPoint("TOPLEFT", 1, -1)
@@ -348,7 +537,11 @@ function Skin.Window(frame, opts)
 
 	Skin.CloseButton(frame.CloseButton or (frame.GetName and frame:GetName() and _G[frame:GetName() .. "CloseButton"]))
 	if frame.Inset then Skin.Inset(frame.Inset) end
-	for _, tab in ipairs(frame.Tabs or {}) do Skin.Tab(tab) end
+	for _, tab in ipairs(frame.Tabs or {}) do
+		if tab.SelectedTexture and tab.Icon then Skin.SideTab(tab) else Skin.Tab(tab) end
+	end
+	-- The Character window's side tabs (Forever: CharacterFrame.ModeTabs).
+	for _, tab in ipairs(frame.ModeTabs and frame.ModeTabs.Tabs or {}) do Skin.SideTab(tab) end
 	-- Old-style tabs are named <Window>Tab1, Tab2...
 	local name = frame.GetName and frame:GetName()
 	if name then

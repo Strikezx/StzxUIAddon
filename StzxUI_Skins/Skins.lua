@@ -19,6 +19,7 @@ local Skins = StzxUI:NewModule("Skins", ADDON_NAME, {
 	colour = "ACCENT",   -- edge colour: ACCENT (StzxUI's accent), CLASS (your class colour), BLACK
 	opacity = 92,        -- window background, %
 	controls = true,     -- also flatten the buttons and scrollbars inside windows
+	level = "FULL",      -- FULL: everything inside windows too; FRAMES: frames, tabs, buttons only
 	zygor = true,        -- Zygor Guides' window in StzxUI's colours
 	skip = {},           -- window name -> true: keep Blizzard's look
 }, {
@@ -122,6 +123,7 @@ local function WatchZygor()
 end
 
 local function ApplyLook()
+	Skin.SetLevel(Skins.db.level)
 	Skin.SetColourMode(Skins.db.colour)
 	Skin.SetOpacity(Skins.db.opacity / 100)
 	Skins.ColourZygor()
@@ -131,6 +133,11 @@ function Skins:OnInitialize()
 	local page = StzxUI:AddSettingsPage("Skins")
 	StzxUI:AddHeader(page, "Blizzard's windows",
 		"Character, spells, social, quests, merchants, mail, bank, auction house, professions, the game menu and more.")
+	StzxUI:AddDropdown(page, self, "level", "How much to restyle",
+		"Full: panels, bars, checkboxes and list rows inside windows too. Frames only: the window, its tabs and "
+		.. "buttons. Items, spells and talents are never touched. Changes apply after a reload.",
+		{ { "FULL", "Full" }, { "FRAMES", "Frames only" } },
+		function() StzxUI:AskReload("The new restyle level applies after a reload.") end)
 	StzxUI:AddDropdown(page, self, "colour", "Edge colour",
 		"The thin edge and accent lines round skinned windows (and the tooltip).",
 		{ { "ACCENT", "StzxUI accent colour" }, { "CLASS", "My class colour" }, { "BLACK", "Black" } }, ApplyLook)

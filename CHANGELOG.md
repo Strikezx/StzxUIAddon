@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Skins: full restyle (new "How much to restyle" option, Full by default). Inside skinned windows too: panels get black backgrounds with softer accent edges, bars (reputation, skills) go flat on black keeping Blizzard's colours, checkboxes become flat boxes with an accent tick, list rows lose their art, gold scroll arrows turn grey. The window's edge is now drawn above everything inside it, so panels no longer cover it. Darker look overall. The Character window's round side tabs become square icons in black boxes, the chosen one edged in the accent. Anything with an icon (items, spells, talents) or protected is never touched. "Frames only" gives the lighter restyle.
 - Nameplates: objects (fallen logs, chairs, quest items to pick up) get no StzxUI plate by default, or a name only (option "Objects"). Blizzard flags them with UnitIsGameObject / widgets-only plates.
 - Nameplates: "Friendly players and NPCs: just their name" (on by default): no bar, players' names in their class colour, NPCs green. A player turning hostile (PvP flag) gets the full plate.
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).

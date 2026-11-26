@@ -145,6 +145,8 @@ function Frame:GetNormalTexture() return self.normalTex end
 function Frame:GetPushedTexture() return self.pushedTex end
 function Frame:GetDisabledTexture() return self.disabledTex end
 function Frame:IsEnabled() return self.disabled ~= true end
+function Frame:SetDesaturated(v) self.desaturated = v end
+function Frame:GetHighlightTexture() return self.highlightTex end
 function Frame:Enable() self.disabled = false end
 function Frame:Disable() self.disabled = true end
 function Frame:CreateFontString() return NewFrame("FontString", nil, self) end
@@ -2587,11 +2589,52 @@ local function FakeWindow(name)
 		t.Text = t:CreateFontString()
 		w.Tabs[i] = t
 	end
+	-- Side tabs (round icon tabs down the side, like the Character window's).
+	w.ModeTabs = NewFrame("Frame", nil, w)
+	w.ModeTabs.Tabs = {}
+	for i = 1, 2 do
+		local st = NewFrame("Frame", nil, w.ModeTabs)
+		st.Background = st:CreateTexture(nil, "BACKGROUND")
+		st.Icon = st:CreateTexture(nil, "ARTWORK")
+		st.Mask = st:CreateMaskTexture()
+		st.Icon.masks = { st.Mask }
+		st.SelectedTexture = st:CreateTexture(nil, "OVERLAY")
+		st.SelectedTexture.shown = (i == 1)
+		function st:SetChecked(on) self.SelectedTexture:SetShown(on) end
+		w.ModeTabs.Tabs[i] = st
+	end
 	local panel = NewFrame("Frame", nil, w)
 	local b = NewFrame("Button", nil, panel)
 	b:SetSize(100, 22)
 	b.Left, b.Middle, b.Right = b:CreateTexture(), b:CreateTexture(), b:CreateTexture()
+	-- Inside: a detail panel with Blizzard's frame art, a bar, a checkbox,
+	-- an item slot and a protected button.
+	local detail = NewFrame("Frame", nil, w)
+	detail:SetSize(250, 400)
+	detail.NineSlice = NewFrame("Frame", nil, detail)
+	detail.parchment = detail:CreateTexture(nil, "BACKGROUND")
+	detail.words = detail:CreateFontString()
+	w.detail = detail
+	local bar = NewFrame("StatusBar", nil, detail)
+	bar.art = bar:CreateTexture(nil, "OVERLAY")
+	function bar:GetStatusBarColor() return 0, 0.6, 0.1, 1 end
+	w.bar = bar
+	local tick = NewFrame("CheckButton", nil, detail)
+	tick:SetSize(32, 32)
+	tick.normalTex = tick:CreateTexture()
+	function tick:SetCheckedTexture(t) self.checkedTex = self.checkedTex or self:CreateTexture(); self.checkedTex.texture = t end
+	function tick:GetCheckedTexture() return self.checkedTex end
+	w.tick = tick
+	local slot = NewFrame("Button", nil, detail)
+	slot.icon = slot:CreateTexture(nil, "BORDER")
+	w.slot = slot
+	local secure = NewFrame("Button", nil, detail)
+	secure.protected = true
+	secure.art = secure:CreateTexture(nil, "BACKGROUND")
+	w.secure = secure
 	local sb = NewFrame("Frame", nil, panel)
+	sb.Back = NewFrame("Button", nil, sb)
+	sb.Back.arrow = sb.Back:CreateTexture()
 	sb.Track = NewFrame("Frame", nil, sb)
 	sb.Track.Begin, sb.Track.Middle, sb.Track.End = sb.Track:CreateTexture(), sb.Track:CreateTexture(), sb.Track:CreateTexture()
 	sb.Track.Thumb = NewFrame("Button", nil, sb.Track)
@@ -2650,6 +2693,28 @@ check(btnEdge.colour[1] == StzxUI.ACCENT.r, "buttons light up in the accent on h
 Script(charButton, "OnLeave")
 check(btnEdge.colour[1] == softR, "...and settle back")
 check(charScroll.Track.Begin.alpha == 0 and charScroll.Track.Thumb.Begin.alpha == 0, "slim scrollbars")
+-- Full restyle: inside the window too.
+check(charWin.detail.NineSlice.alpha == 0 and charWin.detail.parchment.alpha == 0 and FillOf(charWin.detail),
+	"panels inside: Blizzard's art gone, black background")
+check(charWin.bar.art.alpha == 0 and charWin.bar.colour[2] == 0.6 and FillOf(charWin.bar), "bars: flat, on black, Blizzard's colour kept")
+check(charWin.tick.normalTex.alpha == 0 and charWin.tick.checkedTex.texture == "Interface\\Buttons\\WHITE8x8"
+	and charWin.tick.checkedTex.colour[1] == StzxUI.ACCENT.r, "checkboxes: flat box, accent tick")
+check(charWin.slot.icon.alpha == nil, "item slots (anything with an icon) never touched")
+check(charWin.secure.art.alpha == nil, "protected buttons never touched")
+check(charScroll.Back.arrow.desaturated, "gold scroll arrows toned to grey")
+local st1, st2 = charWin.ModeTabs.Tabs[1], charWin.ModeTabs.Tabs[2]
+check(st1.Background.alpha == 0 and #st1.Icon.masks == 0 and st1.Icon.texCoord[1] == 0.08,
+	"side tabs: square, cropped icons, no gold frame")
+local function SideEdge(st)
+	for _, f in ipairs(frames) do
+		if f.kind == "Texture" and f.colour and f.h == 1 and f.parent and f.parent.parent == st then return f end
+	end
+end
+check(SideEdge(st1).colour[4] == 1 and SideEdge(st2).colour[4] < 1, "the chosen side tab edged in the full accent")
+st1:SetChecked(false); st2:SetChecked(true)
+check(SideEdge(st2).colour[4] == 1 and SideEdge(st1).colour[4] < 1, "...following Blizzard when you switch")
+local edgeHost = EdgesOf(charWin)[1].parent
+check(edgeHost:GetFrameLevel() > charWin.detail:GetFrameLevel(), "the window's edge is drawn above its panels")
 -- A button the window makes only when it opens (like the game menu's).
 local late = NewFrame("Button", nil, charWin)
 late.Left, late.Middle, late.Right = late:CreateTexture(), late:CreateTexture(), late:CreateTexture()
