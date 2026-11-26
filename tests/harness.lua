@@ -750,11 +750,13 @@ local function InstallClient()
 		GetInfo = function(i) local q = questLog[i]; return q and { questID = q.questID, isHeader = q.header } end,
 		GetLogIndexForQuestID = function(id) for i, q in ipairs(questLog) do if q.questID == id then return i end end end,
 		IsPushableQuest = function(id) for _, q in ipairs(questLog) do if q.questID == id then return q.pushable end end return false end,
+		IsComplete = function(id) for _, q in ipairs(questLog) do if q.questID == id then return q.complete or false end end return false end,
 		IsUnitOnQuest = function(unit, id)
 			for _, q in ipairs(questLog) do if q.questID == id then return (q.onQuest or {})[unit] or false end end
 			return (questOffers[id] or {})[unit] or false
 		end,
 	}
+	function GetQuestLogRewardXP(id) for _, q in ipairs(questLog) do if q.questID == id then return q.xp or 0 end end return 0 end
 	function QuestLogPushQuest(index) table.insert(log.pushed, questLog[index].questID) end
 	function IsInGroup() return group.kind ~= nil end
 	-- Helpers: merchants, looting, NPC chat, errors, combat, reminders, gathering.
@@ -1859,6 +1861,22 @@ unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, n
 	check(not extra.memoryChecked, "...not measured during a fight")
 	inCombat = false
 	extra.addons = {}
+	-- Levelling: hover for the exact numbers.
+	local saved = questLog
+	questLog = { { questID = 501, complete = true, xp = 1200 }, { questID = 502, complete = false, xp = 900 } }
+	now = now + 120
+	unitState.player.xp = 4800; Fire("PLAYER_XP_UPDATE")
+	GameTooltip.lines = {}
+	Script(R.levelling, "OnEnter")
+	lines = table.concat(GameTooltip.lines, "\n")
+	check(lines:find("Experience 4,800 / 10,000 (48.0%)", 1, true) and lines:find("To level 19 5,200", 1, true),
+		"levelling tooltip: exact XP and what's left")
+	check(lines:find("Rested 2,000 (20% of a level)", 1, true), "...rested XP")
+	check(lines:find("Quests to hand in (1) 1,200 XP", 1, true) and lines:find("After handing in 60.0%, 4,000 to go", 1, true),
+		"...finished quests' XP and where it gets you")
+	check(lines:find("XP gained 300", 1, true) and lines:find("Last gain 300 XP", 1, true)
+		and lines:find("about 18 more to level", 1, true), "...this session: gained, last gain, how many more like it")
+	questLog = saved
 	-- In the bar: the new ones sit beside the old ones without overlapping.
 	local rightmost = R.stats.points[1]
 	check(rightmost.point == "RIGHT" and R.gold.points[1].point == "RIGHT" and R.gold.points[1].x < rightmost.x,

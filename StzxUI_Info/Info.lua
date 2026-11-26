@@ -2,7 +2,8 @@
 -- Small text readouts, in the info bar across the top of the screen (left,
 -- centre or right, your choice for each), or each on its own in move mode:
 --   Levelling    "Lv 18  45%  12.3k xp/h  1h 05m" (XP per hour this session and the
---                time to the next level at that pace; hidden at max level)
+--                time to the next level at that pace; hidden at max level). Hover:
+--                exact XP, rested, quests ready to hand in, this session's numbers
 --   Hearthstone  "Hearth: Ironforge", or its cooldown "Hearth 23m"
 --   Coordinates  "45.2, 67.8" (blank where the game hides your position, e.g. dungeons)
 --   Gold         your gold; its tooltip lists every character's and the total
@@ -59,6 +60,16 @@ local function Short(n)
 	if n >= 1000000 then return ("%.1fm"):format(n / 1000000) end
 	if n >= 1000 then return ("%.1fk"):format(n / 1000) end
 	return tostring(math.floor(n))
+end
+
+-- 1234567 -> "1,234,567"
+local function Thousands(n)
+	local text = tostring(math.floor(n))
+	while true do
+		local done
+		text, done = text:gsub("^(%d+)(%d%d%d)", "%1,%2")
+		if done == 0 then return text end
+	end
 end
 
 local function Duration(seconds)
@@ -173,14 +184,14 @@ end
 ---------------------------------------------------------------------------
 
 -- This session's XP, counted from each gain (a level-up wraps the bar).
-local session = { start = nil, gained = 0, lastXP = nil, lastMax = nil, money = nil }
+local session = { start = nil, gained = 0, gains = 0, lastGain = nil, lastXP = nil, lastMax = nil, money = nil }
 
 local function MaxLevel()
 	return (GetMaxLevelForPlayerExpansion and GetMaxLevelForPlayerExpansion()) or 60
 end
 
 function Info.ResetXP()
-	session.start, session.gained = GetTime(), 0
+	session.start, session.gained, session.gains, session.lastGain = GetTime(), 0, 0, nil
 	session.lastXP, session.lastMax = Plain(UnitXP("player")), Plain(UnitXPMax("player"))
 end
 
@@ -191,7 +202,9 @@ local function CountXP()
 	if last then
 		local gain = xp - last
 		if gain < 0 and lastMax then gain = (lastMax - last) + xp end -- levelled up
-		if gain > 0 then session.gained = session.gained + gain end
+		if gain > 0 then
+			session.gained, session.gains, session.lastGain = session.gained + gain, session.gains + 1, gain
+		end
 	end
 	session.lastXP, session.lastMax = xp, max
 end
@@ -214,6 +227,71 @@ end
 
 local function UpdateXP(frame)
 	frame.text:SetText(Info.XPText() or "")
+end
+
+-- Finished quests in your log, waiting to be handed in: count, total XP.
+function Info.QuestXPWaiting()
+	if not (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and GetQuestLogRewardXP) then return 0, 0 end
+	local count, xp = 0, 0
+	for i = 1, C_QuestLog.GetNumQuestLogEntries() do
+		local info = C_QuestLog.GetInfo(i)
+		local id = info and not info.isHeader and Plain(info.questID)
+		if id and (C_QuestLog.IsComplete(id) or (C_QuestLog.ReadyForTurnIn and C_QuestLog.ReadyForTurnIn(id))) then
+			count = count + 1
+			xp = xp + (Plain(GetQuestLogRewardXP(id)) or 0)
+		end
+	end
+	return count, xp
+end
+
+-- Hover: the exact numbers behind the levelling readout.
+local function LevellingTooltip(frame)
+	local level = Plain(UnitLevel("player")) or 0
+	local xp, max = Plain(UnitXP("player")), Plain(UnitXPMax("player"))
+	if not (xp and max) or max <= 0 then return end
+	local tip = Tooltip(frame)
+	local W, G = 0.8, 1 -- label grey, value white
+	local toGo = max - xp
+	tip:AddLine(("Level %d"):format(level), 1, 1, 1)
+	tip:AddDoubleLine("Experience", ("%s / %s (%.1f%%)"):format(Thousands(xp), Thousands(max), xp / max * 100), W, W, W, G, G, G)
+	tip:AddDoubleLine("To level " .. (level + 1), Thousands(toGo), W, W, W, G, G, G)
+	local rested = (GetXPExhaustion and Plain(GetXPExhaustion())) or 0
+	if rested > 0 then
+		tip:AddDoubleLine("Rested", ("%s (%d%% of a level)"):format(Thousands(rested), math.floor(rested / max * 100)),
+			W, W, W, 0.45, 0.7, 1)
+	else
+		tip:AddDoubleLine("Rested", "none", W, W, W, 0.6, 0.6, 0.6)
+	end
+	local count, questXP = Info.QuestXPWaiting()
+	if count > 0 then
+		tip:AddDoubleLine(("Quests to hand in (%d)"):format(count), Thousands(questXP) .. " XP", W, W, W, 1, 0.82, 0.25)
+		local after = xp + questXP
+		if after >= max then
+			tip:AddDoubleLine("After handing in", "enough to level!", W, W, W, 0.5, 1, 0.5)
+		else
+			tip:AddDoubleLine("After handing in", ("%.1f%%, %s to go"):format(after / max * 100, Thousands(max - after)),
+				W, W, W, G, G, G)
+		end
+	end
+	tip:AddLine(" ")
+	tip:AddLine("This session", 1, 1, 1)
+	local elapsed = GetTime() - (session.start or GetTime())
+	tip:AddDoubleLine("Time", Duration(math.max(60, elapsed)), W, W, W, G, G, G)
+	tip:AddDoubleLine("XP gained", Thousands(session.gained), W, W, W, G, G, G)
+	if session.gained > 0 and elapsed >= 60 then
+		local perHour = session.gained / elapsed * 3600
+		tip:AddDoubleLine("XP per hour", Thousands(perHour), W, W, W, G, G, G)
+		tip:AddDoubleLine("Time to level at this pace", Duration(toGo / perHour * 3600), W, W, W, G, G, G)
+	end
+	if session.lastGain then
+		tip:AddDoubleLine("Last gain", Thousands(session.lastGain) .. " XP", W, W, W, G, G, G)
+		local average = session.gained / session.gains
+		tip:AddDoubleLine("Average gain", ("%s XP (about %d more to level)"):format(Thousands(average),
+			math.ceil(toGo / average)), W, W, W, G, G, G)
+	end
+	tip:AddLine(" ")
+	tip:AddLine("/stzx xp starts the session count again.", 0.6, 0.6, 0.6)
+	tip:Show()
 end
 
 ---------------------------------------------------------------------------
@@ -257,16 +335,6 @@ end
 local GOLD = "|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t"
 local SILVER = "|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t"
 local COPPER = "|TInterface\\MoneyFrame\\UI-CopperIcon:0:0:2:0|t"
-
--- 1234567 -> "1,234,567"
-local function Thousands(n)
-	local text = tostring(n)
-	while true do
-		local done
-		text, done = text:gsub("^(%d+)(%d%d%d)", "%1,%2")
-		if done == 0 then return text end
-	end
-end
 
 -- Copper as "123g 45s" (no copper once there's gold), "45s 6c" or "6c", with coin icons.
 function Info.MoneyText(copper)
@@ -396,7 +464,7 @@ end
 
 local READOUTS = {
 	{ id = "levelling", frameName = "StzxUIInfoLevelling", mover = "InfoLevelling", label = "Info: levelling",
-		show = "showXP", place = "barXP", width = 18, free = 240, every = 5, update = UpdateXP,
+		show = "showXP", place = "barXP", width = 18, free = 240, every = 5, update = UpdateXP, tooltip = LevellingTooltip,
 		available = function() return Info.XPText() ~= nil end },
 	{ id = "hearth", frameName = "StzxUIInfoHearth", mover = "InfoHearth", label = "Info: hearthstone",
 		show = "showHearth", place = "barHearth", width = 11, free = 170, every = 5, update = UpdateHearth,
