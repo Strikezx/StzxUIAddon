@@ -1,14 +1,15 @@
 ## Interface: 16001
 ## Title: |cff4fc3f7Stzx|rUI - Helpers
-## Notes: Everyday helpers: sell greys and repair, faster looting, skip one-option NPC chat, quieter errors, combat timer, healers' mana, pet and buff reminders, battleground history.
+## Notes: Everyday helpers: sell greys and repair, faster looting, skip one-option NPC chat, quieter errors, combat timer, healers' mana, pet and buff reminders, battleground history, enemies nearby and a kill-on-sight list.
 ## Author: Strikezx
 ## Category: |cff4fc3f7Stzx|rUI
 ## Group: StzxUI
 ## Version: @project-version@
 ## Dependencies: StzxUI
-## SavedVariables: StzxUIBattlegroundsDB
+## SavedVariables: StzxUIBattlegroundsDB, StzxUIWorldPvPDB
 
 Helpers.lua
 Combat.lua
 Reminders.lua
 Battlegrounds.lua
+WorldPvP.lua

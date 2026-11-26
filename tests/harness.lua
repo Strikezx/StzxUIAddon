@@ -766,6 +766,12 @@ local function InstallClient()
 	function GetNumSubgroupMembers() local n = 0 for _, u in ipairs(group.units) do if u:find("^party") then n = n + 1 end end return n end
 	function UnitGroupRolesAssigned(u) return (unitState[u] or {}).role or "NONE" end
 	function UnitIsDead(u) return (unitState[u] or {}).dead or false end
+	function UnitIsEnemy(_, u) return (unitState[u] or {}).enemy or false end
+	if not UnitIsPlayer then function UnitIsPlayer(u) return (unitState[u] or {}).isPlayer or false end end
+	function GetGuildInfo(u) return (unitState[u] or {}).guild end
+	function RaidNotice_AddMessage(_, text) log.raidWarning = text end
+	RaidWarningFrame = RaidWarningFrame or {}
+	SOUNDKIT = SOUNDKIT or { RAID_WARNING = 8959, UI_BNET_TOAST = 18019 }
 	function UnitOnTaxi() return extra.taxi or false end
 	function UnitHasVehicleUI() return false end
 	function IsMounted() return extra.mounted or false end
@@ -1275,6 +1281,7 @@ log.settings.STZXUI_SECTION_FISHING:SetValue(false)
 log.settings.STZXUI_SECTION_BLIZZARDFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_COMBAT:SetValue(false)
 log.settings.STZXUI_SECTION_REMINDERS:SetValue(false)
+log.settings.STZXUI_SECTION_WORLDPVP:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -3704,6 +3711,54 @@ end)()
 	check(DialogShown() and DialogText():find("Warsong Gulch", 1, true), "/stzx bg shows it")
 	StzxUIDialog.cancelButton:Click()
 	instance, extra.scores, extra.bgWinner = nil, nil, nil
+end)()
+
+---------------------------------------------------------------------------
+-- 40. World PvP: enemies nearby, kill-on-sight
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB, StzxUIWorldPvPDB = nil, nil
+	StartGame(nil)
+	local W = StzxUI:GetModule("WorldPvP")
+	units.nameplate7 = { name = "Grim", surname = "Hordeling", isPlayer = true }
+	unitState.nameplate7 = { enemy = true, level = 60, class = "ROGUE", guild = "Red Hand" }
+	units.nameplate8 = { name = "Friendly", surname = "Fellow", isPlayer = true }
+	unitState.nameplate8 = { level = 20, class = "MAGE" }
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate7")
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate8")
+	check(StzxUIEnemiesNearby.shown and StzxUIEnemiesNearby.title.text == "Enemies nearby (1)"
+		and StzxUIEnemiesNearby.rows[1].name.text:find("Grim Hordeling", 1, true), "enemies nearby: enemy players only, with full names")
+	-- Right-click: kill-on-sight.
+	Script(StzxUIEnemiesNearby.rows[1], "OnClick", "RightButton")
+	check(W.OnList("grim hordeling") and StzxUIEnemiesNearby.rows[1].name.text:find("KoS", 1, true), "right-click puts them on the kill-on-sight list")
+	log.raidWarning, log.prints = nil, {}
+	now = now + 200 -- gone from the list, then seen again
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate7")
+	check(log.raidWarning and log.raidWarning:find("Kill on sight: Grim Hordeling (60)", 1, true)
+		and lastPrint():find("spotted", 1, true), "someone on the list seen: warning on screen and in chat")
+	log.raidWarning = nil
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate7")
+	check(log.raidWarning == nil, "...once a minute, not on every sighting")
+	-- Names hidden by the game (in fights / PvP): nothing noted.
+	units.nameplate9 = { name = SECRET, isPlayer = true }
+	unitState.nameplate9 = { enemy = true }
+	check(W.Note("nameplate9") == nil, "names the game hides aren't noted")
+	-- First-name-only entries match any surname; slash commands.
+	SlashCmdList.STZXUI("kos add Vex")
+	check(W.OnList("Vex Darkmoon") and not W.OnList("Vexy Darkmoon"), "a first name on the list matches any surname")
+	SlashCmdList.STZXUI("kos remove Vex")
+	check(not W.OnList("Vex Darkmoon"), "/stzx kos add / remove")
+	-- Editing the list in a box.
+	SlashCmdList.STZXUI("kos")
+	check(DialogShown() and StzxUIDialog.box:GetText():find("Grim Hordeling", 1, true), "/stzx kos opens the list to edit")
+	StzxUIDialog.box:SetText("Grim Hordeling\nNew Enemy\n")
+	StzxUIDialog.acceptButton:Click()
+	check(W.OnList("new enemy") and W.OnList("grim hordeling") and #W.Names() == 2, "...one name per line")
+	now = now + 400
+	TickAll(tickers)
+	check(not StzxUIEnemiesNearby.shown, "the list empties when nobody's been seen for a while")
+	units.nameplate7, units.nameplate8, units.nameplate9 = nil, nil, nil
+	unitState.nameplate7, unitState.nameplate8, unitState.nameplate9 = nil, nil, nil
 end)()
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))

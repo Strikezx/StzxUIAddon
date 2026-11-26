@@ -15,7 +15,7 @@ ignore = {
 
 -- Globals StzxUI creates
 globals = {
-	"StzxUIBattlegroundsDB",
+	"StzxUIBattlegroundsDB", "StzxUIWorldPvPDB",
 	"StzxUI",
 	"StzxUIDB", "StzxUIRunsDB", "StzxUISocialDB", "StzxUIFishingDB", "StzxUIInventoryDB",
 	"SlashCmdList",
@@ -35,6 +35,7 @@ read_globals = {
 	"GetNumAvailableQuests", "GetNumQuestChoices", "GetQuestItemInfo", "GetQuestItemLink", "GetQuestMoneyToGet",
 	"GetQuestReward", "IsQuestCompletable", "QuestFlagsPVP", "QuestGetAutoAccept", "QuestInfoFrame",
 	"SelectActiveQuest", "SelectAvailableQuest",
+	"SOUNDKIT", "RaidNotice_AddMessage", "RaidWarningFrame", "ChatEdit_InsertLink", "GetGuildInfo", "UnitIsEnemy", "UnitIsPlayer",
 	"GetQuestLogRewardXP", "GetNumBattlefieldScores", "GetBattlefieldWinner", "GetBattlefieldInstanceRunTime", "C_PvP",
 	"issecretvalue", "AuraUtil", "UnitFactionGroup", "GetBindLocation", "GetXPExhaustion", "GetInventoryItemDurability",
 	"UpdateAddOnMemoryUsage", "GetAddOnMemoryUsage",

@@ -10,6 +10,7 @@
 --   |    ...          |  ...                                        |
 --   | + Look          |                                             |
 --   | + Gameplay      |                                             |
+--   | + PvP           |                                             |
 --   | + History       |                                             |
 --   |  Profiles       |                                             |
 --   | [Move] [Test]   |                                             |
@@ -45,7 +46,8 @@ local FOLDERS = {
 	{ name = "Frames", pages = { "Unit Frames", "Party & Raid", "Nameplates", "Action Bars", "Minimap", "Blizzard Frames" } },
 	{ name = "Look", pages = { "Skins", "Tooltip", "Info" } },
 	{ name = "Gameplay", pages = { "Quests", "Helpers", "Combat", "Reminders", "Social" } },
-	{ name = "History", pages = { "Runs", "Fishing", "Battlegrounds", "Inventory" } },
+	{ name = "PvP", pages = { "World PvP", "Battlegrounds" } },
+	{ name = "History", pages = { "Runs", "Fishing", "Inventory" } },
 }
 local OTHER = "More"
 StzxUI.OPTION_FOLDERS = FOLDERS
