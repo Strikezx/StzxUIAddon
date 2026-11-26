@@ -18,6 +18,7 @@ local Skins = StzxUI:GetModule("Skins")
 local FLAT = "Interface\\Buttons\\WHITE8x8"
 local styled = setmetatable({}, { __mode = "k" }) -- buttons / items already done
 local edgeOf = setmetatable({}, { __mode = "k" }) -- Blizzard's debuff border -> its button
+local dispelOf = setmetatable({}, { __mode = "k" }) -- aura button -> its debuff type (nil: none or hidden)
 
 -- Debuff edges by type (as on StzxUI's own icons); untyped or hidden: red.
 local DEBUFF_COLOURS = {
@@ -68,8 +69,8 @@ local function PaintAuraButton(button)
 	local edge = styled[button]
 	if type(edge) ~= "table" then return end
 	local colour = { 0, 0, 0 }
-	if button.auraType == "Debuff" then
-		colour = DEBUFF_COLOURS[button.stzxDispel or ""] or DEBUFF_DEFAULT
+	if button.auraType == "Debuff" or button.auraType == "DeadlyDebuff" then
+		colour = DEBUFF_COLOURS[dispelOf[button] or ""] or DEBUFF_DEFAULT
 	elseif button.auraType == "TempEnchant" then
 		colour = ENCHANT
 	end
@@ -102,7 +103,7 @@ local function HookDebuffTypes()
 	borderHooked = true
 	hooksecurefunc(AuraUtil, "SetAuraBorderAtlas", function(border, dispelType)
 		local button = edgeOf[border]
-		if button then button.stzxDispel = Plain(dispelType) end
+		if button then dispelOf[button] = Plain(dispelType) end
 	end)
 end
 

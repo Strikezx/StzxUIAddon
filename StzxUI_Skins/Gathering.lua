@@ -43,6 +43,12 @@ Tooltip.GATHER_NODES = NODES
 
 -- Your rank in a skill line (nil if you don't have it).
 function Tooltip.SkillRank(skillID)
+	-- By ID first: works even with the Professions header folded up in the skills list.
+	if C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID then
+		local info = C_SkillInfo.GetSkillLineInfoByID(skillID)
+		local rank = info and Plain(info.rank)
+		if rank then return rank end
+	end
 	if not (C_SkillInfo and C_SkillInfo.GetNumSkillLines) then return nil end
 	for i = 1, C_SkillInfo.GetNumSkillLines() do
 		local info = C_SkillInfo.GetSkillLineInfo(i)

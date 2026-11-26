@@ -795,6 +795,9 @@ local function InstallClient()
 	function GetRepairAllCost() return extra.repairCost or 0, (extra.repairCost or 0) > 0 end
 	function CanGuildBankRepair() return extra.guildRepair or false end
 	function RepairAllItems(guild) log.repaired = guild and "guild" or "own" end
+	function GetGuildBankWithdrawMoney() return extra.guildAllowance or -1 end
+	function GetGuildBankMoney() return extra.guildBank or 1000000 end
+	function GetActiveQuestID() return nil end
 	function GetCoinTextureString(c) return c .. "c" end
 	function GetInventoryItemCount() return extra.ammoCount or 0 end
 	INVSLOT_AMMO = 0
@@ -1598,6 +1601,20 @@ do -- In a fight the game refuses addons every unit's auras (tested on Forever).
 	unitState.target = oldTarget
 	Fire("PLAYER_TARGET_CHANGED")
 	check(Shown(TA) == 0, "...and back to the first one: still nothing stale")
+	-- Where the game hides who the target is (its GUID secret): kept until the target changes.
+	C_UnitAuras.GetUnitAuras = realAsk
+	inCombat = false
+	Fire("PLAYER_REGEN_ENABLED")
+	C_UnitAuras.GetUnitAuras = function() error("GetUnitAuras(): Auras cannot be accessed when secret while tainted") end
+	inCombat = true
+	local savedGUID = oldTarget.guid
+	oldTarget.guid = SECRET
+	Fire("UNIT_AURA", "target")
+	local keptCount = Shown(TA)
+	check(keptCount == 4, "identity hidden too: icons still kept (" .. keptCount .. ")")
+	Fire("PLAYER_TARGET_CHANGED")
+	check(Shown(TA) == 0, "...until the target changes")
+	oldTarget.guid = savedGUID
 	C_UnitAuras.GetUnitAuras = realAsk
 	inCombat = false
 	Fire("PLAYER_REGEN_ENABLED")
@@ -1940,6 +1957,7 @@ unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, n
 	check(StzxUITravelButton1:GetAttribute("type") == "item" and StzxUITravelButton1:GetAttribute("item") == "item:6948"
 		and StzxUITravelButton2:GetAttribute("type") == "spell" and StzxUITravelButton2:GetAttribute("spell") == 556,
 		"...rows are secure buttons that use the hearthstone / cast Astral Recall")
+	check(StzxUITravelButton1:GetAttribute("useOnKeyDown") == false, "...acting on the mouse release, whatever \"cast on key down\" says")
 	Script(StzxUITravelButton2, "PostClick")
 	check(not menu.shown, "...and the menu closes after one is clicked")
 	Script(R.hearth, "OnMouseUp", "LeftButton")
@@ -3115,7 +3133,9 @@ StartGame(nil, function()
 			function b:Update(info)
 				self.auraType = info.auraType
 				self.Icon:SetTexture(info.texture)
-				if info.auraType == "Debuff" then AuraUtil.SetAuraBorderAtlas(self.DebuffBorder, info.debuffType) end
+				if info.auraType == "Debuff" or info.auraType == "DeadlyDebuff" then
+					AuraUtil.SetAuraBorderAtlas(self.DebuffBorder, info.debuffType)
+				end
 			end
 			f.auraFrames[i] = b
 		end
@@ -3303,6 +3323,8 @@ ZygorGuidesViewer = nil
 	check(debuff.DebuffBorder.alpha == 0 and EdgeOf(debuff).colour[3] == 1, "debuffs edged in their type's colour (Magic: blue)")
 	debuff:Update({ auraType = "Debuff", texture = 3, debuffType = SECRET })
 	check(EdgeOf(debuff).colour[1] == 0.8, "...red when the game hides the type (in fights)")
+	debuff:Update({ auraType = "DeadlyDebuff", texture = 4, debuffType = "Curse" })
+	check(EdgeOf(debuff).colour[1] == 0.6 and EdgeOf(debuff).colour[3] == 1, "...deadly debuffs too (Curse: purple)")
 	local icon = BuffIconCooldownViewer.active[1]
 	check(icon.Icon.removedMask and icon.Icon.texCoord[1] == 0.08 and icon.ring.alpha == 0
 		and icon.Cooldown.swipeTexture == "Interface\\Buttons\\WHITE8x8", "Cooldown Manager icons: square, no gold ring, flat swipe")
@@ -3512,6 +3534,15 @@ check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 	check(log.used and #log.used == 1 and log.used[1] == "0:1", "sells greys (only greys worth something)")
 	check(lastPrint():find("sold 1 grey item for 100c", 1, true), "...and says what it got")
 	Fire("MERCHANT_CLOSED")
+	-- An item moved into a grey's slot while selling isn't sold.
+	containers[0] = { { 111, 2, "[Grey]", 0 } }
+	extra.sellPrice = { [111] = 50 }
+	log.used = nil
+	Fire("MERCHANT_CLOSED"); Fire("MERCHANT_SHOW")
+	containers[0][1] = { 999, 1, "[Your epic]", 4 }
+	TickAll(tickers)
+	check(log.used == nil, "...and never an item you moved into that slot meanwhile")
+	Fire("MERCHANT_CLOSED")
 	containers[0], extra.sellPrice = nil, nil
 	-- Repair: your gold, or the guild's.
 	extra.canRepair, extra.repairCost, money = true, 500, 1000
@@ -3521,6 +3552,10 @@ check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 	H.db.repairGuild, extra.guildRepair = true, true
 	Fire("MERCHANT_SHOW")
 	check(log.repaired == "guild", "...with guild funds first when allowed")
+	log.repaired, extra.guildAllowance = nil, 200
+	Fire("MERCHANT_SHOW")
+	check(log.repaired == "own", "...your own gold when the guild's daily limit is too low")
+	extra.guildAllowance = nil
 	log.repaired = nil
 	H.db.repairGuild, extra.guildRepair, money = false, false, 100
 	Fire("MERCHANT_SHOW")
@@ -3537,9 +3572,18 @@ check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 	Fire("LOOT_READY")
 	check(log.looted == nil, "...only with auto loot on")
 	-- One chat option, no quests: straight to it; Shift shows the chat.
-	extra.gossipOptions = { { orderIndex = 1, name = "Show me where I can fly." } }
+	extra.gossipOptions = { { orderIndex = 1, name = "Show me where I can fly.", icon = 132057 } }
 	Fire("GOSSIP_SHOW")
-	check(log.gossipPicked == 1, "one-option NPC chat skipped")
+	check(log.gossipPicked == 1, "one-option NPC chat skipped (a flight master)")
+	log.gossipPicked = nil
+	extra.gossipOptions = { { orderIndex = 1, name = "I am ready.", icon = 132053 } }
+	Fire("GOSSIP_SHOW")
+	check(log.gossipPicked == nil, "...never a plain chat option (boss and event starters look like this)")
+	extra.gossipOptions = { { orderIndex = 1, name = "Show me where I can fly.", icon = 132057 } }
+	instance = { name = "Blackrock Depths", kind = "party", id = 230 }
+	Fire("GOSSIP_SHOW")
+	check(log.gossipPicked == nil, "...and never inside a dungeon or raid")
+	instance = nil
 	log.gossipPicked = nil
 	shiftDown = true; Fire("GOSSIP_SHOW"); shiftDown = false
 	check(log.gossipPicked == nil, "...not with Shift held")
@@ -3551,6 +3595,10 @@ check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
 	check(UIErrorsFrame.typeOn[LE_GAME_ERR_OUT_OF_MANA] == false, "\"Not enough mana\" and friends hidden")
 	log.settings.STZXUI_HELPERS_ERRORFILTER:SetValue(false)
 	check(UIErrorsFrame.typeOn[LE_GAME_ERR_OUT_OF_MANA] == true, "...and back when switched off")
+	UIErrorsFrame.typeOn = nil
+	Reload()
+	check(UIErrorsFrame.typeOn == nil, "...switched off, Blizzard's own choices aren't touched at all")
+	log.settings.STZXUI_HELPERS_ERRORFILTER:SetValue(true)
 	-- Blizzard's bank money display: stops listening for gold while the bank is closed.
 	local bank = BankFrame or NewFrame("Frame", "BankFrame", UIParent)
 	bank.BankPanel = bank.BankPanel or NewFrame("Frame", nil, bank)
@@ -3674,9 +3722,10 @@ end)()
 	log.rewardTaken = nil
 	extra.questCost = 500; Fire("QUEST_COMPLETE"); extra.questCost = nil
 	check(log.rewardTaken == nil, "...never pays gold to hand in")
-	extra.gossipActive = { { questID = 5, isComplete = true } }
+	extra.gossipActive = { { questID = 4, isComplete = true, repeatable = true }, { questID = 5, isComplete = true } }
 	Fire("GOSSIP_SHOW")
-	check(log.questPicked == "active 5" and log.gossipPicked == nil, "NPC chat: a finished quest is handed in first")
+	check(log.questPicked == "active 5" and log.gossipPicked == nil,
+		"NPC chat: a finished quest is handed in first (never a repeatable turn-in: it would use up your stacks)")
 	extra.gossipActive, extra.gossipAvailable = nil, { { questID = 9, isTrivial = true }, { questID = 7 } }
 	Fire("GOSSIP_SHOW")
 	check(log.questPicked == "available 7", "...then a new quest is taken (not grey ones)")

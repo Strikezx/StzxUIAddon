@@ -237,6 +237,7 @@ local function StyleButton(button, header, preview)
 		if name ~= "unit" then return end
 		if self.unit and byUnit[self.unit] then byUnit[self.unit][self] = nil end
 		self.unit = value
+		StzxUI.Auras.UnitChanged(self) -- a different member: kept debuff icons go
 		if value then
 			byUnit[value] = byUnit[value] or {}
 			byUnit[value][self] = true

@@ -4,7 +4,9 @@
 --                  finished ones, with no clicks. Hold Shift when you talk
 --                  to the NPC to do it yourself. Never chooses between reward
 --                  choices, never accepts PvP-flagging quests, never pays
---                  gold to hand in, and (option) skips grey quests.
+--                  gold to hand in, never takes or hands in repeatable
+--                  quests (rep and cloth turn-ins, Darkmoon tickets: those
+--                  would use up your stacks), and (option) skips grey quests.
 --   Reward value   when you choose a reward, each choice shows what a vendor
 --                  would pay for it; the most valuable gets a gold coin.
 --
@@ -32,19 +34,26 @@ function QuestHelpers.OnDetail(db)
 	if not db.autoAccept or Paused() then return end
 	if QuestGetAutoAccept and QuestGetAutoAccept() then return end -- the game accepts those itself
 	if QuestFlagsPVP and QuestFlagsPVP() then return end           -- flags you for PvP: your call
-	if db.skipTrivial and Trivial(Plain(GetQuestID())) then return end
+	local questID = Plain(GetQuestID())
+	if db.skipTrivial and Trivial(questID) then return end
+	if questID and C_QuestLog and C_QuestLog.IsRepeatableQuest and C_QuestLog.IsRepeatableQuest(questID) then return end
 	AcceptQuest()
+end
+
+local function Repeatable()
+	local questID = Plain(GetQuestID())
+	return questID and C_QuestLog and C_QuestLog.IsRepeatableQuest and C_QuestLog.IsRepeatableQuest(questID) or false
 end
 
 -- "Do you have the items?" page: complete when it can be.
 function QuestHelpers.OnProgress(db)
-	if not db.autoTurnIn or Paused() then return end
+	if not db.autoTurnIn or Paused() or Repeatable() then return end
 	if IsQuestCompletable() then CompleteQuest() end
 end
 
 -- Reward page: take the reward if there's no choice to make and nothing to pay.
 function QuestHelpers.OnComplete(db)
-	if not db.autoTurnIn or Paused() then return end
+	if not db.autoTurnIn or Paused() or Repeatable() then return end
 	local choices = GetNumQuestChoices() or 0
 	if choices > 1 then return end
 	if (GetQuestMoneyToGet() or 0) > 0 then return end
@@ -56,7 +65,8 @@ function QuestHelpers.OnGossip(db)
 	if Paused() then return end
 	if db.autoTurnIn then
 		for _, quest in ipairs(C_GossipInfo.GetActiveQuests() or {}) do
-			if Plain(quest.isComplete) and quest.questID then
+			local repeats = Plain(quest.repeatable) or (Plain(quest.frequency) or 0) > 0
+			if Plain(quest.isComplete) and quest.questID and not repeats then
 				C_GossipInfo.SelectActiveQuest(quest.questID)
 				return
 			end
@@ -64,7 +74,8 @@ function QuestHelpers.OnGossip(db)
 	end
 	if db.autoAccept then
 		for _, quest in ipairs(C_GossipInfo.GetAvailableQuests() or {}) do
-			if quest.questID and not (db.skipTrivial and Plain(quest.isTrivial)) then
+			local repeats = Plain(quest.repeatable) or (Plain(quest.frequency) or 0) > 0
+			if quest.questID and not repeats and not (db.skipTrivial and Plain(quest.isTrivial)) then
 				C_GossipInfo.SelectAvailableQuest(quest.questID)
 				return
 			end
@@ -78,7 +89,9 @@ function QuestHelpers.OnGreeting(db)
 	if db.autoTurnIn then
 		for i = 1, (GetNumActiveQuests() or 0) do
 			local _, isComplete = GetActiveTitle(i)
-			if isComplete then
+			local id = GetActiveQuestID and Plain(GetActiveQuestID(i))
+			local repeats = id and C_QuestLog and C_QuestLog.IsRepeatableQuest and C_QuestLog.IsRepeatableQuest(id)
+			if isComplete and not repeats then
 				SelectActiveQuest(i)
 				return
 			end
@@ -86,8 +99,8 @@ function QuestHelpers.OnGreeting(db)
 	end
 	if db.autoAccept then
 		for i = 1, (GetNumAvailableQuests() or 0) do
-			local isTrivial = GetAvailableQuestInfo(i)
-			if not (db.skipTrivial and isTrivial) then
+			local isTrivial, _, isRepeatable = GetAvailableQuestInfo(i)
+			if not isRepeatable and not (db.skipTrivial and isTrivial) then
 				SelectAvailableQuest(i)
 				return
 			end

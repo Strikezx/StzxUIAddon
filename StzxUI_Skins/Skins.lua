@@ -45,7 +45,7 @@ Skins.WINDOWS = {
 	"QuestFrame", "GossipFrame", "QuestLogPopupDetailFrame", "MerchantFrame", "ClassTrainerFrame",
 	"TaxiFrame", "StableFrame", "ItemTextFrame", "BarberShopFrame",
 	-- Items and money
-	"MailFrame", "OpenMailFrame", "BankFrame", "GuildBankFrame", "TradeFrame", "LootFrame",
+	"MailFrame", "OpenMailFrame", "CooldownViewerSettings", "BankFrame", "GuildBankFrame", "TradeFrame", "LootFrame",
 	"AuctionHouseFrame", "ProfessionsFrame", "ItemSocketingFrame", "ItemUpgradeFrame",
 	"ContainerFrameCombinedBags", "ContainerFrame1", "ContainerFrame2", "ContainerFrame3", "ContainerFrame4",
 	"ContainerFrame5", "ContainerFrame6",

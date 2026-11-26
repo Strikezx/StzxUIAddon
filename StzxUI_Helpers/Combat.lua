@@ -279,6 +279,18 @@ function Combat:OnInitialize()
 		"Hunters and warlocks, out of combat: not while mounted, on a flight or dead.", UpdatePetWarning)
 	StzxUI:AddCheckbox(page, self, "petInTowns", "Also in towns and inns",
 		"Off: no reminder while resting, where you may have dismissed it on purpose.", UpdatePetWarning)
+	StzxUI:AddHeader(page, "Taunts, interrupts and other cooldowns",
+		"Blizzard's Cooldown Manager shows your cooldowns as icons or bars, in fights too (addons can't read "
+		.. "them then). StzxUI gives it StzxUI's look (Skins). Choose which spells it tracks there.")
+	StzxUI:AddButton(page, "Cooldown Manager", "Open", function()
+		if InCombatLockdown() then
+			StzxUI:Say("the Cooldown Manager opens out of combat.")
+		elseif CooldownViewerSettings and CooldownViewerSettings.TogglePanel then
+			CooldownViewerSettings:TogglePanel()
+		else
+			StzxUI:Say("Blizzard's Cooldown Manager isn't available here.")
+		end
+	end, "Blizzard's own settings for it. Its icons and bars are placed with Edit Mode.")
 	StzxUI:AddHeader(page, "Healers' mana")
 	StzxUI:AddCheckbox(page, self, "healerMana", "Show my group's healers' mana",
 		"A small box in groups. Place it in move mode.", UpdateHealers)

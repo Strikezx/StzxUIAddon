@@ -2,7 +2,20 @@
 
 ## Unreleased
 
+### Fixed (from a code review against Blizzard's source)
+- Travel menu: rows act on the mouse release whatever "cast on key down" is set to (before, with it on, a click closed the menu without casting).
+- Skip one-option NPC chat: only for services (flight master, banker, trainer, vendor, by the option's icon) and never in dungeons or raids, so encounter and event starters are never clicked through.
+- Sell greys: each item is checked again right before it's sold, so an item you move into that slot meanwhile is never sold.
+- Error filter: with it off, Blizzard's own hidden messages are left alone (it no longer un-hides "another action is in progress").
+- Unit frames: where the game hides who a unit is, kept aura icons stay until the target (or party member) changes, rather than going blank.
+- Gathering skill: read by skill ID, so a folded-up Professions header doesn't turn the colour grey.
+- Buff bar: deadly debuffs get their type's edge colour too.
+- Auto quests: never take or hand in repeatable quests (rep and cloth turn-ins, Darkmoon tickets).
+- Guild repair: uses your own gold when the guild's daily limit (or bank) can't cover it, and only says "guild funds" when it did.
+- Notes StzxUI keeps about Blizzard's buff buttons and tracker headers now live in StzxUI's own tables, not on Blizzard's frames.
+
 ### Added
+- Combat: a "Cooldown Manager" button (opens Blizzard's Cooldown Manager to choose taunts, interrupts and other cooldowns to track); its settings window gets the StzxUI look.
 - Party & Raid: click-casting. On the Party & Raid page, pick a spell for Shift/Ctrl/Alt + left- or right-click, middle click and mouse buttons 4 and 5; it's cast on the member you click, in fights too. The menus list your helpful spells from the spellbook. Plain left-click still targets and plain right-click still opens the menu. Set with Blizzard's secure attributes on every party and raid button (and in the header's set-up code, so buttons made in a fight get them too); changes made in a fight apply when it ends.
 - Rare Alerts (new section, in the Helpers folder): a warning in the middle of the screen, a sound and a chat line when a rare or rare elite's nameplate appears, or when the game marks a rare or treasure on the minimap (Blizzard's vignettes, if Forever uses them). Once each, again after 5 minutes; dead rares skipped. Separate switches for rares, treasures and the sound.
 - Fishing: easy cast. While you hold a fishing pole and aren't in a fight, double right-click the world to cast Fishing; a single right-click still loots the bobber. (For one click StzxUI binds right-click to a secure button that casts Fishing, then takes the binding off.) Option "Double right-click to cast" (on).

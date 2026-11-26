@@ -173,6 +173,9 @@ local function MakeRow(i)
 	local row = CreateFrame("Button", "StzxUITravelButton" .. i, menu, "SecureActionButtonTemplate")
 	row:SetSize(ROW_W - 8, ROW_H - 2)
 	row:RegisterForClicks("AnyUp")
+	-- Act on the mouse release, whatever "cast on key down" is set to: the
+	-- menu closes after the click (PostClick), so only one half may cast.
+	row:SetAttribute("useOnKeyDown", false)
 	row.icon = row:CreateTexture(nil, "ARTWORK")
 	row.icon:SetSize(ROW_H - 6, ROW_H - 6)
 	row.icon:SetPoint("LEFT", 3, 0)

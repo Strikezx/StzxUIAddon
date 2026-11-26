@@ -107,7 +107,6 @@ local function SkinHeader(header, main)
 	line:SetHeight(1)
 	local A = StzxUI.ACCENT
 	line:SetColorTexture(A.r, A.g, A.b, main and 1 or 0.6)
-	header.stzxMain = main
 end
 
 local function PaintTracker()

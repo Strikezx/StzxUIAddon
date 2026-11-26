@@ -3,8 +3,10 @@
 --   Vendor     sell grey items and repair when you open a merchant (guild
 --              funds first if you like), with a line in chat saying what it did
 --   Looting    the loot window empties at once (when auto loot is on)
---   NPC chat   an NPC with one chat option and no quests (flight master,
---              banker...) goes straight to it; hold Shift to see the chat
+--   NPC chat   an NPC with one chat option and no quests goes straight to
+--              it, only for services (flight master, banker, trainer,
+--              vendor: by the option's icon) and never in dungeons or raids
+--              (encounter starters live there); hold Shift to see the chat
 --   Errors     hides the red "Not enough mana", "Out of range"... errors that
 --              repeat all through a fight (each kind can be kept on)
 --   Bank fix   stops a Blizzard error (BankFrame.lua:43, FetchNumPurchasedBankTabs)
@@ -61,11 +63,17 @@ function Helpers.GreyItems()
 			local info = C_Container.GetContainerItemInfo(bag, slot)
 			if info and Plain(info.quality) == POOR and not Plain(info.hasNoValue) and not Plain(info.isLocked) then
 				local value = SellPrice(Plain(info.itemID)) * (Plain(info.stackCount) or 1)
-				if value > 0 then list[#list + 1] = { bag, slot, value } end
+				if value > 0 then list[#list + 1] = { bag, slot, value, Plain(info.itemID) } end
 			end
 		end
 	end
 	return list
+end
+
+-- Still the same grey item in that slot? (You may have moved things while selling.)
+local function StillGrey(bag, slot, itemID)
+	local info = C_Container.GetContainerItemInfo(bag, slot)
+	return info and Plain(info.itemID) == itemID and Plain(info.quality) == POOR and not Plain(info.isLocked)
 end
 
 local function SellGreys()
@@ -85,8 +93,10 @@ local function SellGreys()
 				return
 			end
 			index = index + 1
-			C_Container.UseContainerItem(item[1], item[2])
-			sold, earned = sold + 1, earned + item[3]
+			if StillGrey(item[1], item[2], item[4]) then
+				C_Container.UseContainerItem(item[1], item[2])
+				sold, earned = sold + 1, earned + item[3]
+			end
 		end
 	end)
 end
@@ -98,9 +108,16 @@ local function Repair()
 	if not canRepair or cost <= 0 then return end
 	local report = Helpers.db.vendorReport
 	if Helpers.db.repairGuild and CanGuildBankRepair and CanGuildBankRepair() then
-		RepairAllItems(true)
-		if report then StzxUI:Say("repaired with guild funds for", Money(cost) .. ".") end
-		return
+		-- What the guild lets you take today (-1: no limit), and what the bank holds.
+		local allowed = GetGuildBankWithdrawMoney and Plain(GetGuildBankWithdrawMoney()) or 0
+		local bank = GetGuildBankMoney and Plain(GetGuildBankMoney()) or 0
+		if allowed == -1 then allowed = bank else allowed = math.min(allowed, bank) end
+		if allowed >= cost then
+			RepairAllItems(true)
+			if report then StzxUI:Say("repaired with guild funds for", Money(cost) .. ".") end
+			return
+		end
+		-- Not enough guild money for you today: your own gold instead.
 	end
 	if (Plain(GetMoney()) or 0) < cost then
 		if report then StzxUI:Say("not enough gold to repair (" .. Money(cost) .. ").") end
@@ -129,11 +146,20 @@ end
 -- NPC chat with a single option
 ---------------------------------------------------------------------------
 
+-- Services whose one option is safe to pick, by the option's icon (Blizzard's
+-- gossip icons): banker, flight master, trainer, vendor. Anything else (the
+-- plain chat bubble included) is left for you to read.
+local SERVICE_ICONS = { [132050] = "banker", [132057] = "taxi", [132058] = "trainer", [132060] = "vendor" }
+Helpers.SERVICE_ICONS = SERVICE_ICONS
+
 function Helpers.SkipGossip()
 	if IsShiftKeyDown() or (C_GossipInfo.ForceGossip and C_GossipInfo.ForceGossip()) then return false end
+	if IsInInstance and Plain((IsInInstance())) then return false end -- boss and event starters live there
 	if (C_GossipInfo.GetNumAvailableQuests() or 0) > 0 or (C_GossipInfo.GetNumActiveQuests() or 0) > 0 then return false end
 	local options = C_GossipInfo.GetOptions() or {}
 	if #options ~= 1 or options[1].selectOptionWhenOnlyOption then return false end -- Blizzard picks those itself
+	local icon = Plain(options[1].overrideIconID) or Plain(options[1].icon)
+	if not (icon and SERVICE_ICONS[icon]) then return false end
 	local index = Plain(options[1].orderIndex)
 	if not index then return false end
 	C_GossipInfo.SelectOptionByIndex(index)
@@ -149,14 +175,17 @@ local NOISY_ERRORS = {
 	"LE_GAME_ERR_OUT_OF_MANA", "LE_GAME_ERR_OUT_OF_RAGE", "LE_GAME_ERR_OUT_OF_ENERGY", "LE_GAME_ERR_OUT_OF_FOCUS",
 	"LE_GAME_ERR_OUT_OF_COMBO_POINTS", "LE_GAME_ERR_OUT_OF_RANGE", "LE_GAME_ERR_SPELL_OUT_OF_RANGE",
 	"LE_GAME_ERR_SPELL_COOLDOWN", "LE_GAME_ERR_ABILITY_COOLDOWN", "LE_GAME_ERR_ITEM_COOLDOWN",
-	"LE_GAME_ERR_SPELL_FAILED_ANOTHER_IN_PROGRESS", "LE_GAME_ERR_GENERIC_NO_VALID_TARGETS",
+	"LE_GAME_ERR_GENERIC_NO_VALID_TARGETS", -- ("another action in progress" Blizzard hides already)
 	"LE_GAME_ERR_NO_ATTACK_TARGET", "LE_GAME_ERR_INVALID_ATTACK_TARGET", "LE_GAME_ERR_GENERIC_NO_TARGET",
 	"LE_GAME_ERR_BADATTACKFACING", "LE_GAME_ERR_BADATTACKPOS",
 }
 
+local filtered = false -- StzxUI has turned them off (so only then turn them back on)
 function Helpers.ApplyErrorFilter()
 	local frame = _G.UIErrorsFrame
 	if not (frame and frame.SetMessageTypeEnabled) then return end
+	if not Helpers.db.errorFilter and not filtered then return end -- never touched: leave Blizzard's as they are
+	filtered = Helpers.db.errorFilter
 	for _, name in ipairs(NOISY_ERRORS) do
 		local messageType = _G[name]
 		if messageType then frame:SetMessageTypeEnabled(messageType, not Helpers.db.errorFilter) end
@@ -205,8 +234,8 @@ function Helpers:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "fastLoot", "Faster looting",
 		"With auto loot on, everything is taken at once, so the loot window barely shows.")
 	StzxUI:AddCheckbox(page, self, "skipGossip", "Skip one-option NPC chat",
-		"Flight masters, bankers and the like open their window straight away when they have one chat option "
-		.. "and no quests. Hold Shift when you talk to them to see the chat.")
+		"Flight masters, bankers, trainers and vendors open their window straight away when they have one chat "
+		.. "option and no quests. Never in dungeons or raids. Hold Shift when you talk to them to see the chat.")
 	StzxUI:AddHeader(page, "Errors")
 	StzxUI:AddCheckbox(page, self, "errorFilter", "Hide repeating combat errors",
 		"The red \"Not enough mana\", \"Out of range\", \"Not ready yet\" and similar messages that repeat "

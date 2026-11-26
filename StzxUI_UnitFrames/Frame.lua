@@ -267,7 +267,9 @@ local function OnEvent(frame, event)
 	elseif event == "UNIT_FACTION" or event == "UNIT_FLAGS" then
 		UpdateHealth(frame) -- colour may change (e.g. tapped, hostile)
 	else
-		ns.UpdateUnitFrame(frame) -- new target, zoning
+		-- New target, focus or pet, or zoning: someone else, so kept aura icons go.
+		StzxUI.Auras.UnitChanged(frame.auraContainer)
+		ns.UpdateUnitFrame(frame)
 	end
 end
 

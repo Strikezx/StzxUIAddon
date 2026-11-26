@@ -174,21 +174,33 @@ end
 --   * refused, same unit as before: true (keep them)
 --   * refused, a different unit (a new target mid-fight): false, and the row
 --     is drawn empty rather than showing someone else's auras
+-- Where the game hides who a unit is (its GUID comes back secret), the row
+-- keeps its icons until the frame says the unit changed (Auras.UnitChanged).
 local function Keeping(holder, unit, refused)
 	local guid = Plain(UnitGUID(unit))
 	if not refused then
-		holder.auraGUID = guid
+		holder.auraGUID, holder.auraFresh = guid, true
 		return false
 	end
-	if guid ~= nil and holder.auraGUID == guid then return true end
-	holder.auraGUID = nil
+	if guid ~= nil then
+		if holder.auraGUID == guid then return true end
+	elseif holder.auraFresh then
+		return true
+	end
+	holder.auraGUID, holder.auraFresh = nil, false
 	return false
+end
+
+-- The frame now shows someone else (a new target, a roster change): kept icons go.
+local function UnitChanged(holder)
+	if holder then holder.auraGUID, holder.auraFresh = nil, false end
 end
 
 
 StzxUI.Auras = {
 	Get = function(unit, filter, max) return GetAuras(unit, filter, max) end,
 	Keeping = Keeping,
+	UnitChanged = UnitChanged,
 	LastError = function() return lastError end,
 	-- For /stzx auras: one plain unsorted ask. Returns the count, or nil and the game's reason.
 	Try = function(unit, filter)
