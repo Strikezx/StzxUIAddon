@@ -353,27 +353,69 @@ end
 --   * its dark font objects get light text (titles gold), and
 --   * any text still dark in a skinned window is brightened (after Blizzard's
 --     quest code colours it, and when a window opens).
-local LIGHT = { 0.9, 0.9, 0.9 }
+local LIGHT = { 0.9, 0.9, 0.9 } -- the dialogue text colour (Skin.SetTextColour)
+local brightened = setmetatable({}, { __mode = "k" }) -- text StzxUI re-coloured, re-coloured again on a change
 local TITLE_TEXT = { 1, 0.82, 0.25 }
 local DARK_FONTS = { "QuestFont", "QuestFontNormalSmall", "QuestFontLeft", "GameFontBlack", "GameFontBlackSmall",
 	"GameFontBlackSmall2", "GameFontBlackMedium", "GameFontBlackTiny", "GameFontBlackTiny2", "GameFontNormalMed1",
 	"QuestDifficulty_Header" }
 local TITLE_FONTS = { "QuestTitleFont", "QuestTitleFontBlackShadow", "QuestFontNormalLarge" }
 
+-- Dialogue text size: the fonts quest and gossip text are written in (not
+-- every dark font: GameFontBlack and friends are used for small labels too).
+local DIALOGUE_FONTS = { QuestFont = 0, QuestFontNormalSmall = -1, QuestFontLeft = 0, QuestTitleFont = 3,
+	QuestTitleFontBlackShadow = 3 }
+local textSize -- nil: leave Blizzard's sizes
+
+function Skin.SetTextSize(size) textSize = size end
+
+local function Style(font, r, g, b)
+	font:SetTextColor(r, g, b)
+	-- A black shadow behind light text makes it stand out on any background.
+	if font.SetShadowColor then
+		font:SetShadowColor(0, 0, 0, 1)
+		font:SetShadowOffset(1, -1)
+	end
+end
+
 function Skin.LightFonts()
 	for _, name in ipairs(DARK_FONTS) do
 		local font = _G[name]
-		if type(font) == "table" and font.SetTextColor then font:SetTextColor(LIGHT[1], LIGHT[2], LIGHT[3]) end
+		if type(font) == "table" and font.SetTextColor then Style(font, LIGHT[1], LIGHT[2], LIGHT[3]) end
 	end
 	for _, name in ipairs(TITLE_FONTS) do
 		local font = _G[name]
-		if type(font) == "table" and font.SetTextColor then font:SetTextColor(TITLE_TEXT[1], TITLE_TEXT[2], TITLE_TEXT[3]) end
+		if type(font) == "table" and font.SetTextColor then Style(font, TITLE_TEXT[1], TITLE_TEXT[2], TITLE_TEXT[3]) end
+	end
+	if textSize then
+		for name, offset in pairs(DIALOGUE_FONTS) do
+			local font = _G[name]
+			if type(font) == "table" and font.GetFont then
+				local file, _, flags = font:GetFont()
+				font:SetFont(file or FONT, textSize + offset, flags or "")
+			end
+		end
 	end
 end
 
 local function Brighten(fontString)
 	local r, g, b = fontString:GetTextColor()
-	if r and (r + g + b) < 0.9 then fontString:SetTextColor(LIGHT[1], LIGHT[2], LIGHT[3]) end
+	if brightened[fontString] or (r and (r + g + b) < 0.9) then
+		brightened[fontString] = true
+		fontString:SetTextColor(LIGHT[1], LIGHT[2], LIGHT[3])
+		if fontString.SetShadowColor then
+			fontString:SetShadowColor(0, 0, 0, 1)
+			fontString:SetShadowOffset(1, -1)
+		end
+	end
+end
+
+-- The colour dark dialogue text becomes (white, light grey, StzxUI's accent...).
+-- Fonts and text already re-coloured follow straight away.
+function Skin.SetTextColour(r, g, b)
+	LIGHT[1], LIGHT[2], LIGHT[3] = r, g, b
+	Skin.LightFonts()
+	for fontString in pairs(brightened) do fontString:SetTextColor(r, g, b) end
 end
 
 -- Dark text in `frame` (and a few levels down) made light.

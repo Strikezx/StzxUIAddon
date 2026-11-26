@@ -21,7 +21,8 @@ local Skins = StzxUI:NewModule("Skins", ADDON_NAME, {
 	controls = true,     -- also flatten the buttons and scrollbars inside windows
 	level = "FULL",      -- FULL: everything inside windows too; FRAMES: frames, tabs, buttons only
 	zygor = true,        -- Zygor Guides' window in StzxUI's colours
-	lightText = true,    -- quest, gossip, book and letter text light on the dark windows
+	textColour = "WHITE", -- quest, gossip, book and letter text: WHITE, LIGHT (grey), ACCENT, BLIZZARD (its brown)
+	textSize = 15,        -- that text's size (Blizzard's is about 13); titles 3 bigger
 	skip = {},           -- window name -> true: keep Blizzard's look
 }, {
 	title = "Skins",
@@ -146,9 +147,21 @@ function Skins:OnInitialize()
 		60, 100, 2, function(value) return ("%d%%"):format(value) end, ApplyLook)
 	StzxUI:AddCheckbox(page, self, "controls", "Flatten buttons and scrollbars inside windows",
 		"Changes apply after a reload.", function() StzxUI:AskReload("Buttons and scrollbars change after a reload.") end)
-	StzxUI:AddCheckbox(page, self, "lightText", "Light text in quest, gossip, book and letter windows",
-		"Blizzard writes these in dark brown for its parchment, which can't be read on black. Off needs a reload.",
-		function(on) if not on then StzxUI:AskReload("Blizzard's dark text comes back after a reload.") end end)
+	StzxUI:AddDropdown(page, self, "textColour", "Dialogue text colour",
+		"Quest, gossip, book and letter text. Blizzard's own is dark brown, made for its parchment: hard to read on black. "
+		.. "Going back to Blizzard's needs a reload.",
+		{ { "WHITE", "White" }, { "LIGHT", "Light grey" }, { "ACCENT", "StzxUI blue (accent colour)" },
+			{ "BLIZZARD", "Blizzard's own" } },
+		function(value)
+			if value == "BLIZZARD" then
+				StzxUI:AskReload("Blizzard's dialogue colours come back after a reload.")
+			else
+				Skins.LightText()
+			end
+		end)
+	StzxUI:AddSlider(page, self, "textSize", "Dialogue text size",
+		"Quest, gossip, book and letter text (Blizzard's is about 13). Titles are 3 bigger.",
+		11, 22, 1, nil, function() Skins.LightText() end)
 	StzxUI:AddHeader(page, "Other addons")
 	StzxUI:AddCheckbox(page, self, "zygor", "Zygor Guides in StzxUI's colours",
 		"Zygor's window edge and background in StzxUI's colours. Looks best with Zygor's \"Stealth\" style. Off needs a reload.",
@@ -159,9 +172,26 @@ end
 
 -- Light text: Blizzard's dark "parchment" fonts made light, and quest text
 -- brightened again right after Blizzard's quest code colours it.
-local function LightText()
-	if not Skins.db.lightText then return end
-	Skin.LightFonts()
+local TEXT_COLOURS = { WHITE = { 1, 1, 1 }, LIGHT = { 0.85, 0.85, 0.87 } }
+
+function Skins.ApplyTextColour()
+	local choice = Skins.db.textColour
+	if choice == "BLIZZARD" then return end
+	local c = TEXT_COLOURS[choice]
+	if choice == "ACCENT" then
+		local A = StzxUI.ACCENT
+		c = { A.r, A.g, A.b }
+	end
+	c = c or TEXT_COLOURS.WHITE
+	Skin.SetTextColour(c[1], c[2], c[3])
+end
+
+-- The hooks that keep quest text in the chosen colour (installed once, the
+-- first time a colour other than Blizzard's is in use).
+local textHooked = false
+local function HookQuestText()
+	if textHooked then return end
+	textHooked = true
 	if QuestFrame_SetTextColor then hooksecurefunc("QuestFrame_SetTextColor", Skin.Brighten) end
 	if QuestFrame_SetTitleTextColor then
 		hooksecurefunc("QuestFrame_SetTitleTextColor", function(fontString) fontString:SetTextColor(1, 0.82, 0.25) end)
@@ -170,6 +200,14 @@ local function LightText()
 		hooksecurefunc("QuestInfo_Display", function() Skin.BrightenText(_G.QuestInfoFrame) end)
 	end
 end
+
+local function LightText()
+	if Skins.db.textColour == "BLIZZARD" then return end
+	HookQuestText()
+	Skin.SetTextSize(Skins.db.textSize)
+	Skins.ApplyTextColour()
+end
+Skins.LightText = LightText
 
 function Skins:OnEnable()
 	ApplyLook()

@@ -620,8 +620,12 @@ local function InstallClient()
 	NamePlateAuraItemMixin = { SetAura = function(self, aura) self.Icon:SetTexture(aura.icon) end }
 	-- Blizzard's dark "parchment" fonts and quest text colouring.
 	for _, n in ipairs({ "QuestFont", "QuestTitleFont", "GameFontBlack" }) do
-		local font = { colour = { 0, 0, 0 } }
+		local font = { colour = { 0, 0, 0 }, font = { "Fonts\\FRIZQT__.TTF", 13, "" } }
 		function font:SetTextColor(r, g, b) self.colour = { r, g, b } end
+		function font:GetFont() return self.font[1], self.font[2], self.font[3] end
+		function font:SetFont(f, size, flags) self.font = { f, size, flags } end
+		function font:SetShadowColor(r, g, b, a) self.shadow = { r, g, b, a } end
+		function font:SetShadowOffset(x, y) self.shadowOffset = { x, y } end
 		_G[n] = font
 	end
 	function QuestFrame_SetTextColor(fontString) fontString:SetTextColor(0.18, 0.12, 0.06) end
@@ -2720,12 +2724,26 @@ check(charScroll.Track.Begin.alpha == 0 and charScroll.Track.Thumb.Begin.alpha =
 check(charWin.detail.NineSlice.alpha == 0 and charWin.detail.parchment.alpha == 0 and FillOf(charWin.detail),
 	"panels inside: Blizzard's art gone, black background")
 check(charWin.big.Bg.alpha == 0 and not FillOf(charWin.big), "a panel bigger than its window: art gone, but no box sticking out")
-check(charWin.detail.say.color[1] == 0.9, "dark brown text made light")
-check(QuestFont.colour[1] == 0.9 and QuestTitleFont.colour[1] == 1, "Blizzard's dark quest fonts made light (titles gold)")
+check(charWin.detail.say.color[1] == 1 and charWin.detail.say.color[3] == 1, "dark brown text made white")
+check(QuestFont.colour[1] == 1 and QuestTitleFont.colour[2] == 0.82, "Blizzard's dark quest fonts made white (titles gold)")
 local questLine = NewFrame("FontString")
 questLine:SetTextColor(0.18, 0.12, 0.06)
 QuestFrame_SetTextColor(questLine, "Parchment")
-check(questLine.color[1] == 0.9, "quest text re-brightened after Blizzard colours it")
+check(questLine.color[1] == 1, "quest text re-coloured after Blizzard colours it")
+log.settings.STZXUI_SKINS_TEXTCOLOUR:SetValue("ACCENT")
+check(charWin.detail.say.color[1] == StzxUI.ACCENT.r and QuestFont.colour[3] == StzxUI.ACCENT.b,
+	"dialogue text in StzxUI blue: text already shown and the fonts follow at once")
+log.settings.STZXUI_SKINS_TEXTCOLOUR:SetValue("LIGHT")
+check(charWin.detail.say.color[1] == 0.85, "...or light grey")
+log.settings.STZXUI_SKINS_TEXTCOLOUR:SetValue("BLIZZARD")
+check(DialogShown(), "Blizzard's own: asks for a reload")
+StzxUIDialog.cancelButton:Click()
+log.settings.STZXUI_SKINS_TEXTCOLOUR:SetValue("WHITE")
+check(QuestFont.font[2] == 15 and QuestTitleFont.font[2] == 18 and GameFontBlack.font[2] == 13,
+	"dialogue text bigger (15, titles 18); small labels keep their size")
+check(QuestFont.shadow[4] == 1, "...with a black shadow so it stands out")
+log.settings.STZXUI_SKINS_TEXTSIZE:SetValue(18)
+check(QuestFont.font[2] == 18 and QuestTitleFont.font[2] == 21, "dialogue text size slider")
 check(charWin.bar.art.alpha == 0 and charWin.bar.colour[2] == 0.6 and FillOf(charWin.bar), "bars: flat, on black, Blizzard's colour kept")
 check(charWin.tick.normalTex.alpha == 0 and charWin.tick.checkedTex.texture == "Interface\\Buttons\\WHITE8x8"
 	and charWin.tick.checkedTex.colour[1] == StzxUI.ACCENT.r, "checkboxes: flat box, accent tick")
