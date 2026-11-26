@@ -21,6 +21,7 @@ local Skins = StzxUI:NewModule("Skins", ADDON_NAME, {
 	controls = true,     -- also flatten the buttons and scrollbars inside windows
 	level = "FULL",      -- FULL: everything inside windows too; FRAMES: frames, tabs, buttons only
 	zygor = true,        -- Zygor Guides' window in StzxUI's colours
+	auras = true,        -- Blizzard's buff bar and Cooldown Manager in StzxUI's look (AuraSkins.lua)
 	textColour = "WHITE", -- quest, gossip, book and letter text: WHITE, LIGHT (grey), ACCENT, BLIZZARD (its brown)
 	textSize = 15,        -- that text's size (Blizzard's is about 13); titles 3 bigger
 	skip = {},           -- window name -> true: keep Blizzard's look
@@ -154,6 +155,13 @@ function Skins:OnInitialize()
 		60, 100, 2, function(value) return ("%d%%"):format(value) end, ApplyLook)
 	StzxUI:AddCheckbox(page, self, "controls", "Flatten buttons and scrollbars inside windows",
 		"Changes apply after a reload.", function() StzxUI:AskReload("Buttons and scrollbars change after a reload.") end)
+	StzxUI:AddCheckbox(page, self, "auras", "Blizzard's buffs and Cooldown Manager in StzxUI's look",
+		"Your buffs and debuffs by the minimap and the Cooldown Manager's icons and bars: square icons with a thin "
+		.. "edge, flat bars. These are Blizzard's own, so they keep working in fights (the game refuses addons "
+		.. "auras then). Turning it off needs a reload.",
+		function(value)
+			if value then Skins.SkinBlizzardAuras() else StzxUI:AskReload("Blizzard's buff look comes back after a reload.") end
+		end)
 	StzxUI:AddDropdown(page, self, "textColour", "Dialogue text colour",
 		"Quest, gossip, book and letter text. Blizzard's own is dark brown, made for its parchment: hard to read on black. "
 		.. "Going back to Blizzard's needs a reload.",
@@ -252,8 +260,10 @@ function Skins:OnEnable()
 		if event == "ADDON_LOADED" and not (name and name:find("^Blizzard_")) then return end
 		if event == "PLAYER_REGEN_ENABLED" and not pending then return end
 		Skins:SkinAll()
+		Skins.SkinBlizzardAuras()
 	end)
 	self:SkinAll()
+	Skins.SkinBlizzardAuras()
 	WatchZygor()
 end
 

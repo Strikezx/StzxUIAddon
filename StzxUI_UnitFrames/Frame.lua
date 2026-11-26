@@ -262,7 +262,7 @@ local function OnEvent(frame, event)
 		UpdateLevel(frame)
 	elseif event == "UNIT_PORTRAIT_UPDATE" or event == "UNIT_MODEL_CHANGED" then
 		UpdatePortrait(frame)
-	elseif event == "UNIT_AURA" then
+	elseif event == "UNIT_AURA" or event == "PLAYER_REGEN_ENABLED" then
 		ns.UpdateAuras(frame)
 	elseif event == "UNIT_FACTION" or event == "UNIT_FLAGS" then
 		UpdateHealth(frame) -- colour may change (e.g. tapped, hostile)

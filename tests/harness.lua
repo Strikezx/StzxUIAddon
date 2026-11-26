@@ -257,6 +257,7 @@ function Frame:GetParent() return self.parent end
 function Frame:GetName() return self.name end
 function Frame:SetIgnoreParentAlpha(v) self.ignoreParentAlpha = v and true or false end
 function Frame:GetAtlas() return self.atlas end
+function Frame:SetSwipeTexture(t) self.swipeTexture = t end
 function Frame:GetNumMaskTextures() return #(self.masks or {}) end
 function Frame:GetMaskTexture(i) return (self.masks or {})[i] end
 function Frame:GetRegions()
@@ -449,6 +450,13 @@ local function InstallClient()
 	-- Unit frame APIs
 	local function U(unit) return unitState[unit] or {} end
 	function UnitExists(u) return unitState[u] ~= nil end
+	-- A unit's GUID: the same while it's the same fake unit table (a new target is a new table).
+	function UnitGUID(u)
+		local st = unitState[u]
+		if not st then return nil end
+		st.guid = st.guid or tostring(st)
+		return st.guid
+	end
 	function UnitClass(u) return U(u).class and "Class", U(u).class end
 	function UnitHealth(u) return U(u).hp or 0 end
 	function UnitHealthMax(u) return U(u).hpMax or 1 end
@@ -1445,6 +1453,29 @@ check(TA[1].cooldown.durationObject and TA[1].cooldown.durationObject.durationOf
 check(TA[1].count.text == SECRET_TEXT, "secret aura: the game's own stack text")
 Script(TA[1], "OnEnter")
 check(GameTooltip.auraShown == 14, "hovering an icon shows the aura tooltip")
+do -- In a fight the game refuses addons every unit's auras (tested on Forever).
+	local realAsk = C_UnitAuras.GetUnitAuras
+	C_UnitAuras.GetUnitAuras = function() error("GetUnitAuras(): Auras cannot be accessed when secret while tainted by 'StzxUI'") end
+	inCombat = true
+	Fire("UNIT_AURA", "target")
+	check(Shown(TA) == 4, "in a fight the game says no: the icons already shown stay")
+	now = now + 10 -- aura 11 (9 s left) runs out
+	Script(TA[2].cooldown, "OnCooldownDone")
+	Script(TA[3].cooldown, "OnCooldownDone") -- 20 s left: not yet
+	check(not TA[2].shown and TA[3].shown, "...each dropping off when its time runs out")
+	local oldTarget = unitState.target
+	unitState.target = { hp = 50, hpMax = 50, reaction = 2, level = 12 }
+	Fire("PLAYER_TARGET_CHANGED")
+	check(Shown(TA) == 0, "a new target mid-fight: empty row, never the old target's auras")
+	unitState.target = oldTarget
+	Fire("PLAYER_TARGET_CHANGED")
+	check(Shown(TA) == 0, "...and back to the first one: still nothing stale")
+	C_UnitAuras.GetUnitAuras = realAsk
+	inCombat = false
+	Fire("PLAYER_REGEN_ENABLED")
+	check(Shown(TA) == 4, "fight over: auras read again")
+	now = now - 10
+end
 auraState.player, auraState.target = {}, {}
 Fire("UNIT_AURA", "player"); Fire("UNIT_AURA", "target")
 check(Shown(PA) == 0 and Shown(TA) == 0, "icons cleared when auras go")
@@ -1532,6 +1563,21 @@ Fire("UNIT_AURA", "party1")
 check(liala.debuffs[1].shown and liala.debuffs[3].shown and not (liala.debuffs[4] and liala.debuffs[4].shown),
 	"up to 3 debuffs on a party member")
 check(liala.debuffs[1].auraInstanceID == 71 and liala.debuffs[2].count.text == 2, "debuff icons with stacks")
+do -- In a fight: party debuffs kept, read again when it ends.
+	local realAsk = C_UnitAuras.GetUnitAuras
+	C_UnitAuras.GetUnitAuras = function() error("GetUnitAuras(): Auras cannot be accessed when secret while tainted") end
+	inCombat = true
+	Fire("UNIT_AURA", "party1")
+	check(liala.debuffs[1].shown and liala.debuffs[3].shown, "party debuffs stay in a fight (the game refuses addons)")
+	C_UnitAuras.GetUnitAuras = realAsk
+	inCombat = false
+	local saved = auraState.party1
+	auraState.party1 = {}
+	Fire("PLAYER_REGEN_ENABLED")
+	check(not liala.debuffs[1].shown, "...and are read again when the fight ends")
+	auraState.party1 = saved
+	Fire("UNIT_AURA", "party1")
+end
 rangeOf.party1 = { false, true }
 for _, f in ipairs(frames) do if f.scripts.OnUpdate and f.events.GROUP_ROSTER_UPDATE then f.scripts.OnUpdate(f, 1) end end
 check(liala.art.alpha == 0.4 and me.art.alpha == 1, "out-of-range members fade (you never do)")
@@ -2715,6 +2761,53 @@ StartGame(nil, function()
 	greeting.titleButtonPool = { EnumerateActive = function() return pairs(greeting.active) end }
 	-- Something StzxUI doesn't know: left alone.
 	FakeWindow("SomeOtherAddonFrame")
+	-- Blizzard's buff and debuff bar: aura buttons it fills in itself.
+	AuraUtil = { SetAuraBorderAtlas = function(border, dispelType) border.atlas = "debuff-" .. tostring(dispelType) end }
+	for _, name in ipairs({ "BuffFrame", "DebuffFrame" }) do
+		local f = NewFrame("Frame", name, UIParent)
+		f.auraFrames = {}
+		for i = 1, 2 do
+			local b = NewFrame("Button", nil, f)
+			b:SetSize(30, 40)
+			b.Icon = b:CreateTexture(nil, "BACKGROUND")
+			b.DebuffBorder = b:CreateTexture(nil, "OVERLAY")
+			b.TempEnchantBorder = b:CreateTexture(nil, "OVERLAY")
+			function b:Update(info)
+				self.auraType = info.auraType
+				self.Icon:SetTexture(info.texture)
+				if info.auraType == "Debuff" then AuraUtil.SetAuraBorderAtlas(self.DebuffBorder, info.debuffType) end
+			end
+			f.auraFrames[i] = b
+		end
+	end
+	-- The Cooldown Manager: items from a pool, round masks and gold rings.
+	local function Item(parent, bar)
+		local item = NewFrame("Frame", nil, parent)
+		local host = item
+		if bar then
+			host = NewFrame("Frame", nil, item)
+			item.Icon = host
+			item.Bar = NewFrame("StatusBar", nil, item)
+			item.Bar.BarBG = item.Bar:CreateTexture(nil, "BACKGROUND")
+			function item.Bar:GetStatusBarColor() return 1, 0.5, 0.25, 1 end
+		end
+		host.Icon = host:CreateTexture(nil, "ARTWORK")
+		host.Icon.masks = { host:CreateMaskTexture() }
+		local ring = host:CreateTexture(nil, "OVERLAY")
+		ring.atlas = "UI-HUD-CoolDownManager-IconOverlay"
+		item.ring = ring
+		if not bar then item.Icon = host.Icon end
+		item.Cooldown = NewFrame("Cooldown", nil, item)
+		return item
+	end
+	for _, name in ipairs({ "BuffIconCooldownViewer", "BuffBarCooldownViewer" }) do
+		local v = NewFrame("Frame", name, UIParent)
+		local bar = name == "BuffBarCooldownViewer"
+		v.active = { Item(v, bar) }
+		v.itemFramePool = { EnumerateActive = function() return pairs({ [v.active[1]] = true }) end }
+		function v:OnAcquireItemFrame(item) self.acquired = item end
+		function v:NewItem() local item = Item(self, bar); self:OnAcquireItemFrame(item); return item end
+	end
 end)
 local SK = StzxUI:GetModule("Skins")
 check(SK.enabled and Category("Skins"), "Skins section and options page")
@@ -2857,6 +2950,29 @@ log.settings.STZXUI_SKINS_COLOUR:SetValue("BLACK")
 check(zborder.edge[1] == 0, "...following the edge colour setting")
 log.settings.STZXUI_SKINS_COLOUR:SetValue("ACCENT")
 ZygorGuidesViewer = nil
+-- Blizzard's buff bar and Cooldown Manager in StzxUI's look (they work in fights; addons can't read auras then).
+(function() -- its own function: this section is near Lua's 200-locals limit
+	local buff, debuff = BuffFrame.auraFrames[1], DebuffFrame.auraFrames[1]
+	buff:Update({ auraType = "Buff", texture = 1 })
+	debuff:Update({ auraType = "Debuff", texture = 2, debuffType = "Magic" })
+	local function EdgeOf(b)
+		for _, t in ipairs(b.childList) do if t.kind == "Texture" and t.colour and t.layer == "BACKGROUND" then return t end end
+	end
+	check(buff.Icon.texCoord[1] == 0.08 and EdgeOf(buff).colour[1] == 0 and buff.TempEnchantBorder.alpha == 0,
+		"buff bar: square cropped icons with a thin black edge")
+	check(debuff.DebuffBorder.alpha == 0 and EdgeOf(debuff).colour[3] == 1, "debuffs edged in their type's colour (Magic: blue)")
+	debuff:Update({ auraType = "Debuff", texture = 3, debuffType = SECRET })
+	check(EdgeOf(debuff).colour[1] == 0.8, "...red when the game hides the type (in fights)")
+	local icon = BuffIconCooldownViewer.active[1]
+	check(icon.Icon.removedMask and icon.Icon.texCoord[1] == 0.08 and icon.ring.alpha == 0
+		and icon.Cooldown.swipeTexture == "Interface\\Buttons\\WHITE8x8", "Cooldown Manager icons: square, no gold ring, flat swipe")
+	local later = BuffIconCooldownViewer:NewItem()
+	check(later.ring.alpha == 0 and later.Icon.texCoord[1] == 0.08, "...also icons Blizzard adds later")
+	local barItem = BuffBarCooldownViewer.active[1]
+	check(barItem.Icon.Icon.texCoord[1] == 0.08 and barItem.ring.alpha == 0 and barItem.Bar.BarBG.alpha == 0
+		and barItem.Bar.colour[2] == 0.5, "Cooldown Manager bars: flat (Blizzard's colour kept), square icon")
+	check(log.settings.STZXUI_SKINS_AURAS, "an option for it")
+end)()
 log.prints = {}
 SlashCmdList.STZXUI("skins")
 check(lastPrint():find("0 more windows skinned", 1, true), "/stzx skins")

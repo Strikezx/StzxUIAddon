@@ -45,7 +45,10 @@ local function UpdateDebuffs(button)
 	if settings.showDebuffs then
 		-- "RAID" asks the game for debuffs you can remove; it works in combat.
 		local filter = settings.onlyDispellable and "HARMFUL|RAID" or "HARMFUL"
-		for _, aura in ipairs(ns.GetAuras(unit, filter, settings.maxDebuffs)) do
+		local list, refused = ns.GetAuras(unit, filter, settings.maxDebuffs)
+		-- In a fight the game says no: keep what's shown (same person).
+		if StzxUI.Auras.Keeping(button, unit, refused) then return end
+		for _, aura in ipairs(list) do
 			if used >= settings.maxDebuffs or not icons[used + 1] then break end
 			used = used + 1
 			ns.SetAuraButton(icons[used], unit, aura, true)
@@ -602,6 +605,7 @@ driver:SetScript("OnEvent", function(_, event, unit)
 			ApplyLayout(header)
 		end
 		ForAll(UpdateIcons) -- raid markers set during combat
+		ForAll(UpdateDebuffs) -- debuffs: read again now the game allows it
 	end
 end)
 

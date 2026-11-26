@@ -8,13 +8,20 @@
 -- Forever note: in combat the game hides aura details from addons ("secret"
 -- values). Everything here only *shows* them:
 --   * the list comes from C_UnitAuras.GetUnitAuras (the game does the
---     filtering, including "only mine", so it still works in combat)
+--     filtering, including "only mine"). Tested on Forever: in a fight the
+--     game refuses it outright, so rows keep the icons they had (see Keeping)
 --   * icons: Texture:SetTexture accepts secret textures
 --   * swipe: out of combat from the plain times; in combat the game's own
 --     duration object goes straight into the cooldown swipe
 --   * stacks: the game's own count text (GetAuraApplicationDisplayCount)
 --
--- StzxUI.Auras.Get(unit, filter, max)            -> list of aura data
+-- In a fight the game refuses addons every unit's auras outright ("Auras
+-- cannot be accessed when secret while tainted"), even your own. So a row
+-- keeps the icons it had when a fight starts (Keeping), each dropping off
+-- when its time runs out, and reads them again when combat ends.
+--
+-- StzxUI.Auras.Get(unit, filter, max)            -> list of aura data, refused?
+-- StzxUI.Auras.Keeping(holder, unit, refused)    -> true: keep what's shown
 -- StzxUI.Auras.Create(parent)                     -> icon
 -- StzxUI.Auras.Size(icon, size)
 -- StzxUI.Auras.Set(icon, unit, aura, harmful)     -> fills it in and shows it
@@ -87,6 +94,11 @@ local function CreateButton(container)
 	button:EnableMouse(true)
 	button:SetScript("OnEnter", ShowTooltip)
 	button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	-- An icon kept through a fight goes when its time is up (outside fights
+	-- the game's own update would remove it anyway).
+	button.cooldown:HookScript("OnCooldownDone", function()
+		if button.expires and GetTime() >= button.expires - 0.5 then button:Hide() end
+	end)
 	return button
 end
 
@@ -94,8 +106,10 @@ end
 local function SetSwipe(button, unit, aura)
 	local cooldown = button.cooldown
 	local duration, expires = Plain(aura.duration), Plain(aura.expirationTime)
+	button.expires = nil
 	if duration and expires then
 		if duration > 0 then
+			button.expires = expires
 			cooldown:SetCooldown(expires - duration, duration)
 			cooldown:Show()
 		else
@@ -137,24 +151,44 @@ end
 
 local lastError -- the game's last refusal, for /stzx auras
 
--- The unit's auras for a filter, or an empty list if the game says no.
--- Sorted by time left where the game allows; if a sorted list is refused
--- (it might be, for addons in combat), asks again unsorted.
+-- The unit's auras for a filter, or an empty list and true if the game
+-- says no. Sorted by time left where the game allows; if a sorted list is
+-- refused, asks again unsorted.
 local function GetAuras(unit, filter, max)
-	if not (C_UnitAuras and C_UnitAuras.GetUnitAuras) then return {} end
+	if not (C_UnitAuras and C_UnitAuras.GetUnitAuras) then return {}, false end
 	local ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, max or MAX_EACH, SORT)
 	if not ok and SORT then
 		lastError = list
 		ok, list = pcall(C_UnitAuras.GetUnitAuras, unit, filter, max or MAX_EACH)
 	end
-	if not ok then lastError = list end
-	if ok and type(list) == "table" then return list end
-	return {}
+	if not ok then
+		lastError = list
+		return {}, true
+	end
+	if type(list) == "table" then return list, false end
+	return {}, false
+end
+
+-- Whether a row should keep the icons it's showing. Call after reading:
+--   * read fine: remembers whose icons these are; false (draw the new list)
+--   * refused, same unit as before: true (keep them)
+--   * refused, a different unit (a new target mid-fight): false, and the row
+--     is drawn empty rather than showing someone else's auras
+local function Keeping(holder, unit, refused)
+	local guid = Plain(UnitGUID(unit))
+	if not refused then
+		holder.auraGUID = guid
+		return false
+	end
+	if guid ~= nil and holder.auraGUID == guid then return true end
+	holder.auraGUID = nil
+	return false
 end
 
 
 StzxUI.Auras = {
 	Get = function(unit, filter, max) return GetAuras(unit, filter, max) end,
+	Keeping = Keeping,
 	LastError = function() return lastError end,
 	-- For /stzx auras: one plain unsorted ask. Returns the count, or nil and the game's reason.
 	Try = function(unit, filter)

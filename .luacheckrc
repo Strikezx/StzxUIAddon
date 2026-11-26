@@ -25,7 +25,7 @@ globals = {
 -- Game globals StzxUI reads (add new ones here as modules grow)
 read_globals = {
 	-- Lua / client helpers
-	"issecretvalue",
+	"issecretvalue", "AuraUtil",
 	-- Frames and events
 	"CreateFrame",
 	"EventUtil",
@@ -74,7 +74,7 @@ read_globals = {
 	"UnitHealth", "UnitHealthMax", "UnitHealthPercent", "CurveConstants",
 	"UnitPower", "UnitPowerMax", "UnitPowerType",
 	"UnitClass", "UnitReaction", "UnitIsTapDenied", "UnitLevel", "UnitClassification",
-	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists",
+	"UnitIsGhost", "UnitIsDeadOrGhost", "UnitIsConnected", "UnitExists", "UnitGUID",
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
 	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "MinimapCluster", "MinimapCompassTexture",

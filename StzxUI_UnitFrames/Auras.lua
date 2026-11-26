@@ -5,8 +5,9 @@
 --
 -- Forever note: in combat the game hides aura details from addons ("secret"
 -- values). Everything here only *shows* them:
---   * the list comes from C_UnitAuras.GetUnitAuras (the game does the filtering,
---     including "only my debuffs", so it still works in combat)
+--   * the list comes from C_UnitAuras.GetUnitAuras (the game does the
+--     filtering, including "only mine"). Tested on Forever: in a fight the
+--     game refuses it outright, so rows keep the icons they had (see Keeping)
 --   * icons: Texture:SetTexture accepts secret textures
 --   * swipe: out of combat from the plain times; in combat the game's own
 --     duration object goes straight into the cooldown swipe
@@ -40,14 +41,20 @@ function ns.UpdateAuras(frame)
 		container:SetPoint(left and "TOPLEFT" or "TOPRIGHT", frame, left and "BOTTOMLEFT" or "BOTTOMRIGHT", 0, -4)
 	end
 
-	local groups = {}
+	local groups, refused = {}, false
 	if settings.showDebuffs then
 		local filter = (settings.onlyMine and unit ~= "player") and "HARMFUL|PLAYER" or "HARMFUL"
-		table.insert(groups, { harmful = true, auras = GetAuras(unit, filter) })
+		local list, no = GetAuras(unit, filter)
+		refused = refused or no
+		table.insert(groups, { harmful = true, auras = list })
 	end
 	if settings.showBuffs then
-		table.insert(groups, { harmful = false, auras = GetAuras(unit, "HELPFUL") })
+		local list, no = GetAuras(unit, "HELPFUL")
+		refused = refused or no
+		table.insert(groups, { harmful = false, auras = list })
 	end
+	-- In a fight the game says no: keep what's shown (same unit) until combat ends.
+	if Auras.Keeping(container, unit, refused) then return end
 
 	local used, row, col = 0, 0, 0
 	local side = left and "LEFT" or "RIGHT"
@@ -85,5 +92,6 @@ function ns.CreateAuraContainer(frame)
 	container.buttons = {}
 	frame.auraContainer = container
 	frame:RegisterUnitEvent("UNIT_AURA", frame.unit)
+	frame:RegisterEvent("PLAYER_REGEN_ENABLED") -- fight over: read them again
 	return container
 end
