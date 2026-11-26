@@ -32,6 +32,7 @@ local questID = 0      -- the quest open in the quest giver window
 local questLog, questOffers = {}, {}
 local instance, money, lootWindow = nil, 0, {}
 local nameplates = {}
+local extra = { free = {}, durability = {}, addons = {} } -- info bar: free bag slots, durability, addons, hearthstone, rested XP
 -- Bags and bank: containers[bag] = { { id, count, link }, ... }; gear[slot] = id
 local containers, gear = {}, {}
 local mailLoaded = true
@@ -289,7 +290,7 @@ function Frame:IsVisible() local f = self while f do if not f.shown then return 
 local NOOPS = { "SetFrameStrata", "SetToplevel", "SetClampedToScreen", "SetMovable",
 	"RegisterForDrag", "RegisterForClicks", "SetDontSavePosition", "SetSwipeColor",
 	"SetJustifyH", "SetShadowOffset", "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetFontObject",
-	"SetScrollChild", "SetOwner", "AddLine", "SetShadowColor", "SetWordWrap",
+	"SetScrollChild", "SetOwner", "AddLine", "ClearLines", "SetShadowColor", "SetWordWrap",
 	"SetStatusBarTexture", "EnableMouseWheel", "SetUnit", "SetReverse", "SetDrawEdge" }
 for _, m in ipairs(NOOPS) do Frame[m] = function() end end
 
@@ -516,7 +517,18 @@ local function InstallClient()
 		if slot == 16 then return fishing.pole and 6256 or 2131 end
 	end
 	function GetInventoryItemLink(_, slot) local id = GetInventoryItemID(nil, slot); return id and ("[Item " .. id .. "]") end
+	function UnitFactionGroup() return extra.faction or "Alliance" end
+	function GetBindLocation() return extra.bind or "Ironforge" end
+	function GetXPExhaustion() return extra.rested end
+	function GetInventoryItemDurability(slot) local d = extra.durability[slot]; if d then return d[1], d[2] end end
+	function UpdateAddOnMemoryUsage() extra.memoryChecked = true end
+	function GetAddOnMemoryUsage(i) return extra.addons[i] and extra.addons[i][2] or 0 end
+	C_AddOns.GetNumAddOns = function() return #extra.addons end
+	C_AddOns.IsAddOnLoaded = function() return true end
+	C_AddOns.GetAddOnInfo = function(i) return extra.addons[i][1], extra.addons[i][1] end
 	C_Container = {
+		GetItemCooldown = function() return extra.hearthStart or 0, extra.hearthDuration or 0, 1 end,
+		GetContainerNumFreeSlots = function(bag) return extra.free[bag] or 0, 0 end,
 		GetContainerNumSlots = function(bag) return containers[bag] and #containers[bag] or 0 end,
 		GetContainerItemInfo = function(bag, slot)
 			local i = containers[bag] and containers[bag][slot]
@@ -1703,6 +1715,86 @@ check(InfoMod.XPText() == "Lv 19  4%  -- xp/h", "/stzx xp starts again")
 unitState.player.level = 60
 check(InfoMod.XPText() == nil, "hidden at max level")
 unitState.player.level, unitState.player.xp, unitState.player.xpMax = 18, nil, nil
+
+---------------------------------------------------------------------------
+-- 17b. Info: hearthstone, gold, bags, durability, XP bar, addon memory
+---------------------------------------------------------------------------
+;(function() -- its own function: the main chunk is near Lua's 200-locals limit
+	unitState.player.xp, unitState.player.xpMax = 4500, 10000
+	extra.rested = 2000
+	money = 1234567 -- 123g 45s 67c
+	StzxUIDB = nil
+	StartGame(nil)
+	local InfoMod = StzxUI:GetModule("Info")
+	local R = {}
+	for _, def in ipairs(InfoMod.READOUTS) do R[def.id] = def.frame end
+	check(R.gold and R.bags and R.durability and R.hearth and StzxUI.movers.InfoGold and StzxUI.movers.InfoHearth,
+		"new readouts: hearthstone, gold, bags, durability (each movable on its own)")
+	check(InfoMod.MoneyText(1234567):find("^123") and InfoMod.MoneyText(1234567):find("45") and not InfoMod.MoneyText(1234567):find("67"),
+		"gold: 123g 45s (no copper once there's gold)")
+	check(InfoMod.MoneyText(123456789):find("^12,345"), "...thousands separated")
+	check(InfoMod.MoneyText(4506):find("^45") and InfoMod.MoneyText(4506):find("6|T", 1, true), "under a gold: silver and copper")
+	check(R.gold.text.text == InfoMod.MoneyText(1234567), "gold readout shows your money")
+	-- Another character's gold, noted when they logged in.
+	StzxUIDB.characters["Alt Twoname"] = { class = "MAGE", faction = "Alliance", money = 50000 }
+	GameTooltip.lines = {}
+	Script(R.gold, "OnEnter")
+	local lines = table.concat(GameTooltip.lines, "\n")
+	check(lines:find("Alt Twoname", 1, true) and lines:find("Total", 1, true) and lines:find("128", 1, true),
+		"gold tooltip: every character and the total (123g + 5g = 128g)")
+	money = 1334567; Fire("PLAYER_MONEY")
+	check(R.gold.text.text == InfoMod.MoneyText(1334567), "gold readout follows your money")
+	check(StzxUIDB.characters[StzxUI:MyCharacterName()].money == 1334567, "...and your character's note for other characters")
+	-- Bags: free slots, yellow and red as they run out.
+	containers[0], containers[1] = { {}, {}, {}, {} }, { {}, {}, {}, {} }
+	extra.free[0], extra.free[1] = 3, 2
+	Fire("BAG_UPDATE_DELAYED")
+	check(R.bags.text.text:find("Bags", 1, true) and R.bags.text.text:find("5", 1, true) and R.bags.text.text:find("ffd166", 1, true),
+		"bags: 5 free, in yellow")
+	extra.free[0], extra.free[1] = 1, 0
+	Fire("BAG_UPDATE_DELAYED")
+	check(R.bags.text.text:find("ff6b6b", 1, true), "...red when nearly full")
+	containers[0], containers[1], extra.free[0], extra.free[1] = nil, nil, nil, nil
+	-- Durability: the most worn item.
+	extra.durability[5] = { 30, 100 }
+	extra.durability[7] = { 80, 100 }
+	Fire("UPDATE_INVENTORY_DURABILITY")
+	check(R.durability.text.text:find("30%", 1, true) and R.durability.text.text:find("ffd166", 1, true), "durability: most worn item, yellow under 50%")
+	extra.durability[5] = { 10, 100 }
+	Fire("UPDATE_INVENTORY_DURABILITY")
+	check(R.durability.text.text:find("10%", 1, true) and R.durability.text.text:find("ff6b6b", 1, true), "...red under 25%")
+	extra.durability = {}
+	-- Hearthstone: where, or how long to go.
+	TickAll(tickers)
+	check(R.hearth.text.text:find("Ironforge", 1, true), "hearthstone: where it's set")
+	extra.hearthStart, extra.hearthDuration = now - 600, 1800
+	TickAll(tickers)
+	check(R.hearth.text.text:find("20m", 1, true), "...or how long until it's ready")
+	extra.hearthStart, extra.hearthDuration = nil, nil
+	-- XP bar under the info bar, rested lighter.
+	check(StzxUIInfoXPBar.shown and StzxUIInfoXPBar.value == 4500 and StzxUIInfoXPBar.rested.value == 6500,
+		"XP bar along the info bar, rested XP lighter behind it")
+	log.settings.STZXUI_INFO_XPBAR:SetValue(false)
+	check(not StzxUIInfoXPBar.shown, "...with its own switch")
+	log.settings.STZXUI_INFO_XPBAR:SetValue(true)
+	-- Addon memory in the stats tooltip (not measured in a fight).
+	extra.addons = { { "Small", 100 }, { "Big", 4096 } }
+	GameTooltip.lines = {}
+	Script(R.stats, "OnEnter")
+	lines = table.concat(GameTooltip.lines, "\n")
+	check(lines:find("Big 4.0 MB", 1, true) and lines:find("Small 100 KB", 1, true) and lines:find("Big", 1, true) < lines:find("Small", 1, true),
+		"stats tooltip: addon memory, biggest first")
+	inCombat = true; extra.memoryChecked = false
+	Script(R.stats, "OnEnter")
+	check(not extra.memoryChecked, "...not measured during a fight")
+	inCombat = false
+	extra.addons = {}
+	-- In the bar: the new ones sit beside the old ones without overlapping.
+	local rightmost = R.stats.points[1]
+	check(rightmost.point == "RIGHT" and R.gold.points[1].point == "RIGHT" and R.gold.points[1].x < rightmost.x,
+		"gold, bags and durability sit to the left of the stats on the right side")
+	unitState.player.xp, unitState.player.xpMax, extra.rested, money = nil, nil, nil, 0
+end)()
 
 ---------------------------------------------------------------------------
 -- 18. Move mode alongside Edit Mode

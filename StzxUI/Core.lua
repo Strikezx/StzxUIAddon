@@ -193,6 +193,7 @@ events:SetScript("OnEvent", function(_, event, loadedName)
 		end
 	elseif event == "PLAYER_LOGIN" then
 		loggedIn = true
+		StzxUI:NoteCharacter()       -- Characters.lua
 		StzxUI:FinishSettingsPanel() -- Settings.lua
 		for _, name in ipairs(StzxUI.moduleOrder) do
 			StzxUI:EnableModule(StzxUI.modules[name])

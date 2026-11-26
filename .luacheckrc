@@ -25,7 +25,8 @@ globals = {
 -- Game globals StzxUI reads (add new ones here as modules grow)
 read_globals = {
 	-- Lua / client helpers
-	"issecretvalue", "AuraUtil",
+	"issecretvalue", "AuraUtil", "UnitFactionGroup", "GetBindLocation", "GetXPExhaustion", "GetInventoryItemDurability",
+	"UpdateAddOnMemoryUsage", "GetAddOnMemoryUsage",
 	-- Frames and events
 	"CreateFrame",
 	"EventUtil",
