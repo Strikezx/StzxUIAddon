@@ -19,6 +19,7 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Accent colour: two red palettes, Red (#CC1111) and Bright red (#FF3333), each on a neutral #0D0D0D black behind StzxUI's windows, options window and pop-ups (Options > General > Accent colour; applies after a reload).
 - Combat: a "Cooldown Manager" button (opens Blizzard's Cooldown Manager to choose taunts, interrupts and other cooldowns to track); its settings window gets the StzxUI look.
 - Party & Raid: click-casting. On the Party & Raid page, pick a spell for Shift/Ctrl/Alt + left- or right-click, middle click and mouse buttons 4 and 5; it's cast on the member you click, in fights too. The menus list your helpful spells from the spellbook. Plain left-click still targets and plain right-click still opens the menu. Set with Blizzard's secure attributes on every party and raid button (and in the header's set-up code, so buttons made in a fight get them too); changes made in a fight apply when it ends.
 - Rare Alerts (new section, in the Helpers folder): a warning in the middle of the screen, a sound and a chat line when a rare or rare elite's nameplate appears, or when the game marks a rare or treasure on the minimap (Blizzard's vignettes, if Forever uses them). Once each, again after 5 minutes; dead rares skipped. Separate switches for rares, treasures and the sound.

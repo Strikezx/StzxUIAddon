@@ -390,7 +390,8 @@ local function Build()
 
 	local bg = f:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0.05, 0.06, 0.08, 0.97)
+	local back = StzxUI.BACKGROUND -- a touch lighter than windows behind it
+	bg:SetColorTexture(back.r + 0.02, back.g + 0.02, back.b + 0.03, 0.97)
 	local side = f:CreateTexture(nil, "BORDER")
 	side:SetPoint("TOPLEFT", 0, -36)
 	side:SetPoint("BOTTOMLEFT")

@@ -32,7 +32,12 @@ StzxUI.Skin = Skin
 
 local FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 local FLAT = "Interface\\Buttons\\WHITE8x8"
-local FILL = { 0.025, 0.028, 0.035 }
+-- The window background: StzxUI.BACKGROUND (set by the accent choice), read
+-- when a window is skinned.
+local function FILL_NOW()
+	local bg = StzxUI.BACKGROUND
+	return { bg.r, bg.g, bg.b }
+end
 local TITLE = { 0, 0, 0 }
 local SOFT_ALPHA = 0.45 -- buttons, tabs, panels: the skin colour, quieter
 
@@ -141,7 +146,7 @@ end
 -- opts: { edge = "accent" | "soft", fill = {r,g,b}, alpha = 0.92 }
 function Skin.Backdrop(frame, opts)
 	opts = opts or {}
-	local fill = Fill(frame, "BACKGROUND", -8, opts.fill or FILL, opts.alpha or 1)
+	local fill = Fill(frame, "BACKGROUND", -8, opts.fill or FILL_NOW(), opts.alpha or 1)
 	fill:SetAllPoints(frame)
 	return { fill = fill, edges = Edges(frame, frame, opts.edge) }
 end
@@ -627,7 +632,7 @@ function Skin.Window(frame, opts)
 	end
 	-- The background on the window itself; its edge on a layer above
 	-- everything inside, so panels can't cover it.
-	local fill = Fill(frame, "BACKGROUND", -8, FILL, 1)
+	local fill = Fill(frame, "BACKGROUND", -8, FILL_NOW(), 1)
 	fill:SetAllPoints(frame)
 	-- opts.keep: the window's own textures that are content, not art (the
 	-- flight map is painted onto TaxiFrame.InsetBg). opts.leave: parts left

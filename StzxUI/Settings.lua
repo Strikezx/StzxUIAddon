@@ -245,7 +245,8 @@ function StzxUI:CreateSettingsPanel()
 	self:AddHeader(category, "General")
 	self:AddDropdown(category, core, "accent", "Accent colour",
 		"The colour of StzxUI's highlights: move mode, windows, frame rings. Changes apply after a reload.",
-		{ { "STZX", "StzxUI blue" }, { "CLASS", "My class colour" } },
+		{ { "STZX", "StzxUI blue" }, { "CLASS", "My class colour" },
+			{ "RED", "Red (#CC1111, on #0D0D0D black)" }, { "BRIGHTRED", "Bright red (#FF3333, on #0D0D0D black)" } },
 		function() self:AskReload("The accent colour changes after a reload.") end)
 	self:AddCheckbox(category, core, "chatMessages", "Show StzxUI notices in chat",
 		"Short messages such as \"Declined a duel from ...\". Replies to /stzx commands always show.")

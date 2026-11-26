@@ -43,7 +43,8 @@ local function BuildDialog()
 	-- Flat dark panel with an accent line on top.
 	local bg = f:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0.06, 0.07, 0.09, 0.96)
+	local back = StzxUI.BACKGROUND
+	bg:SetColorTexture(back.r + 0.03, back.g + 0.03, back.b + 0.04, 0.96)
 	local line = f:CreateTexture(nil, "BORDER")
 	line:SetPoint("TOPLEFT")
 	line:SetPoint("TOPRIGHT")

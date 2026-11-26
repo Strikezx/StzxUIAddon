@@ -1476,9 +1476,17 @@ log.settings.STZXUI_CORE_ACCENT:SetValue("CLASS")
 check(DialogShown() and DialogText():find("after a reload", 1, true), "changing the accent asks to reload")
 Reload()
 check(StzxUI.ACCENT.r == 0 and StzxUI.ACCENT.b == 0.87, "class accent: Shaman blue")
+StzxUIDB.core.accent = "RED"
+Reload()
+check(StzxUI.ACCENT.r == 0.8 and StzxUI.ACCENT.g == 0.067, "red palette: #CC1111 accent")
+check(StzxUI.BACKGROUND.r == 0.051 and StzxUI.BACKGROUND.b == 0.051, "...on #0D0D0D black")
+StzxUIDB.core.accent = "BRIGHTRED"
+Reload()
+check(StzxUI.ACCENT.r == 1 and StzxUI.ACCENT.g == 0.2, "bright red palette: #FF3333")
 StzxUIDB.core.accent = "STZX"
 Reload()
 check(StzxUI.ACCENT.r == 0.31, "back to StzxUI blue")
+check(StzxUI.BACKGROUND.b == 0.035, "...and StzxUI's own blue-black behind windows")
 
 ---------------------------------------------------------------------------
 -- 11. JiberishUI Icons (optional addon)

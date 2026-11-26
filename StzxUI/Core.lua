@@ -25,10 +25,22 @@ _G.StzxUI = StzxUI
 StzxUI.ACCENT = { r = 0.31, g = 0.76, b = 0.97 }
 local STZX_BLUE = { r = 0.31, g = 0.76, b = 0.97 }
 
+-- Other accent palettes. Each can bring its own background (the dark behind
+-- windows); without one, StzxUI's usual blue-black is used.
+local NEUTRAL_BLACK = { r = 0.051, g = 0.051, b = 0.051 } -- #0D0D0D
+StzxUI.PALETTES = {
+	RED = { accent = { r = 0.8, g = 0.067, b = 0.067 }, background = NEUTRAL_BLACK },    -- #CC1111
+	BRIGHTRED = { accent = { r = 1, g = 0.2, b = 0.2 }, background = NEUTRAL_BLACK },    -- #FF3333
+}
+
+-- The dark behind StzxUI's windows. Changed in place, like ACCENT.
+local STZX_BACKGROUND = { r = 0.025, g = 0.028, b = 0.035 }
+StzxUI.BACKGROUND = { r = STZX_BACKGROUND.r, g = STZX_BACKGROUND.g, b = STZX_BACKGROUND.b }
+
 -- Account-wide core settings (the same on every character).
 StzxUI.CORE_DEFAULTS = {
 	chatMessages = true,   -- print StzxUI notices in the chat window
-	accent = "STZX",       -- "STZX" (StzxUI blue) or "CLASS" (your class colour)
+	accent = "STZX",       -- "STZX" (StzxUI blue), "CLASS" (your class colour) or a PALETTES key
 	snapToGrid = true,     -- move mode snaps frames to the grid
 	snapToFrames = true,   -- move mode lines frames up with each other's edges
 	gridSize = 16,         -- grid spacing in move mode
@@ -93,14 +105,20 @@ StzxUI.ApplyDefaults = ApplyDefaults
 
 -- Set StzxUI.ACCENT from the "accent" option.
 function StzxUI:ApplyAccent()
-	local accent, colour = self.ACCENT, STZX_BLUE
-	if self.db and self.db.core.accent == "CLASS" then
+	local accent, colour, background = self.ACCENT, STZX_BLUE, STZX_BACKGROUND
+	local choice = self.db and self.db.core.accent
+	local palette = choice and self.PALETTES[choice]
+	if palette then
+		colour, background = palette.accent, palette.background or STZX_BACKGROUND
+	elseif choice == "CLASS" then
 		local _, class = UnitClass("player")
 		class = StzxUI.Plain(class)
 		local classColour = class and C_ClassColor and C_ClassColor.GetClassColor(class)
 		if classColour then colour = classColour end
 	end
 	accent.r, accent.g, accent.b = colour.r, colour.g, colour.b
+	local bg = self.BACKGROUND
+	bg.r, bg.g, bg.b = background.r, background.g, background.b
 end
 
 local function ReadVersion()
