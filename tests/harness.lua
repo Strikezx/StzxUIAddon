@@ -3970,7 +3970,8 @@ end)()
 ---------------------------------------------------------------------------
 -- Welcome splash
 ---------------------------------------------------------------------------
-(function() -- its own function: locals limit, and a clean Reload slate
+;(function() -- leading ';': the section above ends with a call, and Lua
+	-- would read our '(' as its argument list (ambiguous syntax)
 	Reload()
 	RunAfters()
 	local f = _G.StzxUIWelcome
