@@ -259,6 +259,8 @@ function Frame:GetName() return self.name end
 function Frame:SetIgnoreParentAlpha(v) self.ignoreParentAlpha = v and true or false end
 function Frame:GetAtlas() return self.atlas end
 function Frame:SetSwipeTexture(t) self.swipeTexture = t end
+function Frame:SetID(id) self.id = id end
+function Frame:GetID() return self.id or 0 end
 function Frame:GetNumMaskTextures() return #(self.masks or {}) end
 function Frame:GetMaskTexture(i) return (self.masks or {})[i] end
 function Frame:GetRegions()
@@ -532,7 +534,7 @@ local function InstallClient()
 		GetContainerNumSlots = function(bag) return containers[bag] and #containers[bag] or 0 end,
 		GetContainerItemInfo = function(bag, slot)
 			local i = containers[bag] and containers[bag][slot]
-			if i then return { itemID = i[1], stackCount = i[2], hyperlink = i[3] } end
+			if i then return { itemID = i[1], stackCount = i[2], hyperlink = i[3], quality = i[4] } end
 		end,
 	}
 	local tooltipCalls = {}
@@ -755,6 +757,67 @@ local function InstallClient()
 	}
 	function QuestLogPushQuest(index) table.insert(log.pushed, questLog[index].questID) end
 	function IsInGroup() return group.kind ~= nil end
+	-- Helpers: merchants, looting, NPC chat, errors, combat, reminders, gathering.
+	function IsInRaid() return group.kind == "raid" end
+	function GetNumGroupMembers() return #group.units end
+	function GetNumSubgroupMembers() local n = 0 for _, u in ipairs(group.units) do if u:find("^party") then n = n + 1 end end return n end
+	function UnitGroupRolesAssigned(u) return (unitState[u] or {}).role or "NONE" end
+	function UnitIsDead(u) return (unitState[u] or {}).dead or false end
+	function UnitOnTaxi() return extra.taxi or false end
+	function UnitHasVehicleUI() return false end
+	function IsMounted() return extra.mounted or false end
+	function IsResting() return extra.resting or false end
+	function GetCVarBool(name) return cvars[name] == "1" end
+	function IsModifiedClick() return false end
+	function LootSlot(i) log.looted = log.looted or {}; table.insert(log.looted, i) end
+	function CanMerchantRepair() return extra.canRepair or false end
+	function GetRepairAllCost() return extra.repairCost or 0, (extra.repairCost or 0) > 0 end
+	function CanGuildBankRepair() return extra.guildRepair or false end
+	function RepairAllItems(guild) log.repaired = guild and "guild" or "own" end
+	function GetCoinTextureString(c) return c .. "c" end
+	function GetInventoryItemCount() return extra.ammoCount or 0 end
+	INVSLOT_AMMO = 0
+	-- Quest giver buttons (what auto quests would click).
+	function AcceptQuest() log.accepted = (log.accepted or 0) + 1 end
+	function CompleteQuest() log.completed = (log.completed or 0) + 1 end
+	function GetQuestReward(choice) log.rewardTaken = choice end
+	function IsQuestCompletable() return extra.completable or false end
+	function GetNumQuestChoices() return #(extra.choices or {}) end
+	function GetQuestMoneyToGet() return extra.questCost or 0 end
+	function GetQuestItemInfo(_, i) return "Choice", 1, extra.choices[i].count or 1 end
+	function GetQuestItemLink(_, i) return extra.choices[i].id end
+	function QuestGetAutoAccept() return false end
+	function QuestFlagsPVP() return extra.pvpQuest or false end
+	function GetNumActiveQuests() return 0 end
+	function GetNumAvailableQuests() return 0 end
+	C_GossipInfo = {
+		GetOptions = function() return extra.gossipOptions or {} end,
+		GetNumAvailableQuests = function() return #(extra.gossipAvailable or {}) end,
+		GetNumActiveQuests = function() return #(extra.gossipActive or {}) end,
+		GetAvailableQuests = function() return extra.gossipAvailable or {} end,
+		GetActiveQuests = function() return extra.gossipActive or {} end,
+		SelectOptionByIndex = function(i) log.gossipPicked = i end,
+		SelectAvailableQuest = function(id) log.questPicked = "available " .. id end,
+		SelectActiveQuest = function(id) log.questPicked = "active " .. id end,
+		ForceGossip = function() return false end,
+	}
+	C_SpellBook = { IsSpellKnown = function(id) return extra.known and extra.known[id] or false end }
+	C_Spell = { GetSpellName = function(id) return "Spell " .. id end }
+	C_Minimap = {
+		GetNumTrackingTypes = function() return #(extra.tracking or {}) end,
+		GetTrackingInfo = function(i) return extra.tracking[i] end,
+	}
+	C_SkillInfo = {
+		GetNumSkillLines = function() return #(extra.skills or {}) end,
+		GetSkillLineInfo = function(i) return extra.skills[i] end,
+	}
+	C_UnitAuras.GetAuraDataBySpellName = function(unit, name)
+		for _, a in ipairs(auraState[unit] or {}) do if a.name == name then return a end end
+	end
+	C_Item.GetItemInfo = function(id) return "Item", nil, 0, 1, 1, "", "", 1, "", 0, extra.sellPrice and extra.sellPrice[id] or 0 end
+	C_Container.UseContainerItem = function(bag, slot) log.used = log.used or {}; table.insert(log.used, bag .. ":" .. slot) end
+	LE_GAME_ERR_OUT_OF_MANA, LE_GAME_ERR_OUT_OF_RANGE = 51, 52
+	function UIErrorsFrame:SetMessageTypeEnabled(kind, on) self.typeOn = self.typeOn or {}; self.typeOn[kind] = on end
 	-- Profile strings: a tiny stand-in for CBOR/compress/base64 that round-trips Lua tables.
 	local function Ser(v)
 		if type(v) == "table" then
@@ -829,7 +892,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap", "StzxUI_Skins" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap", "StzxUI_Skins", "StzxUI_Helpers" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -1191,6 +1254,8 @@ log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_RUNS:SetValue(false)
 log.settings.STZXUI_SECTION_FISHING:SetValue(false)
 log.settings.STZXUI_SECTION_BLIZZARDFRAMES:SetValue(false)
+log.settings.STZXUI_SECTION_COMBAT:SetValue(false)
+log.settings.STZXUI_SECTION_REMINDERS:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -3227,6 +3292,224 @@ check(StzxUI.moveMode, "...and it has a Move mode button")
 StzxUI:ExitMoveMode()
 StzxUI:OpenBlizzardSettings()
 check(log.opened ~= nil, "Blizzard's panel still opens on StzxUI")
+
+---------------------------------------------------------------------------
+-- 34. Helpers: merchants, looting, NPC chat, errors
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB = nil
+	StartGame(nil)
+	local H = StzxUI:GetModule("Helpers")
+	check(H.enabled and Category("Helpers"), "Helpers section and options page")
+	-- Grey items sold when a merchant opens, with a line saying so.
+	containers[0] = { { 111, 2, "[Grey]", 0 }, { 222, 1, "[Green]", 2 }, { 333, 1, "[Worthless]", 0 } }
+	extra.sellPrice = { [111] = 50, [222] = 500 }
+	log.prints = {}
+	Fire("MERCHANT_SHOW")
+	TickAll(tickers)
+	check(log.used and #log.used == 1 and log.used[1] == "0:1", "sells greys (only greys worth something)")
+	check(lastPrint():find("sold 1 grey item for 100c", 1, true), "...and says what it got")
+	Fire("MERCHANT_CLOSED")
+	containers[0], extra.sellPrice = nil, nil
+	-- Repair: your gold, or the guild's.
+	extra.canRepair, extra.repairCost, money = true, 500, 1000
+	Fire("MERCHANT_SHOW")
+	check(log.repaired == "own" and lastPrint():find("repaired for 500c", 1, true), "repairs, and says what it cost")
+	log.repaired = nil
+	H.db.repairGuild, extra.guildRepair = true, true
+	Fire("MERCHANT_SHOW")
+	check(log.repaired == "guild", "...with guild funds first when allowed")
+	log.repaired = nil
+	H.db.repairGuild, extra.guildRepair, money = false, false, 100
+	Fire("MERCHANT_SHOW")
+	check(log.repaired == nil and lastPrint():find("not enough gold", 1, true), "...not when you can't afford it")
+	extra.canRepair, extra.repairCost, money = nil, nil, 0
+	Fire("MERCHANT_CLOSED")
+	-- Faster looting (auto loot on).
+	cvars.autoLootDefault = "1"
+	lootWindow = { 1, 2, 3 }
+	Fire("LOOT_READY")
+	check(log.looted and #log.looted == 3, "faster looting: every slot taken at once")
+	cvars.autoLootDefault, lootWindow, log.looted = nil, {}, nil
+	now = now + 1
+	Fire("LOOT_READY")
+	check(log.looted == nil, "...only with auto loot on")
+	-- One chat option, no quests: straight to it; Shift shows the chat.
+	extra.gossipOptions = { { orderIndex = 1, name = "Show me where I can fly." } }
+	Fire("GOSSIP_SHOW")
+	check(log.gossipPicked == 1, "one-option NPC chat skipped")
+	log.gossipPicked = nil
+	shiftDown = true; Fire("GOSSIP_SHOW"); shiftDown = false
+	check(log.gossipPicked == nil, "...not with Shift held")
+	extra.gossipOptions = { { orderIndex = 1 }, { orderIndex = 2 } }
+	Fire("GOSSIP_SHOW")
+	check(log.gossipPicked == nil, "...not with two options")
+	extra.gossipOptions = nil
+	-- Quieter errors.
+	check(UIErrorsFrame.typeOn[LE_GAME_ERR_OUT_OF_MANA] == false, "\"Not enough mana\" and friends hidden")
+	log.settings.STZXUI_HELPERS_ERRORFILTER:SetValue(false)
+	check(UIErrorsFrame.typeOn[LE_GAME_ERR_OUT_OF_MANA] == true, "...and back when switched off")
+end)()
+
+---------------------------------------------------------------------------
+-- 35. Combat: timer, pet reminder, healers' mana
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB = nil
+	unitState.player.class = "WARLOCK"
+	StartGame(nil)
+	local C = StzxUI:GetModule("Combat")
+	inCombat = true; Fire("PLAYER_REGEN_DISABLED")
+	check(StzxUICombatTimer.shown, "combat timer shows when a fight starts")
+	now = now + 65
+	Script(StzxUICombatTimer, "OnUpdate", 1)
+	check(StzxUICombatTimer.text.text == "1:05", "...counting the fight")
+	inCombat = false; Fire("PLAYER_REGEN_ENABLED")
+	now = now + 10
+	Script(StzxUICombatTimer, "OnUpdate", 1)
+	check(StzxUICombatTimer.shown and StzxUICombatTimer.text.text == "1:05", "...keeps the fight's length after it")
+	RunAfters()
+	check(not StzxUICombatTimer.shown, "...then goes")
+	check(C.TimerText(3725) == "1:02:05", "long fights in hours")
+	-- Pet reminder: warlock, no pet, out of combat.
+	TickAll(tickers)
+	check(StzxUIPetReminder.shown and StzxUIPetReminder.text.text == "Your pet is missing", "pet missing: reminder")
+	unitState.pet = { hp = 100, hpMax = 100 }
+	Fire("UNIT_PET", "player")
+	check(not StzxUIPetReminder.shown, "...gone when the pet is out")
+	unitState.pet.dead = true; TickAll(tickers)
+	check(StzxUIPetReminder.text.text == "Your pet is dead", "...and says when it's dead")
+	unitState.pet = nil
+	extra.mounted = true; TickAll(tickers)
+	check(not StzxUIPetReminder.shown, "...not while mounted")
+	extra.mounted, extra.resting = nil, true; TickAll(tickers)
+	check(not StzxUIPetReminder.shown, "...not in towns (unless you ask)")
+	extra.resting = nil
+	-- Healers' mana: the marked healer.
+	group.kind, group.units = "party", { "party1", "party2" }
+	units.party1 = { name = "Liala", surname = "Brightwood" }
+	unitState.party1 = { class = "PRIEST", role = "HEALER", power = 50, powerMax = 100 }
+	unitState.party2 = { class = "MAGE", power = 10, powerMax = 100 }
+	Fire("GROUP_ROSTER_UPDATE")
+	check(StzxUIHealerMana.shown and StzxUIHealerMana.rows[1].mana.text == "50%" and not StzxUIHealerMana.rows[2].shown,
+		"healers' mana: the group's healer and their mana")
+	unitState.party1.role = nil
+	unitState.party2.class = "DRUID"
+	Fire("GROUP_ROSTER_UPDATE")
+	check(#C.Healers() == 2, "nobody marked: the classes that can heal")
+	group.kind, group.units, unitState.party1, unitState.party2, units.party1 = nil, {}, nil, nil, nil
+	Fire("GROUP_ROSTER_UPDATE")
+	check(not StzxUIHealerMana.shown, "...gone out of a group")
+	unitState.player.class = "SHAMAN"
+end)()
+
+---------------------------------------------------------------------------
+-- 36. Reminders
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB = nil
+	unitState.player.class = "MAGE"
+	extra.known = { [1459] = true, [2383] = true }
+	extra.tracking = { { name = "Find Herbs", spellID = 2383, active = false } }
+	auraState.player = { { auraInstanceID = 90, name = "Well Fed", duration = 1800, expirationTime = now + 70, icon = 1 } }
+	StartGame(nil)
+	local R = StzxUI:GetModule("Reminders")
+	local text = table.concat(R.Lines(), " | ")
+	check(text:find("Arcane Intellect is missing", 1, true), "reminder: a buff you know but don't have on")
+	check(text:find("Well Fed runs out in 1m", 1, true), "...food running out")
+	check(text:find("No herb or mineral tracking on", 1, true), "...gathering tracking off")
+	check(StzxUIReminders.shown and StzxUIReminders.lines[1].text ~= nil, "shown in a small list")
+	table.insert(auraState.player, { auraInstanceID = 91, name = "Spell 1459", duration = 1800, expirationTime = now + 1700 })
+	extra.tracking[1].active = true
+	text = table.concat(R.Lines(), " | ")
+	check(not text:find("Arcane", 1, true) and not text:find("tracking", 1, true), "...gone once it's on")
+	inCombat = true
+	check(#R.Lines() == 0, "nothing in a fight")
+	inCombat = false
+	extra.resting = true
+	check(#R.Lines() == 0, "nothing in towns (unless you ask)")
+	extra.resting, extra.known, extra.tracking, auraState.player = nil, nil, nil, nil
+	unitState.player.class = "SHAMAN"
+end)()
+
+---------------------------------------------------------------------------
+-- 37. Quest helpers, gathering skill, mail to your alts
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB = nil
+	StartGame(nil)
+	local Q = StzxUI:GetModule("Quests")
+	Fire("QUEST_DETAIL")
+	check(log.accepted == 1, "quest accepted automatically")
+	shiftDown = true; Fire("QUEST_DETAIL"); shiftDown = false
+	check(log.accepted == 1, "...not with Shift held")
+	extra.pvpQuest = true; Fire("QUEST_DETAIL"); extra.pvpQuest = nil
+	check(log.accepted == 1, "...never a PvP-flagging quest")
+	extra.completable = true; Fire("QUEST_PROGRESS"); extra.completable = nil
+	check(log.completed == 1, "finished quest completed automatically")
+	extra.choices = { { id = 101 }, { id = 102, count = 2 } }
+	Fire("QUEST_COMPLETE")
+	check(log.rewardTaken == nil, "...but never picks between reward choices")
+	extra.choices = { { id = 101 } }
+	Fire("QUEST_COMPLETE")
+	check(log.rewardTaken == 1, "...takes the reward when there's no choice")
+	log.rewardTaken = nil
+	extra.questCost = 500; Fire("QUEST_COMPLETE"); extra.questCost = nil
+	check(log.rewardTaken == nil, "...never pays gold to hand in")
+	extra.gossipActive = { { questID = 5, isComplete = true } }
+	Fire("GOSSIP_SHOW")
+	check(log.questPicked == "active 5" and log.gossipPicked == nil, "NPC chat: a finished quest is handed in first")
+	extra.gossipActive, extra.gossipAvailable = nil, { { questID = 9, isTrivial = true }, { questID = 7 } }
+	Fire("GOSSIP_SHOW")
+	check(log.questPicked == "available 7", "...then a new quest is taken (not grey ones)")
+	extra.gossipAvailable = nil
+	-- Reward choices: what each sells for, the best with a coin.
+	extra.choices = { { id = 101 }, { id = 102, count = 2 } }
+	extra.sellPrice = { [101] = 100, [102] = 80 }
+	QuestFrame.shown = true
+	QuestInfoFrame.rewardsFrame = NewFrame("Frame", "QuestInfoRewardsFrame", QuestInfoFrame)
+	QuestInfoFrame.rewardsFrame.RewardButtons = {}
+	for i = 1, 2 do
+		local b = NewFrame("Button", nil, QuestInfoFrame.rewardsFrame)
+		b.type = "choice"; b:SetID(i)
+		QuestInfoFrame.rewardsFrame.RewardButtons[i] = b
+	end
+	QuestInfo_Display()
+	local function Marks(button)
+		local price, coin
+		for _, f in ipairs(button.childList) do
+			if f.kind == "FontString" and f.shown ~= false then price = f.text end
+			if f.kind == "Texture" and f.texture == "Interface\\MoneyFrame\\UI-GoldIcon" then coin = f.shown ~= false end
+		end
+		return price, coin
+	end
+	local p1, c1 = Marks(QuestInfoFrame.rewardsFrame.RewardButtons[1])
+	local p2, c2 = Marks(QuestInfoFrame.rewardsFrame.RewardButtons[2])
+	check(p1 == "100c" and p2 == "160c" and c2 and not c1, "reward choices show their vendor price; the best gets a coin")
+	QuestFrame.shown = false
+	extra.choices, extra.sellPrice = nil, nil
+	check(Q.db.autoAccept and Q.db.rewardValue, "quest helpers on by default, each with a switch")
+	-- Gathering skill on tooltips.
+	local T = StzxUI:GetModule("Tooltip")
+	extra.skills = { { skillID = 186, rank = 130 } }
+	GameTooltip.lines = {}
+	T.OnObject(GameTooltip, { lines = { { leftText = "Iron Deposit" } } })
+	check(GameTooltip.lines[#GameTooltip.lines] == "Requires Mining 125" and GameTooltip.lastLineColour[2] == 0.5,
+		"ore vein: the skill it needs, orange (5 above it)")
+	GameTooltip.lines = {}
+	T.OnObject(GameTooltip, { lines = { { leftText = "Black Lotus" } } })
+	check(GameTooltip.lines[1] == "Requires Herbalism 300" and GameTooltip.lastLineColour[1] == 0.8, "herb: needs a skill you don't have")
+	check(T.SkinningNeeded(15) == 50 and T.SkinningNeeded(25) == 125 and T.SkinningNeeded(5) == 1, "skinning skill by level")
+	extra.skills = nil
+	-- Mail: your alts of the same faction, from the shared character list.
+	StzxUIDB.characters["Alt Twoname"] = { class = "MAGE", faction = "Alliance" }
+	StzxUIDB.characters["Grim Hordeling"] = { class = "WARRIOR", faction = "Horde" }
+	Script(SendMailFrame, "OnShow")
+	local names = {}
+	for _, b in ipairs(StzxUIMailNames.buttons) do if b.shown ~= false then names[#names + 1] = b.name end end
+	names = table.concat(names, ",")
+	check(names:find("Alt Twoname", 1, true) and not names:find("Grim Hordeling", 1, true), "mail list: your same-faction alts")
+end)()
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))
 os.exit(failures == 0 and 0 or 1)

@@ -16,6 +16,7 @@ move-folders:
   StzxUI/StzxUI_Inventory: StzxUI_Inventory
   StzxUI/StzxUI_Minimap: StzxUI_Minimap
   StzxUI/StzxUI_Skins: StzxUI_Skins
+  StzxUI/StzxUI_Helpers: StzxUI_Helpers
 
 ignore:
   - docs

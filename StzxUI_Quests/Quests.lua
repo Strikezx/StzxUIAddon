@@ -4,6 +4,8 @@
 --     in the quest giver's window and on the quest log's detail page.
 --   * Quest item sparkles: keeps the game's loot sparkle on quest items
 --     switched on, even after a graphics preset turns it off.
+--   * Quest helpers (QuestHelpers.lua): accept and hand in quests
+--     automatically (Shift pauses), and reward choices' vendor prices.
 --
 -- Which quests are new? Every original Classic quest has an ID of 9665 or
 -- lower. Forever's own quests use later IDs (its new Scholomance quests, for
@@ -23,9 +25,14 @@ local Quests = StzxUI:NewModule("Quests", ADDON_NAME, {
 	tintHeight = 70,      -- % of the page the glow reaches up
 	sparkles = true,
 	partyStatus = true,   -- party panel beside the open quest
+	autoAccept = true,    -- accept offered quests (Shift: pause)    (QuestHelpers.lua)
+	autoTurnIn = true,    -- hand in finished quests (Shift: pause)
+	skipTrivial = true,   -- ...but not grey quests
+	rewardValue = true,   -- vendor price on reward choices
 }, {
 	title = "Quests",
-	description = "Tints quests that are new to WoW: Forever; keeps quest items sparkling; shows who in your party is on a quest.",
+	description = "Tints quests that are new to WoW: Forever; accepts and hands in quests; shows reward values; "
+		.. "keeps quest items sparkling; shows who in your party is on a quest.",
 })
 ns.Quests = Quests
 
@@ -166,6 +173,7 @@ function Quests:OnInitialize()
 		10, 90, 5, function(v) return v .. "%" end, Repaint)
 	StzxUI:AddSlider(page, self, "tintHeight", "Height", "How far up the page the glow reaches.",
 		20, 100, 5, function(v) return v .. "%" end, Repaint)
+	ns.QuestHelpers.Settings(page, self)
 	StzxUI:AddHeader(page, "Party quest status")
 	StzxUI:AddCheckbox(page, self, "partyStatus", "Show who in my party is on a quest",
 		"A small panel beside the quest giver's window and the quest log's detail page, while you're in a party. "
@@ -180,6 +188,7 @@ end
 function Quests:OnEnable()
 	SetUpTint()
 	ns.PartyQuests.SetUp()
+	ns.QuestHelpers.Enable(self)
 	KeepSparkles()
 	local events = CreateFrame("Frame")
 	for _, event in ipairs({ "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "CVAR_UPDATE" }) do

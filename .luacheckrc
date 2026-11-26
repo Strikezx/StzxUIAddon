@@ -25,6 +25,15 @@ globals = {
 -- Game globals StzxUI reads (add new ones here as modules grow)
 read_globals = {
 	-- Lua / client helpers
+	"C_GossipInfo", "C_Minimap", "C_SkillInfo", "C_Spell", "C_SpellBook", "CanGuildBankRepair", "CanMerchantRepair",
+	"GetCVarBool", "GetCoinTextureString", "GetInventoryItemCount", "GetItemInfo", "GetNumGroupMembers",
+	"GetNumSubgroupMembers", "GetRepairAllCost", "INVSLOT_AMMO", "IsInRaid", "IsModifiedClick", "IsMounted", "IsResting",
+	"LootSlot", "RepairAllItems", "UnitGroupRolesAssigned", "UnitHasVehicleUI", "UnitIsDead", "UnitOnTaxi",
+	"UnitPowerPercent",
+	"AcceptQuest", "CompleteQuest", "GetActiveTitle", "GetAvailableQuestInfo", "GetNumActiveQuests",
+	"GetNumAvailableQuests", "GetNumQuestChoices", "GetQuestItemInfo", "GetQuestItemLink", "GetQuestMoneyToGet",
+	"GetQuestReward", "IsQuestCompletable", "QuestFlagsPVP", "QuestGetAutoAccept", "QuestInfoFrame",
+	"SelectActiveQuest", "SelectAvailableQuest",
 	"issecretvalue", "AuraUtil", "UnitFactionGroup", "GetBindLocation", "GetXPExhaustion", "GetInventoryItemDurability",
 	"UpdateAddOnMemoryUsage", "GetAddOnMemoryUsage",
 	-- Frames and events

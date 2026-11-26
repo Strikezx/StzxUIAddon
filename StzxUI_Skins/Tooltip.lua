@@ -10,6 +10,7 @@
 --     from addons in a fight)
 --   * Item level on gear
 --   * Item and spell IDs (handy for setting things up; off by default)
+--   * Gathering: the skill a herb, ore vein or skinnable corpse needs (Gathering.lua)
 --   * Tooltip at the mouse instead of the corner (off by default)
 --
 -- Safe: Blizzard's tooltip art is only made invisible (it shows and hides
@@ -28,6 +29,7 @@ local Tooltip = StzxUI:NewModule("Tooltip", ADDON_NAME, {
 	showTarget = true,
 	showItemLevel = false,
 	showIDs = false,
+	gathering = true,     -- skill needed for herbs, ore and skinning (Gathering.lua)
 	atCursor = false,
 }, {
 	title = "Tooltip",
@@ -126,6 +128,7 @@ local function OnUnit(tooltip)
 			tooltip:AddLine("Target: " .. text, c and c.r or 1, c and c.g or 1, c and c.b or 1)
 		end
 	end
+	if Tooltip.SkinningLine then Tooltip.SkinningLine(tooltip, unit) end
 end
 
 local function OnSpell(tooltip, data)
@@ -152,6 +155,9 @@ function Tooltip:OnInitialize()
 		"Out of combat only: the game hides names from addons in a fight.")
 	StzxUI:AddCheckbox(page, self, "showItemLevel", "Item level on gear", nil)
 	StzxUI:AddCheckbox(page, self, "showIDs", "Item and spell IDs", nil)
+	StzxUI:AddCheckbox(page, self, "gathering", "Gathering skill needed",
+		"Herbs, ore veins and skinnable corpses: the skill they need, coloured by yours (red: not yet, "
+		.. "grey: no more skill-ups). Out of combat.")
 end
 
 function Tooltip:OnEnable()
@@ -181,5 +187,6 @@ function Tooltip:OnEnable()
 		if T.Item then TooltipDataProcessor.AddTooltipPostCall(T.Item, OnItem) end
 		if T.Unit then TooltipDataProcessor.AddTooltipPostCall(T.Unit, OnUnit) end
 		if T.Spell then TooltipDataProcessor.AddTooltipPostCall(T.Spell, OnSpell) end
+		if T.Object and Tooltip.OnObject then TooltipDataProcessor.AddTooltipPostCall(T.Object, Tooltip.OnObject) end
 	end
 end

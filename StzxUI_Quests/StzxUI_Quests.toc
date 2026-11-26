@@ -9,3 +9,4 @@
 
 Quests.lua
 PartyQuests.lua
+QuestHelpers.lua

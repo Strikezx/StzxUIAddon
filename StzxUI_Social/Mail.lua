@@ -63,15 +63,35 @@ function Mail.Forget(name)
 	end
 end
 
--- Your other characters, sorted by name.
+-- Your other characters you can mail (same faction), sorted by name. From
+-- StzxUI's character list (core, every character you log in on), plus any
+-- noted here before that list existed.
 function Mail.Alts()
 	local me = MyName()
-	local alts = {}
+	local faction = Plain(UnitFactionGroup("player"))
+	local seen, alts = {}, {}
+	local function Add(name)
+		local key = name:lower()
+		if seen[key] or (me and Same(name, me)) then return end
+		seen[key] = true
+		alts[#alts + 1] = name
+	end
+	for _, char in ipairs(StzxUI:Characters({ faction = faction })) do Add(char.name) end
+	local known = StzxUIDB and StzxUIDB.characters or {}
 	for name in pairs(Data().characters) do
-		if not (me and Same(name, me)) then alts[#alts + 1] = name end
+		local entry = known[name]
+		if not (entry and faction and entry.faction and entry.faction ~= faction) then Add(name) end
 	end
 	table.sort(alts)
 	return alts
+end
+
+-- A character's class colour, if StzxUI knows their class.
+local function ClassColour(name)
+	local entry = (StzxUIDB and StzxUIDB.characters and StzxUIDB.characters[name]) or Data().characters[name]
+	local colour = entry and entry.class and C_ClassColor and C_ClassColor.GetClassColor(entry.class)
+	if colour then return colour.r, colour.g, colour.b end
+	return 1, 1, 1
 end
 
 ---------------------------------------------------------------------------
@@ -157,6 +177,7 @@ function Mail.Refresh()
 		panel.buttons[used] = b
 		b.name, b.recent = name, isRecent
 		b.text:SetText(name)
+		if isRecent then b.text:SetTextColor(1, 1, 1) else b.text:SetTextColor(ClassColour(name)) end
 		b:ClearAllPoints()
 		b:SetPoint("TOPLEFT", 8, y)
 		b:Show()
