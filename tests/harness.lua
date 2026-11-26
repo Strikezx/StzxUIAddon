@@ -840,6 +840,19 @@ local function InstallClient()
 	C_Item.IsEquippedItem = function(id) return extra.equipped and extra.equipped[id] or false end
 	C_Item.GetItemNameByID = function(id) return "Item " .. id end
 	C_Item.GetItemIconByID = function(id) return id end
+	-- Spellbook: one skill line holding extra.spellbook = { { name, spellID, helpful, passive } }.
+	C_SpellBook.GetNumSpellBookSkillLines = function() return 1 end
+	C_SpellBook.GetSpellBookSkillLineInfo = function() return { itemIndexOffset = 0, numSpellBookItems = #(extra.spellbook or {}) } end
+	C_SpellBook.GetSpellBookItemInfo = function(i)
+		local sp = extra.spellbook[i]
+		return { name = sp.name, spellID = sp.spellID, isPassive = sp.passive or false, itemType = 1 }
+	end
+	C_Spell.IsSpellHelpful = function(id)
+		for _, sp in ipairs(extra.spellbook or {}) do if sp.spellID == id then return sp.helpful or false end end
+		return false
+	end
+	Enum.SpellBookSpellBank = { Player = 0, Pet = 1 }
+	Enum.SpellBookItemType = { None = 0, Spell = 1, FutureSpell = 2, PetAction = 3, Flyout = 4 }
 	C_Minimap = {
 		GetNumTrackingTypes = function() return #(extra.tracking or {}) end,
 		GetTrackingInfo = function(i) return extra.tracking[i] end,
@@ -1735,6 +1748,37 @@ check(not blizzard.CompactRaidFrameContainer:IsVisible() and blizzard.CompactRai
 	"Blizzard's raid frames hidden, its raid manager panel kept")
 check(RH:GetAttribute("groupBy") == "GROUP" and RH:GetAttribute("unitsPerColumn") == 5, "raid sorted by group, 5 per column")
 check(not RH[1].power.shown, "raid cells have no power bar by default")
+do -- Click-casting: a spell per click, on every party and raid button (secure attributes, out of combat).
+	extra.spellbook = { { name = "Flash Heal", spellID = 2061, helpful = true }, { name = "Smite", spellID = 585 },
+		{ name = "Power Word: Shield", spellID = 17, helpful = true }, { name = "Spirit Tap", spellID = 15270, helpful = true, passive = true } }
+	local choices
+	for _, page in ipairs(StzxUI.optionPages) do
+		for _, item in ipairs(page.items) do
+			if item.label == "Shift + left-click" then choices = item.choices() end
+		end
+	end
+	local spells = {}
+	for _, c in ipairs(choices or {}) do spells[#spells + 1] = c[2] end
+	check(table.concat(spells, ",") == "Nothing,Flash Heal,Power Word: Shield", "click-cast menus list your helpful spells (not attacks or passives)")
+	check(PH[1]:GetAttribute("shift-type1") == nil, "nothing bound by default: shift-click targets as before")
+	log.settings.STZXUI_GROUPCLICK_SHIFT1:SetValue("Flash Heal")
+	check(PH[2]:GetAttribute("shift-type1") == "spell" and PH[2]:GetAttribute("shift-spell1") == "Flash Heal"
+		and RH[12]:GetAttribute("shift-spell1") == "Flash Heal", "shift + left-click casts Flash Heal on party and raid")
+	check(PH[2]:GetAttribute("*type1") == "target" or PH[1].configCode:find("'*type1', 'target'", 1, true),
+		"...plain left-click still targets")
+	check(PH:GetAttribute("initialConfigFunction"):find('"shift-spell1", "Flash Heal"', 1, true),
+		"...and buttons made later (even in a fight) get it too")
+	inCombat = true
+	log.settings.STZXUI_GROUPCLICK_MIDDLE:SetValue("Power Word: Shield")
+	check(PH[2]:GetAttribute("spell3") == nil, "changed in a fight: waits")
+	inCombat = false
+	Fire("PLAYER_REGEN_ENABLED")
+	check(PH[2]:GetAttribute("type3") == "spell" and PH[2]:GetAttribute("spell3") == "Power Word: Shield", "...and applies after it")
+	log.settings.STZXUI_GROUPCLICK_SHIFT1:SetValue("")
+	log.settings.STZXUI_GROUPCLICK_MIDDLE:SetValue("")
+	check(PH[2]:GetAttribute("shift-type1") == nil and PH[2]:GetAttribute("type3") == nil, "...and set back to nothing")
+	extra.spellbook = nil
+end
 
 StzxUIDB.profiles.Default.modules.GroupFrames.raid.enabled = false
 Reload()

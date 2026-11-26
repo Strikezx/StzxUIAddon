@@ -277,10 +277,40 @@ function ns.GroupAreaSize(kind, s)
 	return across * s.width + (across - 1) * s.spacing, down * s.height + (down - 1) * s.spacing
 end
 
+-- Click-casting (bindings chosen on the Party & Raid page): the secure
+-- attributes for each slot, e.g. shift-type1 = "spell", shift-spell1 = "Flash
+-- Heal". An empty slot clears them, so plain *type1 (target) applies again.
+function ns.ClickCastAttributes()
+	local list = {}
+	local db = ns.clickCastDB or {}
+	for _, slot in ipairs(ns.CLICK_SLOTS or {}) do
+		local spell = db[slot.key]
+		local typeKey, spellKey = slot.prefix .. "type" .. slot.button, slot.prefix .. "spell" .. slot.button
+		if spell and spell ~= "" then
+			list[#list + 1] = { typeKey, "spell" }
+			list[#list + 1] = { spellKey, spell }
+		else
+			list[#list + 1] = { typeKey, nil }
+			list[#list + 1] = { spellKey, nil }
+		end
+	end
+	return list
+end
+
+local function ApplyClickCast(button)
+	for _, pair in ipairs(ns.ClickCastAttributes()) do button:SetAttribute(pair[1], pair[2]) end
+	-- Buttons 3-5 need registering for clicks too.
+	button:RegisterForClicks("AnyUp")
+end
+
 -- Secure code run for each new button (also for any made later in combat).
 local function ConfigCode(s)
-	return ("self:SetWidth(%d) self:SetHeight(%d) self:SetAttribute('*type1', 'target') "
+	local code = ("self:SetWidth(%d) self:SetHeight(%d) self:SetAttribute('*type1', 'target') "
 		.. "self:SetAttribute('*type2', 'togglemenu')"):format(s.width, s.height)
+	for _, pair in ipairs(ns.ClickCastAttributes()) do
+		if pair[2] then code = code .. (" self:SetAttribute(%q, %q)"):format(pair[1], pair[2]) end
+	end
+	return code
 end
 
 local pending = {}
@@ -330,6 +360,7 @@ local function ApplyLayout(header)
 	while header[i] do
 		local button = header[i]
 		button:SetSize(s.width, s.height)
+		ApplyClickCast(button)
 		button.dims.width = s.width
 		LayoutButton(button)
 		if button.unit then UpdateButton(button) end
@@ -618,6 +649,11 @@ driver:SetScript("OnUpdate", function(_, elapsed)
 end)
 
 -- For the options page: redraw after a setting changes.
+-- Click-casting changed: every button now (or when the fight ends).
+function ns.RefreshClickCast()
+	for _, header in pairs(headers) do ApplyLayout(header) end
+end
+
 function ns.RefreshGroups()
 	for _, header in pairs(headers) do ApplyLayout(header) end
 end

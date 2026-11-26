@@ -42,13 +42,32 @@ local RAID_DEFAULTS = {
 	powerText = false,
 }
 
+-- Click-casting: which spell a mouse button (with a modifier) casts on the
+-- member you click. Plain left-click still targets, plain right-click opens
+-- the menu. Each slot holds a spell name ("" for nothing).
+local CLICK_SLOTS = {
+	{ key = "shift1", label = "Shift + left-click", prefix = "shift-", button = 1 },
+	{ key = "ctrl1", label = "Ctrl + left-click", prefix = "ctrl-", button = 1 },
+	{ key = "alt1", label = "Alt + left-click", prefix = "alt-", button = 1 },
+	{ key = "shift2", label = "Shift + right-click", prefix = "shift-", button = 2 },
+	{ key = "ctrl2", label = "Ctrl + right-click", prefix = "ctrl-", button = 2 },
+	{ key = "alt2", label = "Alt + right-click", prefix = "alt-", button = 2 },
+	{ key = "middle", label = "Middle click", prefix = "", button = 3 },
+	{ key = "button4", label = "Mouse button 4", prefix = "", button = 4 },
+	{ key = "button5", label = "Mouse button 5", prefix = "", button = 5 },
+}
+local CLICK_DEFAULTS = {}
+for _, slot in ipairs(CLICK_SLOTS) do CLICK_DEFAULTS[slot.key] = "" end
+ns.CLICK_SLOTS = CLICK_SLOTS
+
 local GroupFrames = StzxUI:NewModule("GroupFrames", ADDON_NAME, {
 	hideBlizzard = true,
 	party = PARTY_DEFAULTS,
 	raid = RAID_DEFAULTS,
+	clickCast = CLICK_DEFAULTS,
 }, {
 	title = "Party & Raid",
-	description = "StzxUI's party and raid frames: health, debuffs, range fading and click to target.",
+	description = "StzxUI's party and raid frames: health, debuffs, range fading, click to target and click-casting.",
 })
 
 local HEALTH_TEXTS = {
@@ -60,6 +79,29 @@ local HEALTH_TEXTS = {
 local COLOURS = { { "CLASS", "Class colour" }, { "GREEN", "Green" } }
 
 local function Refresh() ns.RefreshGroups() end
+
+-- The character's helpful spells (from the spellbook), for the click-casting menus.
+function ns.HelpfulSpells()
+	local names, seen = {}, {}
+	local book = C_SpellBook
+	if book and book.GetNumSpellBookSkillLines and Enum and Enum.SpellBookSpellBank then
+		for line = 1, book.GetNumSpellBookSkillLines() do
+			local info = book.GetSpellBookSkillLineInfo(line)
+			if info and not info.isGuild and not info.shouldHide then
+				for slot = info.itemIndexOffset + 1, info.itemIndexOffset + info.numSpellBookItems do
+					local item = book.GetSpellBookItemInfo(slot, Enum.SpellBookSpellBank.Player)
+					if item and item.spellID and not item.isPassive and item.itemType == Enum.SpellBookItemType.Spell
+						and C_Spell.IsSpellHelpful(item.spellID) and not seen[item.name] then
+						seen[item.name] = true
+						names[#names + 1] = item.name
+					end
+				end
+			end
+		end
+	end
+	table.sort(names)
+	return names
+end
 local function NeedsReload() StzxUI:AskReload("This change takes effect after a reload.") end
 
 ---------------------------------------------------------------------------
@@ -111,6 +153,26 @@ function GroupFrames:OnInitialize()
 	StzxUI:AddCheckbox(page, raid, "groupsAcross", "Groups side by side",
 		"On: each group is a column. Off: each group is a row.", Refresh)
 	AddCommonOptions(page, raid)
+
+	ns.clickCastDB = self.db.clickCast
+	local click = { name = "GroupClick", db = self.db.clickCast, defaults = CLICK_DEFAULTS }
+	StzxUI:AddHeader(page, "Click-casting",
+		"Pick a spell for a click and it's cast on the party or raid member you click, in fights too. "
+		.. "Plain left-click still targets and plain right-click opens the menu. Spells come from your spellbook.")
+	for _, slot in ipairs(CLICK_SLOTS) do
+		local function Choices()
+			local list = { { "", "Nothing" } }
+			local current = self.db.clickCast[slot.key]
+			local found = current == ""
+			for _, name in ipairs(ns.HelpfulSpells()) do
+				list[#list + 1] = { name, name }
+				if name == current then found = true end
+			end
+			if not found then list[#list + 1] = { current, current } end -- a spell set on another character
+			return list
+		end
+		StzxUI:AddDropdown(page, click, slot.key, slot.label, nil, Choices, function() ns.RefreshClickCast() end)
+	end
 end
 
 ---------------------------------------------------------------------------

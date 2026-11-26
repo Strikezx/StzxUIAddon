@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Party & Raid: click-casting. On the Party & Raid page, pick a spell for Shift/Ctrl/Alt + left- or right-click, middle click and mouse buttons 4 and 5; it's cast on the member you click, in fights too. The menus list your helpful spells from the spellbook. Plain left-click still targets and plain right-click still opens the menu. Set with Blizzard's secure attributes on every party and raid button (and in the header's set-up code, so buttons made in a fight get them too); changes made in a fight apply when it ends.
 - Rare Alerts (new section, in the Helpers folder): a warning in the middle of the screen, a sound and a chat line when a rare or rare elite's nameplate appears, or when the game marks a rare or treasure on the minimap (Blizzard's vignettes, if Forever uses them). Once each, again after 5 minutes; dead rares skipped. Separate switches for rares, treasures and the sound.
 - Fishing: easy cast. While you hold a fishing pole and aren't in a fight, double right-click the world to cast Fishing; a single right-click still loots the bobber. (For one click StzxUI binds right-click to a secure button that casts Fishing, then takes the binding off.) Option "Double right-click to cast" (on).
 - Info: a layer readout (off by default): which server layer you're on, read from the IDs of creatures you target, mouse over or see nameplates of; the tooltip shows where it was read and the layer before. Reset on a new zone; "instance" inside dungeons. Showing only.
