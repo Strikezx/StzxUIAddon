@@ -18,7 +18,9 @@ local Welcome = StzxUI:NewModule("Welcome", ADDON_NAME, {
 	description = "The StzxUI splash screen at login, and /stzx splash any time.",
 })
 
-local ART = "Interface\\AddOns\\StzxUI\\Media\\welcome-2048"
+-- PNG files need their ".png" written out (the game finds .tga and .blp
+-- without it, but not .png).
+local ART = "Interface\\AddOns\\StzxUI\\Media\\welcome-2048.png"
 
 local splash
 
@@ -73,11 +75,21 @@ function Welcome:OnInitialize()
 		"Opens the welcome screen right now. /stzx splash does the same.")
 end
 
+-- At login only, not after a /reload (StzxUI asks for reloads when you
+-- switch accent, profile or sections, and the splash every time would wear thin).
+function Welcome.OnEnteringWorld(isInitialLogin)
+	if not (isInitialLogin and Welcome.db.showOnLogin) then return end
+	-- Give the UI a moment to settle before covering it.
+	C_Timer.After(1, Show)
+end
+
 function Welcome:OnEnable()
-	if self.db.showOnLogin then
-		-- Give the UI a moment to settle before covering it.
-		C_Timer.After(1, Show)
-	end
+	local events = CreateFrame("Frame")
+	events:RegisterEvent("PLAYER_ENTERING_WORLD")
+	events:SetScript("OnEvent", function(frame, _, isInitialLogin)
+		frame:UnregisterEvent("PLAYER_ENTERING_WORLD") -- only the first one after loading counts
+		Welcome.OnEnteringWorld(isInitialLogin)
+	end)
 end
 
 ---------------------------------------------------------------------------
