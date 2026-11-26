@@ -5,12 +5,18 @@
 --   | [search.......] |  Unit Frames                                |
 --   |  General        |  Player                                     |
 --   |  Sections       |  [x] Show the player frame                  |
---   |  Social         |  Portrait ............. [ Class icon v ]    |
---   |  Unit Frames  < |  Buff and debuff size  [-----o----] 24 px   |
---   |  ...            |  ...                                        |
+--   | - Frames        |  Portrait ............. [ Class icon v ]    |
+--   |    Unit Frames <|  Buff and debuff size  [-----o----] 24 px   |
+--   |    ...          |  ...                                        |
+--   | + Look          |                                             |
+--   | + Gameplay      |                                             |
+--   | + History       |                                             |
 --   |  Profiles       |                                             |
 --   | [Move] [Test]   |                                             |
 --   +--------------------------------------------------------------+
+--
+-- The sections' pages sit in folders (FOLDERS below); one folder is open at
+-- a time, and the folder of the page you're on opens by itself.
 --
 -- It draws itself from StzxUI.optionPages (filled in by the Settings.lua
 -- helpers) and writes through the very same settings as Blizzard's panel,
@@ -26,11 +32,34 @@ local CONTROL_X = 300 -- where controls start inside the page
 
 local window
 local current -- the page entry shown, or nil while searching
+local openFolder -- the sidebar folder that's open
 local pools = {}
 
 ---------------------------------------------------------------------------
 -- Pages in sidebar order: General, Sections, the modules, Profiles
 ---------------------------------------------------------------------------
+
+-- Sidebar folders, in order, and the pages in each (by page title). A page
+-- no folder names goes in "More" (shown only when something is in it).
+local FOLDERS = {
+	{ name = "Frames", pages = { "Unit Frames", "Party & Raid", "Nameplates", "Action Bars", "Minimap", "Blizzard Frames" } },
+	{ name = "Look", pages = { "Skins", "Tooltip", "Info" } },
+	{ name = "Gameplay", pages = { "Quests", "Helpers", "Combat", "Reminders", "Social" } },
+	{ name = "History", pages = { "Runs", "Fishing", "Battlegrounds", "Inventory" } },
+}
+local OTHER = "More"
+StzxUI.OPTION_FOLDERS = FOLDERS
+
+-- Which folder a page sits in (nil for General, Sections and Profiles).
+function StzxUI:OptionFolderOf(title)
+	if title == "General" or title == "Sections" or title == "Profiles" then return nil end
+	for _, folder in ipairs(FOLDERS) do
+		for _, page in ipairs(folder.pages) do
+			if page == title then return folder.name end
+		end
+	end
+	return OTHER
+end
 
 function StzxUI:OptionPagesInOrder()
 	local first, middle, last = {}, {}, {}
@@ -287,11 +316,53 @@ function StzxUI:RefreshOptionsWindow()
 	end
 end
 
+-- Lay out the sidebar: top pages, each folder (its pages under it when open), Profiles.
+local SIDE_TOP, SIDE_STEP, INDENT = -76, 26, 16
+local function LayoutSidebar()
+	if not window then return end
+	local y = SIDE_TOP
+	local function Put(button, indent)
+		button:ClearAllPoints()
+		button:SetPoint("TOPLEFT", 6 + (indent or 0), y)
+		button:SetWidth(SIDEBAR - 12 - (indent or 0))
+		button:Show()
+		y = y - SIDE_STEP
+	end
+	for _, b in ipairs(window.tabs) do b:Hide() end
+	for _, b in ipairs(window.tabs) do
+		if not b.folder and b.entry.title ~= "Profiles" then Put(b) end
+	end
+	for _, folder in ipairs(window.folders) do
+		if #folder.pages > 0 then
+			local open = folder.name == openFolder
+			folder.button.sign:SetTexture(open and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
+			Put(folder.button)
+			if open then
+				for _, b in ipairs(folder.pages) do Put(b, INDENT) end
+			end
+		else
+			folder.button:Hide()
+		end
+	end
+	for _, b in ipairs(window.tabs) do
+		if b.entry.title == "Profiles" then Put(b) end
+	end
+end
+
+-- Open one folder (and close the others); the open one again closes it.
+function StzxUI:ToggleOptionFolder(name)
+	openFolder = (openFolder ~= name) and name or nil
+	LayoutSidebar()
+end
+
 function StzxUI:ShowOptionsPage(title)
 	if not window then return end
 	for _, entry in ipairs(self:OptionPagesInOrder()) do
 		if entry.title == title then current = entry end
 	end
+	local folder = current and self:OptionFolderOf(current.title)
+	if folder then openFolder = folder end -- the page's folder stays open
+	LayoutSidebar()
 	window.search:SetText("")
 	self:RefreshOptionsWindow()
 end
@@ -352,25 +423,67 @@ local function Build()
 	hint:SetText("Search")
 	search:HookScript("OnTextChanged", function(self) hint:SetShown(self:GetText() == "") end)
 
-	-- Sidebar pages.
-	f.tabs = {}
-	for i, entry in ipairs(StzxUI:OptionPagesInOrder()) do
+	-- Sidebar: a button per page, and a button per folder (laid out by LayoutSidebar).
+	local function SideButton(label)
 		local b = CreateFrame("Button", nil, f)
 		b:SetSize(SIDEBAR - 12, 24)
-		b:SetPoint("TOPLEFT", 6, -76 - (i - 1) * 26)
-		b.entry = entry
 		b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 		b.text:SetPoint("LEFT", 10, 0)
-		b.text:SetText(entry.title)
+		b.text:SetText(label)
+		local hover = b:CreateTexture(nil, "HIGHLIGHT")
+		hover:SetAllPoints()
+		hover:SetColorTexture(1, 1, 1, 0.06)
+		return b
+	end
+	f.folders = {}
+	local folderByName = {}
+	for _, spec in ipairs(FOLDERS) do
+		local folder = { name = spec.name, pages = {} }
+		f.folders[#f.folders + 1] = folder
+		folderByName[spec.name] = folder
+	end
+	local other = { name = OTHER, pages = {} }
+	f.folders[#f.folders + 1] = other
+	folderByName[OTHER] = other
+	for _, folder in ipairs(f.folders) do
+		local b = SideButton(folder.name)
+		b.text:SetPoint("LEFT", 26, 0)
+		b.text:SetTextColor(A.r, A.g, A.b)
+		b.sign = b:CreateTexture(nil, "OVERLAY")
+		b.sign:SetSize(14, 14)
+		b.sign:SetPoint("LEFT", 8, 0)
+		b:SetScript("OnClick", function() StzxUI:ToggleOptionFolder(folder.name) end)
+		folder.button = b
+	end
+	f.tabs = {}
+	for i, entry in ipairs(StzxUI:OptionPagesInOrder()) do
+		local b = SideButton(entry.title)
+		b.entry = entry
 		b.selected = b:CreateTexture(nil, "BACKGROUND")
 		b.selected:SetAllPoints()
 		b.selected:SetColorTexture(A.r, A.g, A.b, 0.25)
 		b.selected:Hide()
-		local hover = b:CreateTexture(nil, "HIGHLIGHT")
-		hover:SetAllPoints()
-		hover:SetColorTexture(1, 1, 1, 0.06)
 		b:SetScript("OnClick", function() StzxUI:ShowOptionsPage(entry.title) end)
+		local folderName = StzxUI:OptionFolderOf(entry.title)
+		if folderName then
+			b.folder = folderByName[folderName]
+			table.insert(b.folder.pages, b)
+		end
 		f.tabs[i] = b
+	end
+	-- Pages inside a folder in the folder's own order (unknown ones at the end).
+	for _, folder in ipairs(f.folders) do
+		local order = {}
+		for _, spec in ipairs(FOLDERS) do
+			if spec.name == folder.name then
+				for n, pageTitle in ipairs(spec.pages) do order[pageTitle] = n end
+			end
+		end
+		table.sort(folder.pages, function(a, b)
+			local oa, ob = order[a.entry.title] or 99, order[b.entry.title] or 99
+			if oa ~= ob then return oa < ob end
+			return a.entry.title < b.entry.title
+		end)
 	end
 
 	-- Quick buttons at the bottom of the sidebar.
@@ -402,6 +515,8 @@ local function Build()
 	content:SetSize(WIDTH - SIDEBAR - 40, 1)
 	scroll:SetScrollChild(content)
 	f.scroll, f.content = scroll, content
+	window = f
+	LayoutSidebar()
 	return f
 end
 

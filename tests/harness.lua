@@ -3246,6 +3246,25 @@ local titles = {}
 for i, tab in ipairs(OW.tabs) do titles[i] = tab.entry.title end
 check(titles[1] == "General" and titles[2] == "Sections" and titles[#titles] == "Profiles" and #titles >= 12,
 	"sidebar: General, Sections, every section's page, Profiles last")
+do -- Sidebar folders: one open at a time; the page you're on keeps its folder open.
+	local byTitle, folders = {}, {}
+	for _, tab in ipairs(OW.tabs) do byTitle[tab.entry.title] = tab end
+	for _, folder in ipairs(OW.folders) do folders[folder.name] = folder end
+	check(#folders.More.pages == 0 and not folders.More.button.shown, "every section's page sits in a named folder")
+	check(byTitle.General.shown and byTitle.Profiles.shown and not byTitle.Skins.shown and folders.Look.button.shown,
+		"sidebar opens with the folders closed")
+	StzxUI:ShowOptionsPage("Nameplates")
+	check(byTitle.Nameplates.shown and byTitle["Unit Frames"].shown and not byTitle.Skins.shown,
+		"a page's folder opens with it (Frames)")
+	StzxUI:ToggleOptionFolder("Gameplay")
+	check(byTitle.Helpers.shown and byTitle.Reminders.shown and not byTitle.Nameplates.shown, "opening a folder closes the other")
+	local lowest = 0
+	for _, tab in ipairs(OW.tabs) do if tab.shown then lowest = math.min(lowest, tab.points[1].y) end end
+	check(lowest > -(560 - 70 - 24), "...and the list fits above the Move mode and Test frames buttons")
+	StzxUI:ToggleOptionFolder("Gameplay")
+	check(not byTitle.Helpers.shown, "clicking an open folder closes it")
+	StzxUI:ShowOptionsPage("General")
+end
 -- Find a shown row by its label.
 local function RowFor(label)
 	for _, f in ipairs(frames) do
