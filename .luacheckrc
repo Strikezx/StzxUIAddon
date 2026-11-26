@@ -78,7 +78,7 @@ read_globals = {
 	"UnitCastingInfo", "UnitChannelInfo",
 	"C_ClassColor", "CLASS_ICON_TCOORDS", "AbbreviateLargeNumbers", "STANDARD_TEXT_FONT",
 	"SetPortraitTexture", "RegisterUnitWatch", "RegisterStateDriver", "EventRegistry", "MinimapCluster", "MinimapCompassTexture",
-	"MinimapCompassTextureUnderlay", "MinimapBackdrop", "issecurevariable", "NamePlateAuraItemMixin", "PanelTemplates_SelectTab", "PanelTemplates_DeselectTab", "SharedTooltip_SetBackdropStyle", "UnitIsGameObject", "UnitNameplateShowsWidgetsOnly", "UnitIsFriend", "IsControlKeyDown", "C_Container", "GetInventoryItemLink",
+	"MinimapCompassTextureUnderlay", "MinimapBackdrop", "issecurevariable", "NamePlateAuraItemMixin", "PanelTemplates_SelectTab", "PanelTemplates_DeselectTab", "SharedTooltip_SetBackdropStyle", "UnitIsGameObject", "UnitNameplateShowsWidgetsOnly", "UnitIsFriend", "QuestFrame_SetTextColor", "QuestFrame_SetTitleTextColor", "QuestInfo_Display", "IsControlKeyDown", "C_Container", "GetInventoryItemLink",
 	"TooltipDataProcessor", "ItemRefTooltip", "MenuUtil", "C_NamePlate", "UnitDetailedThreatSituation", "UnitCanAttack",
 	"GetCreatureDifficultyColor", "UnitClassification", "UnitCastingInfo", "UnitChannelInfo", "RANGE_INDICATOR", "C_ActionBar",
 	"ActionButton_UpdateRangeIndicator", "MainActionBar", "GetInventoryItemID", "C_Item",

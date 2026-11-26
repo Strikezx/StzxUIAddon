@@ -21,6 +21,7 @@ local Skins = StzxUI:NewModule("Skins", ADDON_NAME, {
 	controls = true,     -- also flatten the buttons and scrollbars inside windows
 	level = "FULL",      -- FULL: everything inside windows too; FRAMES: frames, tabs, buttons only
 	zygor = true,        -- Zygor Guides' window in StzxUI's colours
+	lightText = true,    -- quest, gossip, book and letter text light on the dark windows
 	skip = {},           -- window name -> true: keep Blizzard's look
 }, {
 	title = "Skins",
@@ -145,6 +146,9 @@ function Skins:OnInitialize()
 		60, 100, 2, function(value) return ("%d%%"):format(value) end, ApplyLook)
 	StzxUI:AddCheckbox(page, self, "controls", "Flatten buttons and scrollbars inside windows",
 		"Changes apply after a reload.", function() StzxUI:AskReload("Buttons and scrollbars change after a reload.") end)
+	StzxUI:AddCheckbox(page, self, "lightText", "Light text in quest, gossip, book and letter windows",
+		"Blizzard writes these in dark brown for its parchment, which can't be read on black. Off needs a reload.",
+		function(on) if not on then StzxUI:AskReload("Blizzard's dark text comes back after a reload.") end end)
 	StzxUI:AddHeader(page, "Other addons")
 	StzxUI:AddCheckbox(page, self, "zygor", "Zygor Guides in StzxUI's colours",
 		"Zygor's window edge and background in StzxUI's colours. Looks best with Zygor's \"Stealth\" style. Off needs a reload.",
@@ -153,8 +157,23 @@ function Skins:OnInitialize()
 		end)
 end
 
+-- Light text: Blizzard's dark "parchment" fonts made light, and quest text
+-- brightened again right after Blizzard's quest code colours it.
+local function LightText()
+	if not Skins.db.lightText then return end
+	Skin.LightFonts()
+	if QuestFrame_SetTextColor then hooksecurefunc("QuestFrame_SetTextColor", Skin.Brighten) end
+	if QuestFrame_SetTitleTextColor then
+		hooksecurefunc("QuestFrame_SetTitleTextColor", function(fontString) fontString:SetTextColor(1, 0.82, 0.25) end)
+	end
+	if QuestInfo_Display then
+		hooksecurefunc("QuestInfo_Display", function() Skin.BrightenText(_G.QuestInfoFrame) end)
+	end
+end
+
 function Skins:OnEnable()
 	ApplyLook()
+	LightText()
 	local events = CreateFrame("Frame")
 	-- Windows Blizzard loads later (when first opened) arrive with their addon.
 	events:RegisterEvent("ADDON_LOADED")

@@ -347,6 +347,50 @@ local function HideOwnArt(frame, keep)
 	end
 end
 
+-- Text --------------------------------------------------------------------
+-- Blizzard writes quest, gossip, book and letter text in dark brown or black,
+-- made for its parchment. On StzxUI's black it can't be read, so:
+--   * its dark font objects get light text (titles gold), and
+--   * any text still dark in a skinned window is brightened (after Blizzard's
+--     quest code colours it, and when a window opens).
+local LIGHT = { 0.9, 0.9, 0.9 }
+local TITLE_TEXT = { 1, 0.82, 0.25 }
+local DARK_FONTS = { "QuestFont", "QuestFontNormalSmall", "QuestFontLeft", "GameFontBlack", "GameFontBlackSmall",
+	"GameFontBlackSmall2", "GameFontBlackMedium", "GameFontBlackTiny", "GameFontBlackTiny2", "GameFontNormalMed1",
+	"QuestDifficulty_Header" }
+local TITLE_FONTS = { "QuestTitleFont", "QuestTitleFontBlackShadow", "QuestFontNormalLarge" }
+
+function Skin.LightFonts()
+	for _, name in ipairs(DARK_FONTS) do
+		local font = _G[name]
+		if type(font) == "table" and font.SetTextColor then font:SetTextColor(LIGHT[1], LIGHT[2], LIGHT[3]) end
+	end
+	for _, name in ipairs(TITLE_FONTS) do
+		local font = _G[name]
+		if type(font) == "table" and font.SetTextColor then font:SetTextColor(TITLE_TEXT[1], TITLE_TEXT[2], TITLE_TEXT[3]) end
+	end
+end
+
+local function Brighten(fontString)
+	local r, g, b = fontString:GetTextColor()
+	if r and (r + g + b) < 0.9 then fontString:SetTextColor(LIGHT[1], LIGHT[2], LIGHT[3]) end
+end
+
+-- Dark text in `frame` (and a few levels down) made light.
+function Skin.BrightenText(frame, depth)
+	if not frame or not frame.GetRegions then return end
+	depth = depth or 6
+	for _, region in ipairs({ frame:GetRegions() }) do
+		if region:GetObjectType() == "FontString" then Brighten(region) end
+	end
+	if depth > 1 then
+		for _, child in ipairs({ frame:GetChildren() }) do
+			if not (child.IsForbidden and child:IsForbidden()) then Skin.BrightenText(child, depth - 1) end
+		end
+	end
+end
+Skin.Brighten = Brighten
+
 -- Inside a window ------------------------------------------------------
 
 local function IsPanelButton(child)
@@ -455,8 +499,18 @@ end
 
 -- Everything inside a window, `depth` levels down. FRAMES level: only panel
 -- buttons, scrollbars and insets; FULL: panels, bars, checkboxes, rows too.
-function Skin.Controls(frame, depth)
+-- Is `f` inside `root` (a few pixels' slack)? Panels bigger than their
+-- window get no backdrop, or it would stick out past the window.
+local function Inside(f, root)
+	local l, r, t, b = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
+	local L, R, T, B = root:GetLeft(), root:GetRight(), root:GetTop(), root:GetBottom()
+	if not (l and r and t and b and L and R and T and B) then return false end
+	return l >= L - 4 and r <= R + 4 and t <= T + 4 and b >= B - 4
+end
+
+function Skin.Controls(frame, depth, root)
 	depth = depth or (level == "FULL" and 8 or 4)
+	root = root or frame
 	if depth <= 0 or not frame.GetChildren then return end
 	for _, child in ipairs({ frame:GetChildren() }) do
 		if not skinned[child] and not Untouchable(child) then
@@ -468,9 +522,9 @@ function Skin.Controls(frame, depth)
 				GreyArrows(child)
 			elseif child.layoutType == "InsetFrameTemplate" then
 				Skin.Inset(child)
-				Skin.Controls(child, depth - 1)
+				Skin.Controls(child, depth - 1, root)
 			elseif level ~= "FULL" then
-				Skin.Controls(child, depth - 1)
+				Skin.Controls(child, depth - 1, root)
 			elseif kind == "StatusBar" then
 				Skin.StatusBar(child)
 			elseif kind == "CheckButton" then
@@ -479,16 +533,16 @@ function Skin.Controls(frame, depth)
 				or kind == "PlayerModel" or kind == "ModelScene" then
 				-- Leave these as they are (sliders and text boxes have their own
 				-- art that shows how to use them); look inside scroll frames.
-				if kind == "ScrollFrame" then Skin.Controls(child, depth - 1) end
+				if kind == "ScrollFrame" then Skin.Controls(child, depth - 1, root) end
 			else
 				if child.ScrollUpButton or child.ScrollDownButton then GreyArrows(child) end
 				local had = StripPanel(child)
 				-- Panels (not small things like rows) get a black background and an edge.
-				if had and kind == "Frame" and child:GetWidth() >= 60 and child:GetHeight() >= 40 then
+				if had and kind == "Frame" and child:GetWidth() >= 60 and child:GetHeight() >= 40 and Inside(child, root) then
 					skinned[child] = "panel"
 					Skin.Backdrop(child, { edge = "soft", fill = { 0, 0, 0 }, alpha = 0.45 })
 				end
-				Skin.Controls(child, depth - 1)
+				Skin.Controls(child, depth - 1, root)
 			end
 		end
 	end
@@ -551,12 +605,14 @@ function Skin.Window(frame, opts)
 			Skin.Tab(tab)
 		end
 	end
+	if level == "FULL" then pcall(Skin.BrightenText, frame) end -- never let text stop the rest
 	if opts.controls ~= false then
 		Skin.Controls(frame)
 		-- Some windows make their buttons only when first opened (the game
 		-- menu does): look again each time it opens, out of combat.
 		frame:HookScript("OnShow", function(shown)
 			if not InCombatLockdown() then Skin.Controls(shown) end
+			if level == "FULL" then pcall(Skin.BrightenText, shown) end
 		end)
 	end
 	return true

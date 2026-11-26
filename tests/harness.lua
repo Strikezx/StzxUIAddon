@@ -123,6 +123,8 @@ function Frame:GetRect()
 end
 function Frame:SetEnabled(on) self.enabled = on and true or false end
 function Frame:GetTop() local r = self:Rect(); return r and (r.bottom + r.h) end
+function Frame:GetRight() local r = self:Rect(); return r and (r.left + r.w) end
+function Frame:GetBottom() local r = self:Rect(); return r and r.bottom end
 function Frame:GetCenter() local r = self:Rect(); if r then return r.left + r.w / 2, r.bottom + r.h / 2 end end
 function Frame:SetSize(w, h) self.w, self.h = w, h end
 function Frame:SetWidth(w) self.w = w end
@@ -163,6 +165,7 @@ function Frame:HighlightText() self.highlighted = true end
 function Frame:SetFocus() self.focused = true end
 function Frame:SetCursorPosition(n) self.cursor = n end
 function Frame:SetTextColor(r, g, b) self.color = { r, g, b } end
+function Frame:GetTextColor() local c = self.color or { 1, 1, 1 } return c[1], c[2], c[3] end
 function Frame:SetFont(file, size, flags) self.font = { file = file, size = size, flags = flags } end
 -- A cooldown's countdown numbers (made on first ask, like the game's).
 function Frame:GetCountdownFontString()
@@ -615,6 +618,16 @@ local function InstallClient()
 	MinimapBackdrop = NewFrame("Frame", "MinimapBackdrop", MinimapCluster)
 	-- Blizzard's nameplate aura icon (its code; it fills in an icon).
 	NamePlateAuraItemMixin = { SetAura = function(self, aura) self.Icon:SetTexture(aura.icon) end }
+	-- Blizzard's dark "parchment" fonts and quest text colouring.
+	for _, n in ipairs({ "QuestFont", "QuestTitleFont", "GameFontBlack" }) do
+		local font = { colour = { 0, 0, 0 } }
+		function font:SetTextColor(r, g, b) self.colour = { r, g, b } end
+		_G[n] = font
+	end
+	function QuestFrame_SetTextColor(fontString) fontString:SetTextColor(0.18, 0.12, 0.06) end
+	function QuestFrame_SetTitleTextColor(fontString) fontString:SetTextColor(0, 0, 0) end
+	function QuestInfo_Display() end
+	QuestInfoFrame = NewFrame("Frame", "QuestInfoFrame")
 	-- Blizzard's window tabs.
 	function PanelTemplates_SelectTab(tab) tab.LeftActive:Show() end
 	function PanelTemplates_DeselectTab(tab) tab.LeftActive:Hide() end
@@ -2564,6 +2577,7 @@ do
 local function FakeWindow(name)
 	local w = NewFrame("Frame", name, UIParent)
 	w:SetSize(338, 424)
+	w:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 100, -100)
 	w.NineSlice = NewFrame("Frame", nil, w)
 	w.Bg = w:CreateTexture(nil, "BACKGROUND")
 	w.TopTileStreaks = w:CreateTexture(nil, "BORDER")
@@ -2611,6 +2625,15 @@ local function FakeWindow(name)
 	-- an item slot and a protected button.
 	local detail = NewFrame("Frame", nil, w)
 	detail:SetSize(250, 400)
+	detail:SetPoint("TOPLEFT", w, "TOPLEFT", 10, -20)
+	detail.say = detail:CreateFontString()
+	detail.say:SetTextColor(0.18, 0.12, 0.06) -- Blizzard's parchment brown
+	-- A panel bigger than its window (like one in the gossip window).
+	local big = NewFrame("Frame", nil, w)
+	big:SetSize(400, 480)
+	big:SetPoint("TOPLEFT", w, "TOPLEFT", 0, 0)
+	big.Bg = big:CreateTexture(nil, "BACKGROUND")
+	w.big = big
 	detail.NineSlice = NewFrame("Frame", nil, detail)
 	detail.parchment = detail:CreateTexture(nil, "BACKGROUND")
 	detail.words = detail:CreateFontString()
@@ -2696,6 +2719,13 @@ check(charScroll.Track.Begin.alpha == 0 and charScroll.Track.Thumb.Begin.alpha =
 -- Full restyle: inside the window too.
 check(charWin.detail.NineSlice.alpha == 0 and charWin.detail.parchment.alpha == 0 and FillOf(charWin.detail),
 	"panels inside: Blizzard's art gone, black background")
+check(charWin.big.Bg.alpha == 0 and not FillOf(charWin.big), "a panel bigger than its window: art gone, but no box sticking out")
+check(charWin.detail.say.color[1] == 0.9, "dark brown text made light")
+check(QuestFont.colour[1] == 0.9 and QuestTitleFont.colour[1] == 1, "Blizzard's dark quest fonts made light (titles gold)")
+local questLine = NewFrame("FontString")
+questLine:SetTextColor(0.18, 0.12, 0.06)
+QuestFrame_SetTextColor(questLine, "Parchment")
+check(questLine.color[1] == 0.9, "quest text re-brightened after Blizzard colours it")
 check(charWin.bar.art.alpha == 0 and charWin.bar.colour[2] == 0.6 and FillOf(charWin.bar), "bars: flat, on black, Blizzard's colour kept")
 check(charWin.tick.normalTex.alpha == 0 and charWin.tick.checkedTex.texture == "Interface\\Buttons\\WHITE8x8"
 	and charWin.tick.checkedTex.colour[1] == StzxUI.ACCENT.r, "checkboxes: flat box, accent tick")

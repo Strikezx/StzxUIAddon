@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- Skins: light text on the dark windows. Blizzard writes quest, gossip, book and letter text in dark brown or black for its parchment; its dark font objects are now light (titles gold), quest text is brightened again after Blizzard's quest code colours it, and any dark text in a skinned window is brightened when it opens. Option "Light text in quest, gossip, book and letter windows".
+- Fix (Skins): a panel bigger than its window (seen in the gossip window) got a box that stuck out past the window. Panels now only get a backdrop if they fit inside their window.
 - Skins: full restyle (new "How much to restyle" option, Full by default). Inside skinned windows too: panels get black backgrounds with softer accent edges, bars (reputation, skills) go flat on black keeping Blizzard's colours, checkboxes become flat boxes with an accent tick, list rows lose their art, gold scroll arrows turn grey. The window's edge is now drawn above everything inside it, so panels no longer cover it. Darker look overall. The Character window's round side tabs become square icons in black boxes, the chosen one edged in the accent. Anything with an icon (items, spells, talents) or protected is never touched. "Frames only" gives the lighter restyle.
 - Nameplates: objects (fallen logs, chairs, quest items to pick up) get no StzxUI plate by default, or a name only (option "Objects"). Blizzard flags them with UnitIsGameObject / widgets-only plates.
 - Nameplates: "Friendly players and NPCs: just their name" (on by default): no bar, players' names in their class colour, NPCs green. A player turning hostile (PvP flag) gets the full plate.
