@@ -197,6 +197,22 @@ end
 
 function ns.UpdateName(p)
 	p.name:SetText(UnitName(p.unit))
+	-- Name-only plates carry their colour in the name: players in their class
+	-- colour, friendly NPCs green, objects soft yellow. Full plates: white.
+	if p.nameOnly then
+		local _, class = UnitClass(p.unit)
+		class = Plain(Plain(UnitIsPlayer(p.unit)) and class)
+		local c = class and C_ClassColor and C_ClassColor.GetClassColor(class)
+		if c then
+			p.name:SetTextColor(c.r, c.g, c.b)
+		elseif p.isObject then
+			p.name:SetTextColor(1, 0.9, 0.6)
+		else
+			p.name:SetTextColor(0.4, 1, 0.4)
+		end
+	else
+		p.name:SetTextColor(1, 1, 1)
+	end
 	local level = Plain(UnitLevel(p.unit))
 	local class = Plain(UnitClassification(p.unit))
 	if not level then
@@ -350,6 +366,15 @@ function ns.CastInterrupted(p)
 	C_Timer.After(0.6, function()
 		if p.unit == unit and not p.cast.casting then p.cast:Hide() end
 	end)
+end
+
+-- Name only (objects): no bar, level, target outline or aggro edge.
+function ns.SetNameOnly(p, on)
+	p.nameOnly = on
+	p.health:SetShown(not on)
+	p.level:SetShown(not on and ns.db().showLevel)
+	p.target:SetShown(not on)
+	p.aggro:SetShown(not on)
 end
 
 function ns.UpdatePlate(p)

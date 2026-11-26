@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- Nameplates: objects (fallen logs, chairs, quest items to pick up) get no StzxUI plate by default, or a name only (option "Objects"). Blizzard flags them with UnitIsGameObject / widgets-only plates.
+- Nameplates: "Friendly players and NPCs: just their name" (on by default): no bar, players' names in their class colour, NPCs green. A player turning hostile (PvP flag) gets the full plate.
 - Unit Frames: player and target frames. Round class icon or character portrait with a level badge, health (number, percent or both), power numbers, class/reaction colours, mirrored target. Click to target, right-click for the menu, works in combat. Each has its own movable cast bar (countdown, channels drain, interrupted/failed in red).
 - Unit Frames: hides Blizzard's player and target frames (option).
 - Skins: Zygor Guides' window in StzxUI's colours (edge in the skin colour, StzxUI's dark background, Zygor's own opacity kept; re-applied after each of Zygor's skin passes). Best with Zygor's "Stealth" style. Option under Skins > Other addons. Also skins Forever's Social window and the legacy system window.

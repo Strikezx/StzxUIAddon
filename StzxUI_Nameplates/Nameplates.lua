@@ -30,6 +30,8 @@ local Nameplates = StzxUI:NewModule("Nameplates", ADDON_NAME, {
 	castHeight = 10,
 	debuffs = true,         -- your debuffs on enemies
 	debuffSource = "BLIZZARD", -- BLIZZARD (works in fights) or STZXUI (StzxUI's icons; out of fights only)
+	objects = "HIDE",       -- plates on objects (logs, chairs, quest items): HIDE or NAME (name only)
+	friendlyNameOnly = true, -- friendly players and NPCs: just their name
 	maxDebuffs = 5,
 	debuffSize = 20,
 	targetOutline = true,
@@ -177,8 +179,22 @@ local function Added(unit)
 	ns.LayoutPlate(p, Nameplates.db)
 	p.unit = unit
 	plates[unit] = p
+	-- Objects (a fallen log, a chair, a quest item to pick up) get plates too.
+	-- Blizzard shows them a name at most (no health bar).
+	p.isObject = (Plain(UnitIsGameObject(unit)) or Plain(UnitNameplateShowsWidgetsOnly(unit))) and true or false
+	ns.ApplyPlateMode(p)
 	ns.UpdatePlate(p)
-	p:Show()
+end
+
+-- Full plate, name only, or nothing:
+--   objects:                   the "Objects" setting (no plate / name only)
+--   friendly players and NPCs: name only when "Friendly: just their name" is on
+function ns.ApplyPlateMode(p)
+	local db = Nameplates.db
+	local friendly = not p.isObject and Plain(UnitIsFriend("player", p.unit)) and true or false
+	local nameOnly = p.isObject or (friendly and db.friendlyNameOnly)
+	ns.SetNameOnly(p, nameOnly and true or false)
+	p:SetShown(not (p.isObject and db.objects == "HIDE"))
 end
 
 local function Removed(unit)
@@ -197,6 +213,7 @@ function Nameplates:RefreshAll()
 	end
 	for _, p in pairs(plates) do
 		ns.LayoutPlate(p, self.db)
+		ns.ApplyPlateMode(p)
 		ns.UpdatePlate(p)
 	end
 	if ns.testHolder and ns.testHolder:IsShown() then ns.ShowTest(true) end
@@ -209,7 +226,11 @@ end
 local UNIT_EVENTS = {
 	UNIT_HEALTH = ns.UpdateHealth,
 	UNIT_MAXHEALTH = ns.UpdateHealth,
-	UNIT_FACTION = ns.UpdateHealth,
+	UNIT_FACTION = function(p) -- e.g. a player flagged for PvP: friendly <-> hostile
+		ns.ApplyPlateMode(p)
+		ns.UpdateName(p)
+		ns.UpdateHealth(p)
+	end,
 	UNIT_NAME_UPDATE = ns.UpdateName,
 	UNIT_LEVEL = ns.UpdateName,
 	UNIT_AURA = ns.UpdateDebuffs,
@@ -395,6 +416,11 @@ function Nameplates:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "castBar", "Cast bars",
 		"Yellow: you can interrupt it. Grey with a shield: you can't. Blue: channelled.", Refresh)
 	StzxUI:AddSlider(page, self, "castHeight", "Cast bar height", nil, 6, 20, 1, nil, Refresh)
+	StzxUI:AddDropdown(page, self, "objects", "Objects (logs, chairs, quest items)",
+		"Things that aren't creatures. Blizzard gives them plates too.",
+		{ { "HIDE", "No plate" }, { "NAME", "Name only" } }, Refresh)
+	StzxUI:AddCheckbox(page, self, "friendlyNameOnly", "Friendly players and NPCs: just their name",
+		"No health bar on friendly plates; players' names in their class colour.", Refresh)
 	StzxUI:AddCheckbox(page, self, "debuffs", "My debuffs on enemies", nil, Refresh)
 	StzxUI:AddDropdown(page, self, "debuffSource", "Debuff icons",
 		"In a fight the game won't tell addons a unit's auras. Blizzard's icons (restyled to StzxUI's look) "

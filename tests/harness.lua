@@ -393,6 +393,10 @@ local function InstallClient()
 	function GetTime() return now end
 	function InCombatLockdown() return inCombat end
 	function IsControlKeyDown() return ctrlDown == true end
+	-- Objects and friendly units on nameplates.
+	function UnitIsGameObject(u) return (unitState[u] or {}).object == true end
+	function UnitNameplateShowsWidgetsOnly(u) return (unitState[u] or {}).widgetsOnly == true end
+	function UnitIsFriend(_, u) return (unitState[u] or {}).friendly == true end
 	-- Instances: instance = nil (outside) or { name, kind, id }.
 	function IsInInstance() if instance then return true, instance.kind end return false, "none" end
 	function GetInstanceInfo()
@@ -2156,6 +2160,44 @@ units.nameplate4 = { name = "Strikezx", isSelf = true }
 unitState.nameplate4 = { hp = 1, hpMax = 1 }
 Fire("NAME_PLATE_UNIT_ADDED", "nameplate4")
 check(not PlateOf(np4) and np4.UnitFrame.alpha ~= 0, "your personal resource bar stays Blizzard's")
+
+-- Objects (a fallen log) and friendly units.
+do
+	local npObj = BlizzardPlate("nameplate5")
+	units.nameplate5 = { name = "Fallen Log" }
+	unitState.nameplate5 = { hp = 0, hpMax = 0, level = 0, object = true }
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate5")
+	local pObj = PlateOf(npObj)
+	check(pObj and not pObj.shown, "objects (logs, chairs, quest items): no plate by default")
+	log.settings.STZXUI_NAMEPLATES_OBJECTS:SetValue("NAME")
+	check(pObj.shown and pObj.name.text == "Fallen Log" and not pObj.health.shown and not pObj.level.shown,
+		"...or name only")
+	log.settings.STZXUI_NAMEPLATES_OBJECTS:SetValue("HIDE")
+	check(not pObj.shown, "...back to no plate")
+	Fire("NAME_PLATE_UNIT_REMOVED", "nameplate5")
+	local npFriend = BlizzardPlate("nameplate6")
+	units.nameplate6 = { name = "Guard Thomas" }
+	unitState.nameplate6 = { hp = 100, hpMax = 100, reaction = 5, level = 30, friendly = true }
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate6")
+	local pFriend = PlateOf(npFriend)
+	check(pFriend.shown and not pFriend.health.shown and pFriend.name.color[2] == 1 and pFriend.name.color[1] < 1,
+		"friendly NPC: just the name, in green")
+	local npPal = BlizzardPlate("nameplate7")
+	units.nameplate7 = { name = "Gorvak Ironhand", isPlayer = true }
+	unitState.nameplate7 = { hp = 100, hpMax = 100, reaction = 5, level = 20, friendly = true, class = "SHAMAN" }
+	Fire("NAME_PLATE_UNIT_ADDED", "nameplate7")
+	local pPal = PlateOf(npPal)
+	check(not pPal.health.shown and pPal.name.color[3] == 0.87, "friendly player: just the name, in class colour")
+	log.settings.STZXUI_NAMEPLATES_FRIENDLYNAMEONLY:SetValue(false)
+	check(pFriend.health.shown and pFriend.name.color[1] == 1, "option off: full friendly plates again")
+	log.settings.STZXUI_NAMEPLATES_FRIENDLYNAMEONLY:SetValue(true)
+	unitState.nameplate7.friendly = false -- flagged for PvP: now an enemy
+	Fire("UNIT_FACTION", "nameplate7")
+	check(pPal.health.shown, "a player turning hostile gets the full plate")
+	check(not p1.nameOnly and p1.health.shown, "enemies keep the full plate")
+	Fire("NAME_PLATE_UNIT_REMOVED", "nameplate6")
+	Fire("NAME_PLATE_UNIT_REMOVED", "nameplate7")
+end
 
 -- Health and target.
 unitState.nameplate1.hp = 100
