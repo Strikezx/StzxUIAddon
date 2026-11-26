@@ -3444,8 +3444,13 @@ end)()
 	StzxUIDB = nil
 	StartGame(nil)
 	local Q = StzxUI:GetModule("Quests")
+	check(not Q.db.autoAccept and not Q.db.autoTurnIn and Q.db.rewardValue, "auto quests off by default (reward values on)")
 	Fire("QUEST_DETAIL")
-	check(log.accepted == 1, "quest accepted automatically")
+	check(log.accepted == nil, "...so nothing is accepted until you switch it on")
+	log.settings.STZXUI_QUESTS_AUTOACCEPT:SetValue(true)
+	log.settings.STZXUI_QUESTS_AUTOTURNIN:SetValue(true)
+	Fire("QUEST_DETAIL")
+	check(log.accepted == 1, "quest accepted automatically once switched on")
 	shiftDown = true; Fire("QUEST_DETAIL"); shiftDown = false
 	check(log.accepted == 1, "...not with Shift held")
 	extra.pvpQuest = true; Fire("QUEST_DETAIL"); extra.pvpQuest = nil
@@ -3493,7 +3498,7 @@ end)()
 	check(p1 == "100c" and p2 == "160c" and c2 and not c1, "reward choices show their vendor price; the best gets a coin")
 	QuestFrame.shown = false
 	extra.choices, extra.sellPrice = nil, nil
-	check(Q.db.autoAccept and Q.db.rewardValue, "quest helpers on by default, each with a switch")
+	check(Q.db.autoAccept and Q.db.rewardValue, "quest helpers each have their own switch")
 	-- Gathering skill on tooltips.
 	local T = StzxUI:GetModule("Tooltip")
 	extra.skills = { { skillID = 186, rank = 130 } }

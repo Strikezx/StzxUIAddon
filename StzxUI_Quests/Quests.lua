@@ -25,8 +25,8 @@ local Quests = StzxUI:NewModule("Quests", ADDON_NAME, {
 	tintHeight = 70,      -- % of the page the glow reaches up
 	sparkles = true,
 	partyStatus = true,   -- party panel beside the open quest
-	autoAccept = true,    -- accept offered quests (Shift: pause)    (QuestHelpers.lua)
-	autoTurnIn = true,    -- hand in finished quests (Shift: pause)
+	autoAccept = false,   -- accept offered quests (Shift: pause); off: Zygor may do it, and quest text is worth reading
+	autoTurnIn = false,   -- hand in finished quests (Shift: pause)   (QuestHelpers.lua)
 	skipTrivial = true,   -- ...but not grey quests
 	rewardValue = true,   -- vendor price on reward choices
 }, {
