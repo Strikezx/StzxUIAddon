@@ -54,6 +54,12 @@ Skins.WINDOWS = {
 	"ColorPickerFrame", "LegacySystemFrame", "SettingsPanel", "StaticPopup1", "StaticPopup2", "StaticPopup3", "StaticPopup4",
 }
 
+-- Windows that need something kept (see Skin.Window): the flight map is
+-- painted onto TaxiFrame's background, and its routes are drawn on TaxiRouteMap.
+Skins.WINDOW_OPTIONS = {
+	TaxiFrame = { keep = { "InsetBg" }, leave = { "TaxiRouteMap" } },
+}
+
 local pending = false -- something to skin once combat ends
 
 -- Skin every listed window that exists now and isn't done yet.
@@ -64,11 +70,12 @@ function Skins:SkinAll()
 	end
 	pending = false
 	local count = 0
-	local opts = { controls = self.db.controls }
 	for _, name in ipairs(Skins.WINDOWS) do
 		local frame = _G[name]
 		if frame and type(frame) == "table" and frame.GetObjectType and not self.db.skip[name]
 			and not (frame.IsForbidden and frame:IsForbidden()) and not Skin.IsSkinned(frame) then
+			local extra = Skins.WINDOW_OPTIONS[name] or {}
+			local opts = { controls = self.db.controls, keep = extra.keep, leave = extra.leave }
 			local ok = pcall(Skin.Window, frame, opts)
 			if ok then count = count + 1 end
 		end
@@ -198,6 +205,31 @@ local function HookQuestText()
 	end
 	if QuestInfo_Display then
 		hooksecurefunc("QuestInfo_Display", function() Skin.BrightenText(_G.QuestInfoFrame) end)
+	end
+	-- The gossip window (the first window at a trainer or quest giver) colours
+	-- its own text through Blizzard's "quest text contrast" setting, and does
+	-- it again whenever its list is rebuilt: follow it each time.
+	local gossip = _G.GossipFrame
+	if gossip then
+		local function GossipText(frame)
+			for fontString in pairs(frame.fontStrings or {}) do Skin.ForceBright(fontString) end
+		end
+		if gossip.RegisterFontString then
+			hooksecurefunc(gossip, "RegisterFontString", function(_, fontString) Skin.ForceBright(fontString) end)
+		end
+		if gossip.UpdateFontStrings then hooksecurefunc(gossip, "UpdateFontStrings", GossipText) end
+		if gossip.Update then hooksecurefunc(gossip, "Update", GossipText) end
+	end
+	-- Some quest givers open a quest list instead: its quest names are
+	-- written in black inside the text itself.
+	local greeting = _G.QuestFrameGreetingPanel
+	if greeting and greeting.HookScript then
+		greeting:HookScript("OnShow", function(panel)
+			if not (panel.titleButtonPool and panel.titleButtonPool.EnumerateActive) then return end
+			for button in panel.titleButtonPool:EnumerateActive() do
+				Skin.ForceBright(button.GetFontString and button:GetFontString())
+			end
+		end)
 	end
 end
 

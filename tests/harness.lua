@@ -166,6 +166,7 @@ function Frame:SetFocus() self.focused = true end
 function Frame:SetCursorPosition(n) self.cursor = n end
 function Frame:SetTextColor(r, g, b) self.color = { r, g, b } end
 function Frame:GetTextColor() local c = self.color or { 1, 1, 1 } return c[1], c[2], c[3] end
+function Frame:SetFixedColor(on) self.fixedColor = on end
 function Frame:SetFont(file, size, flags) self.font = { file = file, size = size, flags = flags } end
 -- A cooldown's countdown numbers (made on first ask, like the game's).
 function Frame:GetCountdownFontString()
@@ -2692,6 +2693,26 @@ StartGame(nil, function()
 	local old = NewFrame("Frame", "TaxiFrame", UIParent)
 	old.art = old:CreateTexture(nil, "BACKGROUND")
 	old.text = old:CreateTexture(nil, "ARTWORK")
+	-- The flight map is painted onto its InsetBg; routes are drawn on TaxiRouteMap.
+	old.InsetBg = old:CreateTexture(nil, "BACKGROUND")
+	local routes = NewFrame("Frame", "TaxiRouteMap", old)
+	routes:SetSize(300, 300)
+	routes.line = routes:CreateTexture(nil, "BACKGROUND")
+	routes:SetPoint("TOPLEFT", old, "TOPLEFT", 0, 0)
+	-- The gossip window: colours its own text (Blizzard's "quest text
+	-- contrast"), parchment brown, and quest names written in black.
+	local gossip = NewFrame("Frame", "GossipFrame", UIParent)
+	gossip.fontStrings = {}
+	function gossip:RegisterFontString(fs) self.fontStrings[fs] = true end
+	function gossip:UpdateFontStrings()
+		for fs in pairs(self.fontStrings) do fs:SetFixedColor(false); fs:SetTextColor(0.18, 0.12, 0.06) end
+	end
+	function gossip:Update() self:UpdateFontStrings() end
+	-- Some quest givers' quest list: names in black inside the text.
+	local greeting = NewFrame("Frame", "QuestFrameGreetingPanel", UIParent)
+	greeting.shown = false
+	greeting.active = {}
+	greeting.titleButtonPool = { EnumerateActive = function() return pairs(greeting.active) end }
 	-- Something StzxUI doesn't know: left alone.
 	FakeWindow("SomeOtherAddonFrame")
 end)
@@ -2769,6 +2790,23 @@ late.Left, late.Middle, late.Right = late:CreateTexture(), late:CreateTexture(),
 charWin:Hide(); charWin:Show()
 check(late.Left.alpha == 0, "buttons a window makes when it opens are flattened too")
 check(TaxiFrame.art.alpha == 0 and TaxiFrame.text.alpha == nil, "old-style windows: frame art hidden, content kept")
+check(TaxiFrame.InsetBg.alpha == nil and TaxiRouteMap.line.alpha == nil, "flight map and its routes kept")
+TaxiFrame:Hide(); TaxiFrame:Show()
+check(TaxiRouteMap.line.alpha == nil, "...also after the flight map opens again")
+do -- Gossip text: Blizzard colours it itself, again and again.
+local greet = NewFrame("FontString")
+GossipFrame:RegisterFontString(greet)
+GossipFrame:Update()
+check(greet.color[1] == 1 and greet.color[3] == 1 and greet.fixedColor == true,
+	"gossip text white, even after Blizzard re-colours it (black colour codes ignored)")
+local questButton = NewFrame("Button", nil, QuestFrameGreetingPanel)
+questButton.text = NewFrame("FontString")
+function questButton:GetFontString() return self.text end
+questButton.text:SetTextColor(0, 0, 0)
+QuestFrameGreetingPanel.active[questButton] = true
+QuestFrameGreetingPanel:Show()
+check(questButton.text.color[1] == 1 and questButton.text.fixedColor == true, "quest list names white too")
+end
 check(SomeOtherAddonFrame.NineSlice.alpha == nil, "windows not on the list are left alone")
 -- Windows Blizzard loads later.
 FakeWindow("AuctionHouseFrame")

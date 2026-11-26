@@ -410,6 +410,22 @@ local function Brighten(fontString)
 	end
 end
 
+-- Text Blizzard colours itself, and may colour again later (the gossip
+-- window does): always the dialogue colour. Colour codes written into the
+-- text are ignored too, as in Blizzard's own light-text mode (it writes quest
+-- names in black that way).
+local function ForceBright(fontString)
+	if not fontString or not fontString.SetTextColor then return end
+	if fontString.SetFixedColor then fontString:SetFixedColor(true) end
+	brightened[fontString] = true
+	fontString:SetTextColor(LIGHT[1], LIGHT[2], LIGHT[3])
+	if fontString.SetShadowColor then
+		fontString:SetShadowColor(0, 0, 0, 1)
+		fontString:SetShadowOffset(1, -1)
+	end
+end
+Skin.ForceBright = ForceBright
+
 -- The colour dark dialogue text becomes (white, light grey, StzxUI's accent...).
 -- Fonts and text already re-coloured follow straight away.
 function Skin.SetTextColour(r, g, b)
@@ -610,7 +626,18 @@ function Skin.Window(frame, opts)
 	-- everything inside, so panels can't cover it.
 	local fill = Fill(frame, "BACKGROUND", -8, FILL, 1)
 	fill:SetAllPoints(frame)
-	HideOwnArt(frame, { [fill] = true })
+	-- opts.keep: the window's own textures that are content, not art (the
+	-- flight map is painted onto TaxiFrame.InsetBg). opts.leave: parts left
+	-- exactly as Blizzard made them (the flight routes).
+	local keep = { [fill] = true }
+	for _, key in ipairs(opts.keep or {}) do
+		if frame[key] then keep[frame[key]] = true end
+	end
+	for _, key in ipairs(opts.leave or {}) do
+		local part = frame[key] or _G[key]
+		if type(part) == "table" and not skinned[part] then skinned[part] = "left" end
+	end
+	HideOwnArt(frame, keep)
 	local overlay = OwnFrame(frame)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(frame:GetFrameLevel() + 40)

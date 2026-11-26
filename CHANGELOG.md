@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- Fix (Skins): the flight map window was blank. Blizzard paints the map onto the window's background texture, which the skin hid as frame art; the map and its route lines are now kept.
+- Fix (Skins): gossip text (the first window at a trainer or quest giver) stayed dark brown, and quest names in it and in quest-giver lists stayed black. That window colours its own text through Blizzard's "quest text contrast" setting, and quest names carry a black colour code in the text itself; StzxUI now follows each re-colour and ignores those codes, as Blizzard's own light-text mode does.
 - Skins: "Dialogue text colour" (White by default, Light grey, StzxUI blue, or Blizzard's own) and "Dialogue text size" (default 15, Blizzard's is about 13; titles 3 bigger) for quest, gossip, book and letter text, with a black shadow behind it. Colour changes apply at once, including text already on screen. Replaces the light-text checkbox.
 - Skins: light text on the dark windows. Blizzard writes quest, gossip, book and letter text in dark brown or black for its parchment; its dark font objects are now light (titles gold), quest text is brightened again after Blizzard's quest code colours it, and any dark text in a skinned window is brightened when it opens. Option "Light text in quest, gossip, book and letter windows".
 - Fix (Skins): a panel bigger than its window (seen in the gossip window) got a box that stuck out past the window. Panels now only get a backdrop if they fit inside their window.
