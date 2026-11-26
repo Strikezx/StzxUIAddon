@@ -21,6 +21,7 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Minimap` | Square minimap with a 1-pixel border (black or accent), round frame art and zoom buttons hidden; tells minimap-button addons it's square; gathers addons' minimap buttons into a fly-out panel opened from the corner. Edit Mode still places it |
 | `StzxUI_Skins` | Blizzard's windows in StzxUI's look: dark fill, thin edge (accent, class colour or black), title strip with an accent line, flat tabs, buttons, close button and scrollbars. Windows Blizzard loads later are skinned as they load; waits for combat to end. `/stzx skins`. Dialogue text colour and size. Blizzard's buff bar and Cooldown Manager, Questie, DBM, Zygor and the quest tracker in StzxUI's look. Also the Tooltip section: StzxUI look (edge in item quality / class colour), slim health bar, text size, optional target / item level / IDs, gathering skill needed, at-mouse option |
 | `StzxUI_Helpers` | Helpers: sell greys and repair, faster looting, skip one-option NPC chat, quieter combat errors. Combat: combat timer, pet reminder, healers' mana. Reminders: missing buffs, food and elixirs running out, weapon poisons, gathering tracking, low ammo. Battlegrounds: win rate and averages per battleground (`/stzx bg`). World PvP: enemies nearby and a kill-on-sight list (`/stzx kos`). Rare Alerts: rares and treasures nearby |
+| `StzxUI_Welcome` | The StzxUI splash screen: the brand art over a dimmed screen, a moment after login (switch its own), and any time with `/stzx splash`. A click or Esc closes it |
 
 ## Optional: JiberishUI Icons
 
@@ -56,7 +57,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars`, `StzxUI_Nameplates`, `StzxUI_Blizzard`, `StzxUI_Inventory`, `StzxUI_Minimap`, `StzxUI_Skins` and `StzxUI_Helpers` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars`, `StzxUI_Nameplates`, `StzxUI_Blizzard`, `StzxUI_Inventory`, `StzxUI_Minimap`, `StzxUI_Skins`, `StzxUI_Helpers` and `StzxUI_Welcome` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
