@@ -22,6 +22,9 @@ local Skins = StzxUI:NewModule("Skins", ADDON_NAME, {
 	level = "FULL",      -- FULL: everything inside windows too; FRAMES: frames, tabs, buttons only
 	zygor = true,        -- Zygor Guides' window in StzxUI's colours
 	auras = true,        -- Blizzard's buff bar and Cooldown Manager in StzxUI's look (AuraSkins.lua)
+	questie = true,      -- Questie's windows and tracker (OtherSkins.lua)
+	dbm = true,          -- DBM's options window and timer bars
+	tracker = true,      -- Blizzard's quest tracker headers
 	textColour = "WHITE", -- quest, gossip, book and letter text: WHITE, LIGHT (grey), ACCENT, BLIZZARD (its brown)
 	textSize = 15,        -- that text's size (Blizzard's is about 13); titles 3 bigger
 	skip = {},           -- window name -> true: keep Blizzard's look
@@ -183,6 +186,19 @@ function Skins:OnInitialize()
 		function(on)
 			if on then WatchZygor() else StzxUI:AskReload("Zygor's own colours come back after a reload.") end
 		end)
+	local function Other(on)
+		if on then Skins.SkinOtherAddons() else StzxUI:AskReload("Their own look comes back after a reload.") end
+	end
+	StzxUI:AddCheckbox(page, self, "questie", "Questie in StzxUI's look",
+		"Questie's settings and My Journey windows like Blizzard's skinned windows; its quest tracker's backdrop flat "
+		.. "with a thin edge (Questie's own backdrop and border options still decide whether they show). Off needs a reload.",
+		Other)
+	StzxUI:AddCheckbox(page, self, "dbm", "DBM in StzxUI's look",
+		"DBM's options window like Blizzard's skinned windows; its timer bars get a thin black edge and square icons "
+		.. "(pick the bar texture and colours in DBM). Off needs a reload.", Other)
+	StzxUI:AddHeader(page, "Quest tracker")
+	StzxUI:AddCheckbox(page, self, "tracker", "Blizzard's quest tracker in StzxUI's look",
+		"Its gold header art goes; headers get a dark strip with an accent line. Off needs a reload.", Other)
 end
 
 -- Light text: Blizzard's dark "parchment" fonts made light, and quest text
@@ -265,6 +281,7 @@ function Skins:OnEnable()
 	self:SkinAll()
 	Skins.SkinBlizzardAuras()
 	WatchZygor()
+	Skins.SkinOtherAddons()
 end
 
 StzxUI.slashCommands.skins = {

@@ -9,5 +9,6 @@
 
 Skins.lua
 AuraSkins.lua
+OtherSkins.lua
 Tooltip.lua
 Gathering.lua

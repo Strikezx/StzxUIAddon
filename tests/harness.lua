@@ -3511,5 +3511,55 @@ end)()
 	check(names:find("Alt Twoname", 1, true) and not names:find("Grim Hordeling", 1, true), "mail list: your same-faction alts")
 end)()
 
+---------------------------------------------------------------------------
+-- 38. Skins round two: Questie, DBM, the quest tracker
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB = nil
+	StartGame(nil, function()
+		-- Questie's tracker (a backdrop frame) and settings window.
+		local qt = NewFrame("Frame", "Questie_BaseFrame", UIParent)
+		function qt:SetBackdrop(b) self.backdrop = b end
+		function qt:SetBackdropColor(r, g, b, a) self.bg = { r, g, b, a } end
+		function qt:GetBackdropColor() return unpack(self.bg or { 0, 0, 0, 0.5 }) end
+		function qt:SetBackdropBorderColor(r, g, b, a) self.edge = { r, g, b, a } end
+		function qt:GetBackdropBorderColor() return unpack(self.edge or { 1, 1, 1, 0 }) end
+		local qs = NewFrame("Frame", "QuestieStandaloneSettings", UIParent)
+		qs:SetSize(675, 500)
+		qs.NineSlice = NewFrame("Frame", nil, qs)
+		-- Blizzard's quest tracker.
+		local ot = NewFrame("Frame", "ObjectiveTrackerFrame", UIParent)
+		ot.Header = NewFrame("Frame", nil, ot)
+		ot.Header.Background = ot.Header:CreateTexture(nil, "BACKGROUND")
+		ot.Header.Text = ot.Header:CreateFontString()
+		local m = { Header = NewFrame("Frame", nil, ot) }
+		m.Header.Background = m.Header:CreateTexture(nil, "BACKGROUND")
+		m.Header.Text = m.Header:CreateFontString()
+		ot.modules = { m }
+		function ot:Update() self.Header.Background:SetAlpha(1) end
+	end)
+	check(QuestieStandaloneSettings.NineSlice.alpha == 0, "Questie's settings window in StzxUI's look")
+	check(Questie_BaseFrame.backdrop.edgeSize == 1, "Questie's tracker: flat backdrop, thin edge")
+	Questie_BaseFrame:SetBackdropBorderColor(1, 1, 1, 0.8) -- Questie shows its border
+	check(Questie_BaseFrame.edge[1] == StzxUI.ACCENT.r and Questie_BaseFrame.edge[4] == 0.8, "...edge in the skin colour, Questie's alpha kept")
+	-- DBM: its options window and bars appear later.
+	local opt = NewFrame("Frame", "DBM_GUI_OptionsFrame", UIParent)
+	opt:SetSize(800, 600)
+	opt.NineSlice = NewFrame("Frame", nil, opt)
+	local bf = NewFrame("Frame", "DBT_Bar_1", UIParent)
+	local bar = NewFrame("StatusBar", "DBT_Bar_1Bar", bf)
+	local icon = NewFrame("Texture", "DBT_Bar_1BarIcon1", bar)
+	TickAll(tickers)
+	check(opt.NineSlice.alpha == 0, "DBM's options window skinned once it exists")
+	local edged = false
+	for _, t in ipairs(bar.childList or {}) do if t.kind == "Texture" and t.colour and t.colour[4] == 1 and t.layer == "BACKGROUND" then edged = true end end
+	check(edged and icon.texCoord[1] == 0.08, "DBM timer bars: thin black edge, square icons")
+	-- Blizzard's tracker headers, kept that way after its updates.
+	ObjectiveTrackerFrame:Update()
+	check(ObjectiveTrackerFrame.Header.Background.alpha == 0 and ObjectiveTrackerFrame.Header.Text.color[1] == 1
+		and ObjectiveTrackerFrame.modules[1].Header.Text.color[1] == StzxUI.ACCENT.r,
+		"quest tracker: gold header art gone, white and accent headers")
+end)()
+
 io.write(("%d passed, %d failed\n"):format(passes, failures))
 os.exit(failures == 0 and 0 or 1)
