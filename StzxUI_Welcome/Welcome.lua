@@ -13,6 +13,8 @@ local StzxUI = _G.StzxUI
 
 local Welcome = StzxUI:NewModule("Welcome", ADDON_NAME, {
 	showOnLogin = true,
+	size = 50,   -- % of the biggest 2:1 box the screen allows
+	dim = 0.6,   -- how dark the screen behind it goes (0 = not at all)
 }, {
 	title = "Welcome",
 	description = "The StzxUI splash screen at login, and /stzx splash any time.",
@@ -24,13 +26,16 @@ local ART = "Interface\\AddOns\\StzxUI\\Media\\welcome-2048.png"
 
 local splash
 
--- The art is 2:1 (twice as wide as tall). Fit the biggest 2:1 box the window
--- allows, whichever way the screen is shaped.
+-- The art is 2:1 (twice as wide as tall). Take the biggest 2:1 box the
+-- screen allows, whichever way it's shaped, then the "Size" setting's share of it.
 local function Layout()
+	if not splash then return end
 	local w = UIParent:GetWidth()
 	local maxW = UIParent:GetHeight() * 2
 	if w > maxW then w = maxW end
+	w = w * (Welcome.db.size or 50) / 100
 	splash.art:SetSize(w, w / 2)
+	splash.dim:SetColorTexture(0, 0, 0, Welcome.db.dim or 0.6)
 end
 
 local function Build()
@@ -43,7 +48,6 @@ local function Build()
 
 	f.dim = f:CreateTexture(nil, "BACKGROUND")
 	f.dim:SetAllPoints()
-	f.dim:SetColorTexture(0, 0, 0, 0.85)
 
 	f.art = f:CreateTexture(nil, "ARTWORK")
 	f.art:SetTexture(ART)
@@ -71,6 +75,12 @@ function Welcome:OnInitialize()
 	StzxUI:AddHeader(page, "Welcome screen", "StzxUI's splash: the hex mark and the slash-command cards.")
 	StzxUI:AddCheckbox(page, self, "showOnLogin", "Show when you log in",
 		"It opens a beat after the loading screen; a click or Esc closes it.")
+	StzxUI:AddSlider(page, self, "size", "Size",
+		"How big the welcome art is, as a share of the most the screen can fit.", 25, 100, 5,
+		function(value) return ("%d%%"):format(value) end, Layout)
+	StzxUI:AddSlider(page, self, "dim", "Screen dimming",
+		"How dark the screen behind the welcome art goes. 0% leaves it as it is.", 0, 0.9, 0.1,
+		function(value) return ("%d%%"):format(value * 100 + 0.5) end, Layout)
 	StzxUI:AddButton(page, "See it again", "Show splash", Show,
 		"Opens the welcome screen right now. /stzx splash does the same.")
 end
