@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Skins: scrolling lists (the AddOns list, and others like it) skin rows they make later too, so gold Blizzard ticks no longer sit next to StzxUI squares.
+
 ### Fixed (from a code review against Blizzard's source)
 - Travel menu: rows act on the mouse release whatever "cast on key down" is set to (before, with it on, a click closed the menu without casting).
 - Skip one-option NPC chat: only for services (flight master, banker, trainer, vendor, by the option's icon) and never in dungeons or raids, so encounter and event starters are never clicked through.

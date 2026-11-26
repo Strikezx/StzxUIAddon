@@ -3075,6 +3075,12 @@ local function FakeWindow(name)
 	function tick:SetCheckedTexture(t) self.checkedTex = self.checkedTex or self:CreateTexture(); self.checkedTex.texture = t end
 	function tick:GetCheckedTexture() return self.checkedTex end
 	w.tick = tick
+	-- A scrolling list (like the AddOns list) that makes its rows later.
+	local list = NewFrame("Frame", nil, detail)
+	function list.ForEachFrame() end
+	function list:GetScrollTarget() return self end
+	function list:Update() end
+	w.list = list
 	local slot = NewFrame("Button", nil, detail)
 	slot.icon = slot:CreateTexture(nil, "BORDER")
 	w.slot = slot
@@ -3239,6 +3245,18 @@ check(QuestFont.font[2] == 18 and QuestTitleFont.font[2] == 21, "dialogue text s
 check(charWin.bar.art.alpha == 0 and charWin.bar.colour[2] == 0.6 and FillOf(charWin.bar), "bars: flat, on black, Blizzard's colour kept")
 check(charWin.tick.normalTex.alpha == 0 and charWin.tick.checkedTex.texture == "Interface\\Buttons\\WHITE8x8"
 	and charWin.tick.checkedTex.colour[1] == StzxUI.ACCENT.r, "checkboxes: flat box, accent tick")
+do -- A row the scrolling list makes later (the list grew, a group opened, you scrolled).
+	local row = NewFrame("Button", nil, charWin.list)
+	local later = NewFrame("CheckButton", nil, row)
+	later:SetSize(32, 32)
+	later.normalTex = later:CreateTexture()
+	function later:SetCheckedTexture(t) self.checkedTex = self.checkedTex or self:CreateTexture(); self.checkedTex.texture = t end
+	function later:GetCheckedTexture() return self.checkedTex end
+	check(later.checkedTex == nil, "(a new list row, not skinned yet)")
+	charWin.list:Update()
+	check(later.normalTex.alpha == 0 and later.checkedTex and later.checkedTex.texture == "Interface\\Buttons\\WHITE8x8",
+		"...checkboxes in rows a list makes later get the StzxUI look too (no gold ticks next to StzxUI squares)")
+end
 check(charWin.slot.icon.alpha == nil, "item slots (anything with an icon) never touched")
 check(charWin.secure.art.alpha == nil, "protected buttons never touched")
 check(charScroll.Back.arrow.desaturated, "gold scroll arrows toned to grey")

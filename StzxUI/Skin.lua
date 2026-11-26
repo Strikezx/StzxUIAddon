@@ -574,6 +574,19 @@ local function Inside(f, root)
 	return l >= L - 4 and r <= R + 4 and t <= T + 4 and b >= B - 4
 end
 
+-- Scrolling lists (Blizzard's ScrollBox) make their rows as they're needed:
+-- when the list grows, a group opens or you scroll. Rows made after the
+-- window was skinned would keep Blizzard's look (gold ticks next to StzxUI
+-- squares), so after each of the list's updates its new rows get skinned too.
+local watchedLists = setmetatable({}, { __mode = "k" })
+local function WatchList(list, depth, root)
+	if watchedLists[list] or not list.Update then return end
+	watchedLists[list] = true
+	hooksecurefunc(list, "Update", function(self)
+		if level == "FULL" then Skin.Controls(self, depth, root) end
+	end)
+end
+
 function Skin.Controls(frame, depth, root)
 	depth = depth or (level == "FULL" and 8 or 4)
 	root = root or frame
@@ -602,6 +615,7 @@ function Skin.Controls(frame, depth, root)
 				if kind == "ScrollFrame" then Skin.Controls(child, depth - 1, root) end
 			else
 				if child.ScrollUpButton or child.ScrollDownButton then GreyArrows(child) end
+				if child.ForEachFrame and child.GetScrollTarget then WatchList(child, depth - 1, root) end
 				local had = StripPanel(child)
 				-- Panels (not small things like rows) get a black background and an edge.
 				if had and kind == "Frame" and child:GetWidth() >= 60 and child:GetHeight() >= 40 and Inside(child, root) then
