@@ -8,10 +8,10 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | Folder | What it does |
 |---|---|
 | `StzxUI` | Core: StzxUI options window (`/stzx`; Esc > Options > AddOns > StzxUI has a welcome page with a button into it), profiles, move mode, section on/off switches, `/stzx` |
-| `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player); recent mail names and your own characters beside Send Mail |
-| `StzxUI_Info` | Info bar across the top of the screen (StzxUI style, length and position adjustable) holding FPS/latency/clock, map coordinates and levelling pace (XP/hour, time to level, `/stzx xp`), each left, centre or right; one text size for all. Or turn the bar off and place each readout on its own |
+| `StzxUI_Social` | Declines duel requests. Thanks players who buff you (emote or whisper, out of combat, with a cooldown per player); recent mail names and your own characters (same faction, class colours) beside Send Mail |
+| `StzxUI_Info` | Info bar across the top of the screen (StzxUI style, length and position adjustable) holding levelling pace (XP/hour, time to level, `/stzx xp`), hearthstone, map coordinates, gold (all characters in its tooltip), free bag slots, durability and FPS/latency/clock (addon memory in its tooltip), each left, centre or right; a thin XP bar along it; one text size for all. Or turn the bar off and place each readout on its own |
 | `StzxUI_UnitFrames` | Player, target, focus, target-of-target and pet frames (class icon or portrait, health and power text, buffs and debuffs) with their own cast bars, plus party and raid frames (a separate Party & Raid section); hides Blizzard's |
-| `StzxUI_Quests` | Tints quests that are new to WoW: Forever (glow on the quest parchment, colour and strength adjustable) and keeps the loot sparkle on quest items; `/stzx quest` says whether the open quest is new; a party panel shows who's on the open quest, with Share and Share all |
+| `StzxUI_Quests` | Tints quests that are new to WoW: Forever (glow on the quest parchment, colour and strength adjustable) and keeps the loot sparkle on quest items; `/stzx quest` says whether the open quest is new; a party panel shows who's on the open quest, with Share and Share all; accepts and hands in quests automatically (Shift pauses) and shows what reward choices sell for |
 | `StzxUI_Runs` | Dungeon and raid run history: time, XP, gold, bosses, deaths and the loot you picked up, per character; a movable run timer while inside; `/stzx runs` opens the history |
 | `StzxUI_Fishing` | Lure timer while you hold a fishing pole (red in the last 30 s, chime when it runs out) and a catch log per zone for all your characters; hover the timer or `/stzx fishing` to see this zone's catches |
 | `StzxUI_ActionBars` | Restyles Blizzard's action bars (square icons with a 1-pixel border, StzxUI hover/pressed colours, tidy text, short keybinds, optional red icons out of range). Edit Mode still places and sizes them |
@@ -19,7 +19,8 @@ Built one module at a time; every module is its own addon folder, so any part ca
 | `StzxUI_Blizzard` | Blizzard frames Edit Mode can't place, in StzxUI move mode (Blizzard group): alerts, error messages, zone text, capture bars and scores, boss banner, level-up toasts. Each can be switched off |
 | `StzxUI_Inventory` | Remembers the bags, gear and bank of all your characters (and the account bank): item tooltips list who else has it, `/stzx items` searches them all. Read-only |
 | `StzxUI_Minimap` | Square minimap with a 1-pixel border (black or accent), round frame art and zoom buttons hidden; tells minimap-button addons it's square; gathers addons' minimap buttons into a fly-out panel opened from the corner. Edit Mode still places it |
-| `StzxUI_Skins` | Blizzard's windows in StzxUI's look: dark fill, thin edge (accent, class colour or black), title strip with an accent line, flat tabs, buttons, close button and scrollbars. Windows Blizzard loads later are skinned as they load; waits for combat to end. `/stzx skins`. Also the Tooltip section: StzxUI look (edge in item quality / class colour), slim health bar, text size, optional target / item level / IDs, at-mouse option |
+| `StzxUI_Skins` | Blizzard's windows in StzxUI's look: dark fill, thin edge (accent, class colour or black), title strip with an accent line, flat tabs, buttons, close button and scrollbars. Windows Blizzard loads later are skinned as they load; waits for combat to end. `/stzx skins`. Dialogue text colour and size. Blizzard's buff bar and Cooldown Manager, Questie, DBM, Zygor and the quest tracker in StzxUI's look. Also the Tooltip section: StzxUI look (edge in item quality / class colour), slim health bar, text size, optional target / item level / IDs, gathering skill needed, at-mouse option |
+| `StzxUI_Helpers` | Helpers: sell greys and repair, faster looting, skip one-option NPC chat, quieter combat errors. Combat: combat timer, pet reminder, healers' mana. Reminders: missing buffs, food and elixirs running out, weapon poisons, gathering tracking, low ammo. Battlegrounds: win rate and averages per battleground (`/stzx bg`) |
 
 ## Optional: JiberishUI Icons
 
@@ -55,7 +56,7 @@ Positions are saved in the current profile.
 
 ## Installing for testing
 
-Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars`, `StzxUI_Nameplates`, `StzxUI_Blizzard`, `StzxUI_Inventory`, `StzxUI_Minimap` and `StzxUI_Skins` folders into:
+Copy the `StzxUI`, `StzxUI_Social`, `StzxUI_Info`, `StzxUI_UnitFrames`, `StzxUI_Quests`, `StzxUI_Runs`, `StzxUI_Fishing`, `StzxUI_ActionBars`, `StzxUI_Nameplates`, `StzxUI_Blizzard`, `StzxUI_Inventory`, `StzxUI_Minimap`, `StzxUI_Skins` and `StzxUI_Helpers` folders into:
 
 ```
 World of Warcraft\_forever_\Interface\AddOns\
@@ -79,6 +80,7 @@ mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Blizzard" 
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Inventory" "C:\...\StzxUIAddon\StzxUI_Inventory"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Minimap" "C:\...\StzxUIAddon\StzxUI_Minimap"
 mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Skins" "C:\...\StzxUIAddon\StzxUI_Skins"
+mklink /J "C:\...\World of Warcraft\_forever_\Interface\AddOns\StzxUI_Helpers" "C:\...\StzxUIAddon\StzxUI_Helpers"
 ```
 
 Install **BugSack** + **BugGrabber** to catch Lua errors, and send the error text back when something breaks.
