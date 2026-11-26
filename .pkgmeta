@@ -17,6 +17,7 @@ move-folders:
   StzxUI/StzxUI_Minimap: StzxUI_Minimap
   StzxUI/StzxUI_Skins: StzxUI_Skins
   StzxUI/StzxUI_Helpers: StzxUI_Helpers
+  StzxUI/StzxUI_Welcome: StzxUI_Welcome
 
 ignore:
   - docs

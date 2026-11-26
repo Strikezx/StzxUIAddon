@@ -946,7 +946,7 @@ end
 ---------------------------------------------------------------------------
 -- Loading like the game: each addon's files in TOC order, then ADDON_LOADED.
 ---------------------------------------------------------------------------
-local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap", "StzxUI_Skins", "StzxUI_Helpers" }
+local ADDONS = { "StzxUI", "StzxUI_Social", "StzxUI_Info", "StzxUI_UnitFrames", "StzxUI_Quests", "StzxUI_Runs", "StzxUI_Fishing", "StzxUI_ActionBars", "StzxUI_Nameplates", "StzxUI_Blizzard", "StzxUI_Inventory", "StzxUI_Minimap", "StzxUI_Skins", "StzxUI_Helpers", "StzxUI_Welcome" }
 local function LoadAddon(folder)
 	local toc = assert(io.open(folder .. "/" .. folder .. ".toc")):read("*a")
 	local ns = {}
@@ -3965,6 +3965,44 @@ end)()
 	check(log.raidWarning == nil, "...never PvP bounty markers or nameless markers")
 	extra.vignettes = nil
 	units.nameplate11, units.nameplate12, unitState.nameplate11, unitState.nameplate12 = nil, nil, nil, nil
+end)()
+
+---------------------------------------------------------------------------
+-- Welcome splash
+---------------------------------------------------------------------------
+;(function() -- leading ';': the section above ends with a call, and Lua
+	-- would read our '(' as its argument list (ambiguous syntax)
+	_G.StzxUIWelcome = nil
+	Reload()
+	Fire("PLAYER_ENTERING_WORLD", false, true) -- a /reload
+	RunAfters()
+	check(_G.StzxUIWelcome == nil, "welcome splash: not after a /reload")
+	Reload()
+	Fire("PLAYER_ENTERING_WORLD", true, false) -- logging in
+	RunAfters()
+	local f = _G.StzxUIWelcome
+	check(f and f:IsShown(), "...opens a moment after logging in")
+	check(f and f.art.texture == "Interface\\AddOns\\StzxUI\\Media\\welcome-2048.png",
+		"...showing the brand art (with .png written out, as the game needs for PNG files)")
+	check(f and f.dim.colour[4] == 0.85, "...over a dimmed screen")
+	check(f and f.art.w == f.art.h * 2, "...the 2:1 art fits the screen's 2:1 box")
+	f:Click("LeftButton")
+	check(not f:IsShown(), "a click closes the splash")
+	Fire("PLAYER_ENTERING_WORLD", false, false) -- zoning later: nothing
+	RunAfters()
+	check(not f:IsShown(), "...and it doesn't come back when you zone")
+	SlashCmdList.STZXUI("splash")
+	check(f:IsShown(), "/stzx splash opens it again")
+	f:Click("RightButton")
+	check(not f:IsShown(), "right-click closes it too")
+	log.settings.STZXUI_WELCOME_SHOWONLOGIN:SetValue(false)
+	_G.StzxUIWelcome = nil -- the old session's frame: forget it, so "no splash" really means "never built"
+	Reload()
+	Fire("PLAYER_ENTERING_WORLD", true, false)
+	RunAfters()
+	check(_G.StzxUIWelcome == nil, "...login splash has its own switch")
+	SlashCmdList.STZXUI("splash")
+	check(_G.StzxUIWelcome:IsShown(), ".../stzx splash still works with login off")
 end)()
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))

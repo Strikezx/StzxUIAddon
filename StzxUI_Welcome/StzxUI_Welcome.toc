@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: |cff4fc3f7Stzx|rUI - Welcome
+## Notes: The StzxUI splash screen at login, and /stzx splash any time.
+## Author: Strikezx
+## Category: |cff4fc3f7Stzx|rUI
+## Group: StzxUI
+## Version: @project-version@
+## Dependencies: StzxUI
+
+Welcome.lua
