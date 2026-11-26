@@ -338,6 +338,9 @@ end
 
 -- The window's own decorative textures (old-style windows draw their frame
 -- art straight onto the window, in its background and border layers).
+local NINE_PIECES = { "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner",
+	"TopEdge", "BottomEdge", "LeftEdge", "RightEdge", "Center" }
+
 local function HideOwnArt(frame, keep)
 	for _, region in ipairs({ frame:GetRegions() }) do
 		if not keep[region] and region.GetObjectType and region:GetObjectType() == "Texture" then
@@ -638,6 +641,13 @@ function Skin.Window(frame, opts)
 		if type(part) == "table" and not skinned[part] then skinned[part] = "left" end
 	end
 	HideOwnArt(frame, keep)
+	-- A Blizzard border laid straight onto the window (NineSliceUtil on the
+	-- window itself, as DBM does, rather than on a .NineSlice child): its
+	-- pieces are keyed on the window and can sit on any layer.
+	for _, key in ipairs(NINE_PIECES) do
+		local piece = frame[key]
+		if piece and not keep[piece] and piece.GetObjectType and piece:GetObjectType() == "Texture" then Hide(piece) end
+	end
 	local overlay = OwnFrame(frame)
 	overlay:SetAllPoints()
 	overlay:SetFrameLevel(frame:GetFrameLevel() + 40)
@@ -658,7 +668,8 @@ function Skin.Window(frame, opts)
 		or (frame.GetName and frame:GetName() and _G[frame:GetName() .. "TitleText"])
 	if titleText and titleText.SetTextColor then titleText:SetTextColor(1, 1, 1) end
 
-	Skin.CloseButton(frame.CloseButton or (frame.GetName and frame:GetName() and _G[frame:GetName() .. "CloseButton"]))
+	local name = frame.GetName and frame:GetName()
+	Skin.CloseButton(frame.CloseButton or (name and (_G[name .. "CloseButton"] or _G[name .. "ClosePanelButton"])))
 	if frame.Inset then Skin.Inset(frame.Inset) end
 	for _, tab in ipairs(frame.Tabs or {}) do
 		if tab.SelectedTexture and tab.Icon then Skin.SideTab(tab) else Skin.Tab(tab) end
@@ -666,7 +677,6 @@ function Skin.Window(frame, opts)
 	-- The Character window's side tabs (Forever: CharacterFrame.ModeTabs).
 	for _, tab in ipairs(frame.ModeTabs and frame.ModeTabs.Tabs or {}) do Skin.SideTab(tab) end
 	-- Old-style tabs are named <Window>Tab1, Tab2...
-	local name = frame.GetName and frame:GetName()
 	if name then
 		for i = 1, 12 do
 			local tab = _G[name .. "Tab" .. i]

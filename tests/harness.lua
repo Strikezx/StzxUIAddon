@@ -3585,12 +3585,16 @@ end)()
 	-- DBM: its options window and bars appear later.
 	local opt = NewFrame("Frame", "DBM_GUI_OptionsFrame", UIParent)
 	opt:SetSize(800, 600)
-	opt.NineSlice = NewFrame("Frame", nil, opt)
+	-- DBM lays Blizzard's border straight onto its window (pieces keyed on it, any layer).
+	opt.TopLeftCorner = opt:CreateTexture(nil, "OVERLAY")
+	opt.TopEdge = opt:CreateTexture(nil, "OVERLAY")
+	local optClose = NewFrame("Button", "DBM_GUI_OptionsFrameClosePanelButton", opt)
 	local bf = NewFrame("Frame", "DBT_Bar_1", UIParent)
 	local bar = NewFrame("StatusBar", "DBT_Bar_1Bar", bf)
 	local icon = NewFrame("Texture", "DBT_Bar_1BarIcon1", bar)
 	TickAll(tickers)
-	check(opt.NineSlice.alpha == 0, "DBM's options window skinned once it exists")
+	check(opt.TopLeftCorner.alpha == 0 and opt.TopEdge.alpha == 0, "DBM's options window skinned once it exists: no gold border")
+	check(StzxUI.Skin.IsSkinned(optClose), "...and its close button in StzxUI's look")
 	local edged = false
 	for _, t in ipairs(bar.childList or {}) do if t.kind == "Texture" and t.colour and t.colour[4] == 1 and t.layer == "BACKGROUND" then edged = true end end
 	check(edged and icon.texCoord[1] == 0.08, "DBM timer bars: thin black edge, square icons")

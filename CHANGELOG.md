@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Skins: windows that lay Blizzard's border straight onto themselves (DBM's options window) lose the gold border too, and close buttons named <Window>ClosePanelButton get StzxUI's look.
 - Options window: the sidebar groups the sections' pages into folders (Frames, Look, Gameplay, History) that open and close; one is open at a time and the folder of the page you're on opens by itself. General, Sections and Profiles stay at the top and bottom. With 22 pages the list no longer runs under the Move mode and Test frames buttons.
 - Helpers: works around a Blizzard bug on Forever (BankFrame.lua:43, "bad argument #1 to 'FetchNumPurchasedBankTabs'"): the bank's tab-cost money display listens for gold changes even while the bank is closed and errors once you've used the bank. While the bank is closed StzxUI tells it to stop listening; Blizzard's own code starts it again when the bank opens. Option "Fix Blizzard's bank error" (on).
 - Battlegrounds (new section, in the Helpers folder): when a battleground ends, StzxUI notes the battleground, win or loss, your killing blows, honourable kills, deaths, honour and how long it ran (the scoreboard is hidden from addons during a match; if your numbers are still hidden at the end, the result is saved and the numbers filled in once the game shows them). /stzx bg (or the button on its page) shows each battleground's win rate and averages and your last matches; /stzx bg clear forgets them.
