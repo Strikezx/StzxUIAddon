@@ -22,18 +22,17 @@ local Rares = StzxUI:NewModule("Rares", ADDON_NAME, {
 ns.Rares = Rares
 
 local AGAIN_AFTER = 300 -- seconds before the same one alerts again
+local NORMAL = 0        -- Enum.VignetteType.Normal: rares (and some event markers, which have no rare name)
 local TREASURE = 3      -- Enum.VignetteType.Treasure
 local alerted = {}      -- key -> GetTime()
 
 -- Alert once per key (also used by the tests). Returns true if it alerted.
 function Rares.Alert(key, kind, name, level)
-	if not key or not name then return false end
+	if not key or not name or name == "" then return false end
 	if alerted[key] and GetTime() - alerted[key] < AGAIN_AFTER then return false end
 	alerted[key] = GetTime()
 	local text = ("%s: %s%s"):format(kind, name, level and level > 0 and (" (" .. level .. ")") or "")
-	if RaidNotice_AddMessage and RaidWarningFrame then
-		RaidNotice_AddMessage(RaidWarningFrame, text, { r = 1, g = 0.82, b = 0.25 })
-	end
+	StzxUI:Warn(text, 1, 0.82, 0.25)
 	if Rares.db.sound and PlaySound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
 	StzxUI:Say("|cffffd166" .. text .. "|r nearby.")
 	return true
@@ -55,7 +54,9 @@ function Rares.CheckVignette(guid)
 	if not (guid and C_VignetteInfo and C_VignetteInfo.GetVignetteInfo) then return false end
 	local info = C_VignetteInfo.GetVignetteInfo(guid)
 	if not info or Plain(info.isDead) or not Plain(info.onMinimap) then return false end
-	local isTreasure = Plain(info.type) == TREASURE
+	local kind = Plain(info.type)
+	if kind ~= NORMAL and kind ~= TREASURE then return false end -- PvP bounties and the like
+	local isTreasure = kind == TREASURE
 	if isTreasure and not Rares.db.treasures then return false end
 	if not isTreasure and not Rares.db.rares then return false end
 	return Rares.Alert(Plain(info.vignetteID) and ("v" .. Plain(info.vignetteID) .. ":" .. tostring(Plain(info.objectGUID)))

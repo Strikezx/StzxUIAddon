@@ -53,6 +53,18 @@ function StzxUI:Say(...)
 	print(PREFIX, ...)
 end
 
+-- A big centre-screen warning, like a raid warning. RaidWarningUtil is
+-- Blizzard's current way; the older RaidNotice_AddMessage only exists when
+-- the game loads its compatibility fallbacks, so it's the second choice.
+function StzxUI:Warn(text, r, g, b)
+	local colour = { r = r or 1, g = g or 0.82, b = b or 0 }
+	if RaidWarningUtil and RaidWarningUtil.AddMessage then
+		RaidWarningUtil.AddMessage(text, colour)
+	elseif RaidNotice_AddMessage and RaidWarningFrame then
+		RaidNotice_AddMessage(RaidWarningFrame, text, colour)
+	end
+end
+
 -- WoW: Forever uses the modern client's addon rules. In restricted moments
 -- (combat, encounters, PvP) some values come back "secret": addons may show
 -- them but may not compare, test or do maths on them. Plain() turns a secret

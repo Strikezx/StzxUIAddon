@@ -482,11 +482,11 @@ end
 local function ReadLayer()
 	if IsInInstance and Plain((IsInInstance())) then return end
 	local units = { "target", "mouseover" }
-	if C_NamePlate and C_NamePlate.GetNamePlates then
-		for _, plate in ipairs(C_NamePlate.GetNamePlates() or {}) do
-			if plate.namePlateUnitToken then units[#units + 1] = plate.namePlateUnitToken end
-			if #units >= 8 then break end
-		end
+	-- A few nameplates too (their units are named nameplate1, nameplate2...).
+	for i = 1, 40 do
+		if #units >= 8 then break end
+		local unit = "nameplate" .. i
+		if Plain(UnitExists(unit)) then units[#units + 1] = unit end
 	end
 	for _, unit in ipairs(units) do
 		local id = Info.LayerFromGUID(Plain(UnitGUID(unit)))

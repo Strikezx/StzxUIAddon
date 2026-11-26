@@ -85,6 +85,12 @@ local function Unbind()
 	end
 end
 
+-- After the click: only once the button is let go, so the release lands on
+-- our button too (not on the camera's "stop turning").
+local function AfterClick(_, _, down)
+	if not down then Unbind() end
+end
+
 -- A right mouse press on the world (also used by the tests).
 function Fishing.WorldRightClick()
 	if not Fishing.db.easyCast or InCombatLockdown() or not Fishing.HoldingPole() then return false end
@@ -111,7 +117,21 @@ end
 local function SetUpEasyCast()
 	castButton = CreateFrame("Button", "StzxUIFishingCast", UIParent, "SecureActionButtonTemplate")
 	castButton:RegisterForClicks("AnyUp", "AnyDown")
-	castButton:SetScript("PostClick", Unbind)
+	-- Cast on the release, whatever "cast on key down" is set to: that works
+	-- whether the game hands our button the whole click or only its release.
+	castButton:SetAttribute("useOnKeyDown", false)
+	castButton:SetScript("PostClick", AfterClick)
+	-- A fight starting with right-click still ours: give it back just before
+	-- the lockdown (PLAYER_REGEN_DISABLED comes first), and check again after.
+	castButton:RegisterEvent("PLAYER_REGEN_DISABLED")
+	castButton:RegisterEvent("PLAYER_REGEN_ENABLED")
+	castButton:SetScript("OnEvent", function(self, event)
+		if event == "PLAYER_REGEN_DISABLED" then
+			if self.bound then ClearOverrideBindings(self); self.bound = false end
+		else
+			Unbind()
+		end
+	end)
 	WorldFrame:HookScript("OnMouseDown", function(_, button)
 		if button == "RightButton" then Fishing.WorldRightClick() end
 	end)

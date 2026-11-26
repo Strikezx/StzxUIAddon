@@ -95,9 +95,7 @@ local function Alert(entry, info)
 	if alerted[key] and GetTime() - alerted[key] < ALERT_EVERY then return end
 	alerted[key] = GetTime()
 	local text = ("Kill on sight: %s%s"):format(info.name, info.level and (" (" .. info.level .. ")") or "")
-	if RaidNotice_AddMessage and RaidWarningFrame then
-		RaidNotice_AddMessage(RaidWarningFrame, text, { r = 1, g = 0.2, b = 0.2 })
-	end
+	StzxUI:Warn(text, 1, 0.2, 0.2)
 	if WorldPvP.db.kosSound and PlaySound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
 	StzxUI:Say(("|cffff4040%s|r spotted%s."):format(text, entry.note and (" (" .. entry.note .. ")") or ""))
 end

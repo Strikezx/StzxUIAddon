@@ -13,6 +13,10 @@
 - Auto quests: never take or hand in repeatable quests (rep and cloth turn-ins, Darkmoon tickets).
 - Guild repair: uses your own gold when the guild's daily limit (or bank) can't cover it, and only says "guild funds" when it did.
 - Notes StzxUI keeps about Blizzard's buff buttons and tracker headers now live in StzxUI's own tables, not on Blizzard's frames.
+- Easy cast fishing: casts on the release of the second right-click whatever "cast on key down" is set to, keeps right-click until you let go, and gives right-click back to the camera the moment a fight starts.
+- Kill-on-sight and rare warnings use Blizzard's current raid-warning call, so the big centre-screen message shows without the game's compatibility fallbacks.
+- Rare alerts: no more alerts for PvP bounty markers or markers with no name.
+- Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
 - Combat: a "Cooldown Manager" button (opens Blizzard's Cooldown Manager to choose taunts, interrupts and other cooldowns to track); its settings window gets the StzxUI look.

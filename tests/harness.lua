@@ -769,7 +769,8 @@ local function InstallClient()
 	function UnitIsEnemy(_, u) return (unitState[u] or {}).enemy or false end
 	if not UnitIsPlayer then function UnitIsPlayer(u) return (unitState[u] or {}).isPlayer or false end end
 	function GetGuildInfo(u) return (unitState[u] or {}).guild end
-	function RaidNotice_AddMessage(_, text) log.raidWarning = text end
+	function RaidNotice_AddMessage(_, text) log.raidWarning = "old way: " .. text end
+	RaidWarningUtil = { AddMessage = function(text, colour) log.raidWarning, log.raidColour = text, colour end }
 	RaidWarningFrame = RaidWarningFrame or {}
 	SOUNDKIT = SOUNDKIT or { RAID_WARNING = 8959, UI_BNET_TOAST = 18019 }
 	function strsplit(sep, text)
@@ -2366,8 +2367,17 @@ do -- Easy cast: double right-click the world casts Fishing (out of combat, pole
 	Script(WorldFrame, "OnMouseDown", "RightButton")
 	check(log.binding and log.binding.key == "BUTTON2" and log.binding.name == "StzxUIFishingCast"
 		and StzxUIFishingCast:GetAttribute("spell") == 7620, "...a double right-click casts Fishing")
-	Script(StzxUIFishingCast, "PostClick")
-	check(log.binding == nil, "...and right-click is back to normal after")
+	check(StzxUIFishingCast:GetAttribute("useOnKeyDown") == false, "...casting on the release, whatever \"cast on key down\" says")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", true)
+	check(log.binding ~= nil, "...still ours while the button is held down")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	check(log.binding == nil, "...and right-click is back to normal once it's let go")
+	-- A fight starts while right-click is still ours: given back before the lockdown.
+	now = now + 1
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(log.binding ~= nil, "(bound again)")
+	Fire("PLAYER_REGEN_DISABLED")
+	check(log.binding == nil, "...a fight starting gives right-click back to the camera straight away")
 	now = now + 1
 	GameTooltip.shown = true
 	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
@@ -3941,6 +3951,10 @@ end)()
 	extra.vignettes["V-2"] = { name = "Old Crate", type = 3, onMinimap = true, isDead = false, vignetteID = 78, objectGUID = "G2" }
 	Fire("VIGNETTES_UPDATED")
 	check(log.raidWarning == nil, "...with its own switch")
+	extra.vignettes["V-3"] = { name = "Wanted: Bloodfist", type = 1, onMinimap = true, isDead = false, vignetteID = 79, objectGUID = "G3" }
+	extra.vignettes["V-4"] = { name = "", type = 0, onMinimap = true, isDead = false, vignetteID = 80, objectGUID = "G4" }
+	Fire("VIGNETTES_UPDATED")
+	check(log.raidWarning == nil, "...never PvP bounty markers or nameless markers")
 	extra.vignettes = nil
 	units.nameplate11, units.nameplate12, unitState.nameplate11, unitState.nameplate12 = nil, nil, nil, nil
 end)()
