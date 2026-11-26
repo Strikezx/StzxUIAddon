@@ -777,6 +777,11 @@ local function InstallClient()
 	function GetCoinTextureString(c) return c .. "c" end
 	function GetInventoryItemCount() return extra.ammoCount or 0 end
 	INVSLOT_AMMO = 0
+	-- Battleground scoreboard: extra.bgWinner (0 Horde, 1 Alliance), extra.scores = { PVPScoreInfo, ... }.
+	function GetBattlefieldWinner() return extra.bgWinner end
+	function GetNumBattlefieldScores() return #(extra.scores or {}) end
+	function GetBattlefieldInstanceRunTime() return 900000 end
+	C_PvP = { GetScoreInfo = function(i) return extra.scores[i] end }
 	-- Quest giver buttons (what auto quests would click).
 	function AcceptQuest() log.accepted = (log.accepted or 0) + 1 end
 	function CompleteQuest() log.completed = (log.completed or 0) + 1 end
@@ -3559,6 +3564,41 @@ end)()
 	check(ObjectiveTrackerFrame.Header.Background.alpha == 0 and ObjectiveTrackerFrame.Header.Text.color[1] == 1
 		and ObjectiveTrackerFrame.modules[1].Header.Text.color[1] == StzxUI.ACCENT.r,
 		"quest tracker: gold header art gone, white and accent headers")
+end)()
+
+---------------------------------------------------------------------------
+-- 39. Battleground history
+---------------------------------------------------------------------------
+;(function()
+	StzxUIDB, StzxUIBattlegroundsDB = nil, nil
+	StartGame(nil)
+	instance = { name = "Warsong Gulch", kind = "pvp", id = 489 }
+	extra.scores = {
+		{ name = "Someone Else", faction = 0, killingBlows = 9, honorableKills = 20, deaths = 1, honorGained = 300 },
+		{ name = "Strikezx Kincrag", faction = 1, killingBlows = SECRET, honorableKills = SECRET, deaths = SECRET, honorGained = SECRET },
+	}
+	Fire("UPDATE_BATTLEFIELD_SCORE")
+	check(#(StzxUIBattlegroundsDB and StzxUIBattlegroundsDB.matches or {}) == 0, "nothing noted while the match is on")
+	extra.bgWinner = 1
+	log.prints = {}
+	Fire("UPDATE_BATTLEFIELD_SCORE")
+	local m = StzxUIBattlegroundsDB.matches[1]
+	check(m and m.map == "Warsong Gulch" and m.won and m.kb == nil and m.seconds == 900, "a win noted (numbers still hidden: result only)")
+	check(lastPrint():find("Warsong Gulch", 1, true) and lastPrint():find("win", 1, true), "...and said in chat")
+	extra.scores[2] = { name = "Strikezx Kincrag", faction = 1, killingBlows = 4, honorableKills = 12, deaths = 2, honorGained = 250 }
+	Fire("UPDATE_BATTLEFIELD_SCORE")
+	check(#StzxUIBattlegroundsDB.matches == 1 and m.kb == 4 and m.deaths == 2, "...numbers filled in once the game shows them (no double entry)")
+	-- A second match, lost.
+	Fire("PLAYER_ENTERING_WORLD")
+	extra.bgWinner = 0
+	Fire("UPDATE_BATTLEFIELD_SCORE")
+	local report = StzxUI:GetModule("Battlegrounds").Report("Strikezx Kincrag")
+	check(report:find("Warsong Gulch: 2 played, 1 won (50%)", 1, true) and report:find("Last matches:", 1, true),
+		"history: win rate per battleground and the last matches")
+	SlashCmdList.STZXUI("bg")
+	check(DialogShown() and DialogText():find("Warsong Gulch", 1, true), "/stzx bg shows it")
+	StzxUIDialog.cancelButton:Click()
+	instance, extra.scores, extra.bgWinner = nil, nil, nil
 end)()
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))
