@@ -403,12 +403,13 @@ local function Build()
 	line:SetHeight(2)
 	line:SetColorTexture(A.r, A.g, A.b, 1)
 
-	local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-	title:SetPoint("TOPLEFT", 14, -12)
-	title:SetText("StzxUI")
-	title:SetTextColor(A.r, A.g, A.b)
+	-- The wordmark: brand art from StzxUI/Media/, tinted to the live accent
+	-- (StzxUI:AddBrandMark - one place for the art, sizes and re-tinting).
+	local brand = StzxUI:AddBrandMark(f, 15)
+	brand:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -13)
+	f.brand = brand
 	local version = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-	version:SetPoint("LEFT", title, "RIGHT", 8, -1)
+	version:SetPoint("LEFT", brand, "RIGHT", 8, -1)
 	version:SetText(StzxUI.version or "dev")
 	local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
 	close:SetPoint("TOPRIGHT", 2, 2)

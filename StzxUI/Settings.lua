@@ -161,12 +161,14 @@ function StzxUI:CreateLandingPage()
 	local page = CreateFrame("Frame", "StzxUISettingsLanding")
 	page:Hide()
 
-	local title = LandingText(page, 72)
-	title:SetPoint("TOP", page, "TOP", 0, -60)
-	title:SetText(("|cff%sStzx|rUI"):format(hex))
+	-- The wordmark: brand art from StzxUI/Media/ (Stzx in the accent, UI in
+	-- white) instead of plain text. About as wide as the paragraph under it.
+	local title = self:AddBrandMark(page, 46)
+	title:SetPoint("TOP", page, "TOP", 0, -54)
+	page.title = title
 
 	local tagline = LandingText(page, 18)
-	tagline:SetPoint("TOP", title, "BOTTOM", 0, -6)
+	tagline:SetPoint("TOP", title, "BOTTOM", 0, -14)
 	tagline:SetText("A complete UI for WoW: Forever")
 
 	local version = LandingText(page, 13, 0.7, 0.7, 0.7)
