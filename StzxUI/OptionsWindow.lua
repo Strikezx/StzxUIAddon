@@ -45,7 +45,7 @@ local pools = {}
 local FOLDERS = {
 	{ name = "Frames", pages = { "Unit Frames", "Party & Raid", "Nameplates", "Action Bars", "Minimap", "Blizzard Frames" } },
 	{ name = "Look", pages = { "Skins", "Tooltip", "Info", "Welcome" } },
-	{ name = "Gameplay", pages = { "Quests", "Helpers", "Combat", "Reminders", "Rare Alerts", "Social" } },
+	{ name = "Gameplay", pages = { "Quests", "Helpers", "Combat", "Threat Meter", "Reminders", "Rare Alerts", "Social" } },
 	{ name = "PvP", pages = { "World PvP", "Battlegrounds" } },
 	{ name = "History", pages = { "Runs", "Fishing", "Inventory" } },
 }

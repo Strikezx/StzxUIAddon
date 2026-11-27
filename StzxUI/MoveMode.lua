@@ -472,7 +472,7 @@ end
 
 function StzxUI:ToggleTestMode()
 	if not next(self.testModes) then
-		self:Say("nothing has test frames: Party & Raid and Nameplates are both switched off.")
+		self:Say("nothing has test frames: Party & Raid, Nameplates and Threat Meter are all switched off.")
 		return
 	end
 	self.testFromMoveMode = false

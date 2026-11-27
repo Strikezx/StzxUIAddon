@@ -510,11 +510,21 @@ local function InstallClient()
 	}
 	function UnitCanAttack(_, u) return U(u).attackable or false end
 	-- Threat on mob u: unitState[u].tanking / .threatStatus / .threatPercent / .threatLead.
-	function UnitDetailedThreatSituation(_, u)
+	-- (or per person: unitState[u].threatBy[who] = { tanking, status, raw, lead })
+	function UnitDetailedThreatSituation(who, u)
 		local d = U(u)
+		if d.threatBy then
+			local t = d.threatBy[who]
+			if not t then return nil end
+			return t.tanking, t.status, t.raw, t.raw, 1000
+		end
 		return d.tanking, d.threatStatus, d.threatPercent, d.threatPercent, 1000
 	end
-	function UnitThreatPercentageOfLead(_, u) return U(u).threatLead end
+	function UnitThreatPercentageOfLead(who, u)
+		local d = U(u)
+		if d.threatBy then return d.threatBy[who] and d.threatBy[who].lead end
+		return d.threatLead
+	end
 	function GetThreatStatusColor(status)
 		local c = ({ [0] = { 0.69, 0.69, 0.69 }, { 1, 1, 0.47 }, { 1, 0.6, 0 }, { 1, 0, 0 } })[status]
 		return c[1], c[2], c[3]
@@ -1325,6 +1335,7 @@ log.settings.STZXUI_SECTION_BLIZZARDFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_COMBAT:SetValue(false)
 log.settings.STZXUI_SECTION_REMINDERS:SetValue(false)
 log.settings.STZXUI_SECTION_WORLDPVP:SetValue(false)
+log.settings.STZXUI_SECTION_THREATMETER:SetValue(false)
 Reload()
 check(not StzxUI:GetModule("Info").active and StzxUI.movers.InfoStats == nil and not Category("Info"), "Info stays off: no frames, no page")
 check(log.settings.STZXUI_SECTION_INFO:GetValue() == false, "its switch shows off")
@@ -1336,6 +1347,7 @@ log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_RUNS:SetValue(true)
 log.settings.STZXUI_SECTION_FISHING:SetValue(true)
 log.settings.STZXUI_SECTION_BLIZZARDFRAMES:SetValue(true)
+log.settings.STZXUI_SECTION_THREATMETER:SetValue(true)
 check(StzxUIDB.profiles.Default.enabled.Info == nil, "switching on clears the flag")
 Reload()
 check(StzxUI:GetModule("Info").enabled and StzxUI.movers.InfoStats, "Info back after reload")
@@ -2479,6 +2491,7 @@ check(Button("Party & Raid", "Test frames"), "button on the Party & Raid page")
 
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(false)
 log.settings.STZXUI_SECTION_NAMEPLATES:SetValue(false)
+log.settings.STZXUI_SECTION_THREATMETER:SetValue(false)
 Reload()
 SlashCmdList.STZXUI("test")
 check(lastPrint():find("nothing has test frames", 1, true), "Party & Raid off: says so")
@@ -2487,6 +2500,7 @@ check(not StzxUIMoveToolbar.test.shown, "...and no switch on the toolbar")
 StzxUI:ExitMoveMode()
 log.settings.STZXUI_SECTION_GROUPFRAMES:SetValue(true)
 log.settings.STZXUI_SECTION_NAMEPLATES:SetValue(true)
+log.settings.STZXUI_SECTION_THREATMETER:SetValue(true)
 Reload()
 
 ---------------------------------------------------------------------------
@@ -4140,6 +4154,59 @@ end)()
 	log.settings.STZXUI_COMBAT_THREATCHECK:SetValue(true)
 	extra.threatSecret = nil
 	unitState.target = savedTarget
+	Fire("PLAYER_TARGET_CHANGED")
+end)()
+
+;(function() -- Threat meter
+	Reload()
+	local TM = StzxUI:GetModule("ThreatMeter")
+	local meter = StzxUIThreatMeter
+	local savedTarget, savedPet, savedPetUnit = unitState.target, unitState.pet, units.pet
+	units.pet, unitState.pet = { name = "Volgup" }, { hp = 100, hpMax = 100 }
+	unitState.target = { hp = 100, hpMax = 100, reaction = 2, level = 12, attackable = true, threatBy = {
+		player = { tanking = false, status = 1, raw = 92 }, pet = { tanking = true, status = 3, raw = 100 } } }
+	units.target = { name = "Defias Thug" }
+	Fire("PLAYER_TARGET_CHANGED")
+	inCombat = true
+	Fire("PLAYER_REGEN_DISABLED")
+	check(not meter.shown, "threat meter: not when you're solo (unless you ask for it)")
+	log.settings.STZXUI_THREATMETER_SOLO:SetValue(true)
+	check(meter.shown and meter.title.text == "Defias Thug", "...solo too when asked: titled with your target")
+	check(meter.rows[1].name.text == "Volgup" and meter.rows[1].value.text == "100%"
+		and meter.rows[2].name.text == "Strikezx" and meter.rows[2].value.text == "92%",
+		"...highest first: whoever has aggro at 100%, then the rest")
+	check(meter.rows[2].bar.value == 92 and not meter.rows[3].shown, "...each a bar of its share")
+	check(StzxUIThreatWarning.shown and StzxUIThreatWarning.text.text == "Threat 92%",
+		"...a warning as you pass 90% without aggro")
+	StzxUIThreatWarning:Hide()
+	TM.Update()
+	check(not StzxUIThreatWarning.shown, "...once per climb, not every update")
+	unitState.target.threatBy.player.raw = 60
+	TM.Update()
+	unitState.target.threatBy.player.raw = 95
+	TM.Update()
+	check(StzxUIThreatWarning.shown, "...and again after dropping well below and climbing back")
+	StzxUIThreatWarning:Hide()
+	unitState.target.threatBy.player = { tanking = true, status = 3, raw = 100, lead = 120 }
+	unitState.target.threatBy.pet = { tanking = false, status = 1, raw = 70 }
+	Fire("PLAYER_TARGET_CHANGED")
+	check(not StzxUIThreatWarning.shown and meter.rows[1].name.text == "Strikezx", "...no warning when you're the one with aggro")
+	unitState.target.threatBy.player = { tanking = SECRET, status = SECRET, raw = SECRET }
+	unitState.target.threatBy.pet = { tanking = SECRET, status = SECRET, raw = SECRET }
+	TM.Update()
+	check(meter.shown and meter.rows[1].name.text == "Strikezx" and issecretvalue(meter.rows[1].bar.value)
+		and meter.rows[2].shown and not StzxUIThreatWarning.shown,
+		"...secret threat: bars still shown (group order, no warning)")
+	inCombat = false
+	Fire("PLAYER_REGEN_ENABLED")
+	check(not meter.shown, "...hidden out of combat")
+	StzxUI:SetTestMode(true)
+	check(meter.shown and meter.title.text:find("(test)", 1, true) and meter.rows[5].shown, "...sample bars in test mode for placing it")
+	StzxUI:SetTestMode(false)
+	check(not meter.shown, "(test bars gone)")
+	log.settings.STZXUI_THREATMETER_SOLO:SetValue(false)
+	unitState.target, unitState.pet, units.pet = savedTarget, savedPet, savedPetUnit
+	units.target = nil
 	Fire("PLAYER_TARGET_CHANGED")
 end)()
 

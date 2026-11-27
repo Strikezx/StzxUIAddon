@@ -23,6 +23,7 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Threat meter (new Threat Meter page, Gameplay folder): a movable list of who has how much threat on your target, highest first, in class colours (pets grey), each a share of the top threat. In a group by default (solo optional), only in combat (optional), 3–10 bars. A "Threat 92%" warning with a sound when you pass a level you choose (70–100%) without aggro, once per climb. If the game makes threat secret, bars still show in group order without the warning. Sample bars in test mode for placing it.
 - Threat: your threat % on the target and focus frames, in a small box coloured like Blizzard's (grey, yellow, orange, red; a tank sees how far ahead of the next person). Shown even when the game makes threat secret, then coloured only by whether you're tanking (Unit Frames > Target/Focus > Show my threat).
 - Threat check: a moment into each fight and again mid-fight, StzxUI notes whether the game lets addons read threat, and says so in chat after the fight (first time and when it changes). `/stzx threat` checks right now and shows the last fight (Combat > Threat).
 - Brand wordmark art (by Augure) in the options window's title bar and on the StzxUI page in Blizzard's AddOns options: "Stzx" in your accent colour, "UI" in white.

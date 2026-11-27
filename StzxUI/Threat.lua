@@ -25,7 +25,7 @@ function Threat.Colour(status)
 end
 
 -- `unit`'s threat on `mob`, or nil when the game says plainly that `unit`
--- isn't on its threat list. Returns { tanking, status, percent, secret }:
+-- isn't on its threat list. Returns { tanking, status, percent, raw, secret }:
 --   percent  how close to pulling (100 = pulls); for the one tanking, how far
 --            ahead of the next person, like Blizzard's own target frame
 --   secret   true when the game has made these values secret right now:
@@ -40,7 +40,8 @@ function Threat.Read(unit, mob)
 		local lead = UnitThreatPercentageOfLead(unit, mob)
 		if not IsSecret(lead) and lead and lead > 0 then percent = lead end
 	end
-	return { tanking = tanking, status = status, percent = percent, secret = secret }
+	-- raw: share of the top threat (whoever has aggro sits at 100); what a meter shows.
+	return { tanking = tanking, status = status, percent = percent, raw = raw, secret = secret }
 end
 
 -- Is threat secret right now for `unit` against `mob`? Two answers: the
