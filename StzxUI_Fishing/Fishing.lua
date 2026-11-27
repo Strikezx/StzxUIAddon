@@ -118,8 +118,14 @@ function Fishing.PickLure()
 end
 
 -- A lure is wanted now: auto lure on, no lure on the pole, and one to use.
+-- Never blocks casting: with no lure you can use, or if putting one on
+-- didn't take (StzxUI tried in the last 20 seconds and the pole still has
+-- none), the double right-click simply casts.
+local LURE_RETRY = 20 -- seconds
+local lureTriedAt
 function Fishing.LureToApply()
 	if not Fishing.db.autoLure or Fishing.LureLeft() then return nil end
+	if lureTriedAt and GetTime() - lureTriedAt < LURE_RETRY then return nil end
 	return Fishing.PickLure()
 end
 
@@ -168,6 +174,7 @@ function Fishing.WorldRightClick()
 	local lure = Fishing.LureToApply()
 	if lure then
 		-- Use the lure, then "use" the pole: the game's way to put a lure on it.
+		lureTriedAt = GetTime()
 		castButton:SetAttribute("type", "macro")
 		castButton:SetAttribute("macrotext", ("/use item:%d\n/use %d"):format(lure.id, MAIN_HAND))
 	else

@@ -2455,6 +2455,32 @@ do -- Easy cast: double right-click the world casts Fishing (out of combat, pole
 	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
 	check(StzxUIFishingCast:GetAttribute("type") == "spell", "...with a lure on, it casts")
 	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	-- The lure ran out, but the last try was moments ago and didn't take: cast anyway.
+	fishing.lureMS = nil
+	now = now + 1
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(StzxUIFishingCast:GetAttribute("type") == "spell",
+		"...if putting a lure on didn't take, the next double right-click casts instead of trying again")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	now = now + 30
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(StzxUIFishingCast:GetAttribute("type") == "macro", "...and tries the lure again a little later")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	-- Only lures your skill can't use yet: it casts.
+	now = now + 30
+	extra.items = { [6532] = 5 }
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(StzxUIFishingCast:GetAttribute("type") == "spell", "...with only lures you can't use yet, it casts")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	-- No lures at all: it casts.
+	extra.items = {}
+	now = now + 30
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(StzxUIFishingCast:GetAttribute("type") == "spell" and StzxUIFishingCast:GetAttribute("spell") == 7620,
+		"...and with no lures at all, it casts")
+	extra.items = { [6529] = 4, [6530] = 2, [6532] = 5 }
+	fishing.lureMS = 600000
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
 	fishing.lureMS = nil
 	log.settings.STZXUI_FISHING_AUTOLURE:SetValue(false)
 	now = now + 1
