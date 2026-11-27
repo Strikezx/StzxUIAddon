@@ -3567,12 +3567,13 @@ do
 	check(brandTex.vertex[1] == 1 and brandTex.vertex[2] == 0, "...and re-tints to a changed accent on show")
 	StzxUI.ACCENT.r, StzxUI.ACCENT.g, StzxUI.ACCENT.b = saved[1], saved[2], saved[3]
 end
-check(not hasWordmark(landing, "FontString") and landing.title.kind == "Frame", "the art title replaced the text title")
+check(not hasWordmark(landing) and landing.title.kind == "Frame", "the art title replaced the text title")
 local landingText = {}
 for _, f in ipairs(frames) do if f.parent == landing and f.kind == "FontString" then landingText[#landingText + 1] = f.text end end
 local all = table.concat(landingText, " | ")
 check(all:find("Version: development copy") and all:find("Unit frames, party"),
 	"welcome page: version and what StzxUI does")
+check(not all:find("Stzx|rUI", 1, true), "...and no text title left behind")
 check(all:find("Sections on:|r Social, Info"), "...and which sections are on")
 -- The options window's title bar carries the same brand art.
 local owBrandTex = hasWordmark(StzxUIOptions.brand)

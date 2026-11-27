@@ -43,11 +43,12 @@ StzxUI.BACKGROUND = { r = STZX_BACKGROUND.r, g = STZX_BACKGROUND.g, b = STZX_BAC
 -- sized to the art; it re-tints itself on show so it always matches
 -- StzxUI.ACCENT, which ApplyAccent fills in after load.
 -- Each file centres its glyph art on a transparent power-of-two canvas; the
--- coord tables below crop away the empty margins (left, right, bottom, top
--- in texture coordinates, measured by the brand kit's measure_art.py). The
+-- coord tables below crop away the empty margins (left, right, top, bottom
+-- in texture coordinates, the order SetTexCoord takes; 0 is the top edge;
+-- measured by the brand kit's measure_art.py). The
 -- widths follow from the trimmed aspect: STZX is 4.03:1, UI is 1.57:1.
 local STZX_COORDS = { 0.2480, 0.7520, 0.0, 1.0 }
-local UI_COORDS = { 0.1094, 0.8828, 0.0, 0.9844 }
+local UI_COORDS = { 0.1094, 0.8828, 0.0156, 1.0 } -- UI's art starts one row down
 
 function StzxUI:AddBrandMark(parent, height)
 	local accent = self.ACCENT
