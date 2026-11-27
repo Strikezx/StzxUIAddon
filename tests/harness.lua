@@ -2353,6 +2353,13 @@ SendMailNameEditBox = NewFrame("EditBox", "SendMailNameEditBox", SendMailFrame)
 function SendMailFrame_SendMail() end
 Fire("ADDON_LOADED", "Blizzard_MailFrame")
 check(StzxUIMailNames and StzxUIMailNames.parent == SendMailFrame, "...and joins it when it loads")
+do
+	local edges = 0
+	for _, t in ipairs(StzxUIMailNames.childList or {}) do
+		if t.colour and t.colour[1] == StzxUI.ACCENT.r and t.colour[4] == 1 then edges = edges + 1 end
+	end
+	check(edges >= 4 and StzxUIMailNames.altsTitle.rule, "...in StzxUI's box: accent edges all round, a line under each heading")
+end
 StzxUISocialDB = nil
 
 ---------------------------------------------------------------------------

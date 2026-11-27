@@ -23,6 +23,7 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Send Mail: the "Recent" and "My characters" list now sits in StzxUI's box (accent edges all round, a line under each heading, the palette's dark fill).
 - Fishing: auto lure. With double right-click casting, a pole with no lure gets one first (the best one your Fishing skill can use, or the weakest first to save the good ones); the next double right-click casts. The lure timer says which lure goes on next.
 - Fishing: tackle box. Hover the lure timer for the lures you carry, how many, their bonus and which you can't use yet; also in /stzx fishing. The tooltip also counts this session's catches across zones.
 - Threat meter (new Threat Meter page, Gameplay folder): a movable list of who has how much threat on your target, highest first, in class colours (pets grey), each a share of the top threat. In a group by default (solo optional), only in combat (optional), 3–10 bars. A "Threat 92%" warning with a sound when you pass a level you choose (70–100%) without aggro, once per climb. If the game makes threat secret, bars still show in group order without the warning. Sample bars in test mode for placing it.

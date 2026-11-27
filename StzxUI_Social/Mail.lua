@@ -139,18 +139,25 @@ local function Build()
 	p:SetPoint("TOPLEFT", MailFrame or SendMailFrame, "TOPRIGHT", 6, -24)
 	p:SetClampedToScreen(true)
 	p:SetFrameStrata("HIGH")
-	local bg = p:CreateTexture(nil, "BACKGROUND")
-	bg:SetAllPoints()
-	bg:SetColorTexture(0.05, 0.05, 0.07, 0.92)
+	-- StzxUI's box: a thin accent edge all round, the usual dark fill, and a
+	-- thicker accent bar along the top.
+	local back = StzxUI.BACKGROUND
+	StzxUI.Skin.Backdrop(p, { edge = "accent", fill = { back.r, back.g, back.b }, alpha = 0.94 })
 	local line = p:CreateTexture(nil, "BORDER")
 	line:SetPoint("TOPLEFT")
 	line:SetPoint("TOPRIGHT")
 	line:SetHeight(2)
 	line:SetColorTexture(A.r, A.g, A.b, 1)
 
+	-- A heading with a faint accent line under it.
 	local function Heading()
 		local h = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		h:SetTextColor(A.r, A.g, A.b)
+		h.rule = p:CreateTexture(nil, "ARTWORK")
+		h.rule:SetHeight(1)
+		h.rule:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -2)
+		h.rule:SetPoint("RIGHT", p, "RIGHT", -8, 0)
+		h.rule:SetColorTexture(A.r, A.g, A.b, 0.35)
 		return h
 	end
 	p.recentTitle = Heading()
@@ -186,8 +193,10 @@ function Mail.Refresh()
 	local function Section(title, names, isRecent)
 		if #names == 0 then
 			title:Hide()
+			title.rule:Hide()
 			return
 		end
+		title.rule:Show()
 		title:ClearAllPoints()
 		title:SetPoint("TOPLEFT", 8, y)
 		title:Show()
