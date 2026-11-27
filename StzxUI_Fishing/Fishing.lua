@@ -9,6 +9,11 @@
 --     bobber. How: on the second click StzxUI briefly binds right-click to a
 --     secure button that casts Fishing (the only way an addon may cast for
 --     you), then takes the binding off again.
+--   * Auto lure: when there's no lure on the pole, that double right-click
+--     puts one on first (the best one you can use, or the weakest first if
+--     you'd rather save the good ones); the next double right-click casts.
+--   * Tackle box: hover the readout to see which lures you carry, how many,
+--     and which your Fishing skill can use yet.
 --
 -- All from the game itself: the lure is a weapon enchant on the pole, and
 -- the loot window says when loot came from fishing. The log is saved for
@@ -29,6 +34,8 @@ local Fishing = StzxUI:NewModule("Fishing", ADDON_NAME, {
 	lureSound = true,
 	catchLog = true,
 	easyCast = true,   -- double right-click to cast while holding a pole
+	autoLure = true,   -- ...and put a lure on first when there's none
+	lureChoice = "BEST", -- "BEST" (biggest bonus you can use) or "WEAKEST" (save the good ones)
 }, {
 	title = "Fishing",
 	description = "A lure timer while you hold a fishing pole, and a log of what you catch in each zone.",
@@ -60,6 +67,60 @@ function Fishing.LureLeft()
 		if has and left then return left / 1000 end
 	end
 	return nil
+end
+
+---------------------------------------------------------------------------
+-- Lures and the tackle box
+---------------------------------------------------------------------------
+
+-- Forever's lures: item, Fishing bonus, Fishing skill needed to use it.
+local LURES = {
+	{ id = 6529, name = "Shiny Bauble", bonus = 25, need = 1 },
+	{ id = 6530, name = "Nightcrawlers", bonus = 50, need = 50 },
+	{ id = 6811, name = "Aquadynamic Fish Lens", bonus = 50, need = 50 },
+	{ id = 6532, name = "Bright Baubles", bonus = 75, need = 100 },
+	{ id = 7307, name = "Flesh Eating Worm", bonus = 75, need = 100 },
+	{ id = 6533, name = "Aquadynamic Fish Attractor", bonus = 100, need = 100 },
+}
+Fishing.LURES = LURES
+local FISHING_SKILL = 356 -- skill line
+
+-- Your Fishing skill (without bonuses), or nil if the game won't say.
+function Fishing.Skill()
+	if not (C_SkillInfo and C_SkillInfo.GetSkillLineInfoByID) then return nil end
+	local info = C_SkillInfo.GetSkillLineInfoByID(FISHING_SKILL)
+	return info and Plain(info.rank)
+end
+
+-- The lures in your bags: { { lure, count, usable }, ... } in LURES order.
+function Fishing.TackleBox()
+	local skill = Fishing.Skill() or 1
+	local box = {}
+	for _, lure in ipairs(LURES) do
+		local count = Plain(C_Item.GetItemCount(lure.id)) or 0
+		if count > 0 then box[#box + 1] = { lure = lure, count = count, usable = skill >= lure.need } end
+	end
+	return box
+end
+
+-- The lure to put on next (per the "which lure" setting), or nil for none.
+function Fishing.PickLure()
+	local pick
+	for _, entry in ipairs(Fishing.TackleBox()) do
+		if entry.usable then
+			local better = not pick
+			if pick and Fishing.db.lureChoice == "WEAKEST" then better = entry.lure.bonus < pick.bonus
+			elseif pick then better = entry.lure.bonus > pick.bonus end
+			if better then pick = entry.lure end
+		end
+	end
+	return pick
+end
+
+-- A lure is wanted now: auto lure on, no lure on the pole, and one to use.
+function Fishing.LureToApply()
+	if not Fishing.db.autoLure or Fishing.LureLeft() then return nil end
+	return Fishing.PickLure()
 end
 
 ---------------------------------------------------------------------------
@@ -104,10 +165,17 @@ function Fishing.WorldRightClick()
 		return false
 	end
 	lastRight = 0
-	local spell = Fishing.FishingSpell()
-	if not spell then return false end
-	castButton:SetAttribute("type", "spell")
-	castButton:SetAttribute("spell", spell)
+	local lure = Fishing.LureToApply()
+	if lure then
+		-- Use the lure, then "use" the pole: the game's way to put a lure on it.
+		castButton:SetAttribute("type", "macro")
+		castButton:SetAttribute("macrotext", ("/use item:%d\n/use %d"):format(lure.id, MAIN_HAND))
+	else
+		local spell = Fishing.FishingSpell()
+		if not spell then return false end
+		castButton:SetAttribute("type", "spell")
+		castButton:SetAttribute("spell", spell)
+	end
 	SetOverrideBindingClick(castButton, true, "BUTTON2", "StzxUIFishingCast")
 	castButton.bound = true
 	C_Timer.After(1, Unbind) -- in case the click never reaches it
@@ -145,6 +213,9 @@ local function Zone()
 	return Plain(GetRealZoneText()) or "Unknown"
 end
 
+local sessionCatches = 0 -- everything fished up since you logged in
+function Fishing.SessionCatches() return sessionCatches end
+
 -- Count one catch: zones[zone] = { total = n, items = { [name] = { count, link } } }
 function Fishing.AddCatch(zone, link, count)
 	local name = link and link:match("%[(.-)%]")
@@ -156,6 +227,7 @@ function Fishing.AddCatch(zone, link, count)
 	z.items[name] = item
 	item.count, item.link = item.count + (count or 1), link
 	z.total = z.total + (count or 1)
+	sessionCatches = sessionCatches + (count or 1)
 end
 
 -- This zone's catches, most common first: { { name, link, count, percent }, ... }
@@ -199,6 +271,8 @@ function Fishing.ReadoutText()
 	local left = Fishing.LureLeft()
 	local _, total = Fishing.Catches()
 	local text = left and ("Lure " .. Clock(left)) or "No lure"
+	local upNext = not left and Fishing.LureToApply()
+	if upNext and Fishing.db.easyCast then text = text .. " (" .. upNext.name .. " next)" end
 	if total > 0 then text = text .. ("  %d caught here"):format(total) end
 	return text, left
 end
@@ -239,6 +313,24 @@ local function ShowTooltip(frame)
 		GameTooltip:AddDoubleLine(item.link or item.name, ("%d  (%d%%)"):format(item.count, item.percent),
 			1, 1, 1, 0.8, 0.8, 0.8)
 	end
+	if sessionCatches > 0 then
+		GameTooltip:AddLine(("%d caught this session (all zones)"):format(sessionCatches), 0.8, 0.8, 0.8)
+	end
+	-- The tackle box.
+	GameTooltip:AddLine(" ")
+	local skill = Fishing.Skill()
+	GameTooltip:AddDoubleLine("Tackle box", skill and ("Fishing " .. skill) or "", A.r, A.g, A.b, 0.8, 0.8, 0.8)
+	local box = Fishing.TackleBox()
+	if #box == 0 then GameTooltip:AddLine("No lures in your bags.", 0.8, 0.8, 0.8) end
+	for _, entry in ipairs(box) do
+		local right = ("+%d  x%d"):format(entry.lure.bonus, entry.count)
+		if entry.usable then
+			GameTooltip:AddDoubleLine(entry.lure.name, right, 1, 1, 1, 0.8, 0.8, 0.8)
+		else
+			GameTooltip:AddDoubleLine(entry.lure.name .. (" (needs Fishing %d)"):format(entry.lure.need), right,
+				0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
+		end
+	end
 	GameTooltip:Show()
 end
 
@@ -257,6 +349,13 @@ function Fishing:OnInitialize()
 	StzxUI:AddCheckbox(page, self, "easyCast", "Double right-click to cast",
 		"While you hold a fishing pole and aren't in a fight, double right-click the world to cast Fishing. "
 		.. "A single right-click still loots the bobber.")
+	StzxUI:AddCheckbox(page, self, "autoLure", "Put a lure on first when there's none",
+		"With double right-click casting: if your pole has no lure and you carry one you can use, the double "
+		.. "right-click puts it on (a few seconds), and the next one casts. Hover the lure timer to see your "
+		.. "tackle box.", Update)
+	StzxUI:AddDropdown(page, self, "lureChoice", "Which lure",
+		"Which lure to put on when you carry more than one.",
+		{ { "BEST", "The best one I can use" }, { "WEAKEST", "The weakest first (save the good ones)" } }, Update)
 	StzxUI:AddButton(page, "Clear the catch log", "Clear", function()
 		StzxUI:ShowDialog({
 			title = "Clear catch log",
@@ -302,6 +401,11 @@ end
 StzxUI.slashCommands.fishing = {
 	help = "list what you've caught in this zone",
 	run = function()
+		local box = {}
+		for _, entry in ipairs(Fishing.TackleBox()) do
+			box[#box + 1] = ("%s x%d%s"):format(entry.lure.name, entry.count, entry.usable and "" or " (can't use yet)")
+		end
+		StzxUI:Say("tackle box:", #box > 0 and table.concat(box, ", ") or "no lures")
 		local list, total = Fishing.Catches()
 		if total == 0 then
 			StzxUI:Say(("nothing caught in %s yet."):format(Zone()))

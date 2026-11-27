@@ -888,6 +888,9 @@ local function InstallClient()
 	C_SkillInfo = {
 		GetNumSkillLines = function() return #(extra.skills or {}) end,
 		GetSkillLineInfo = function(i) return extra.skills[i] end,
+		GetSkillLineInfoByID = function(id)
+			for _, line in ipairs(extra.skills or {}) do if line.skillLineID == id then return line end end
+		end,
 	}
 	C_UnitAuras.GetAuraDataBySpellName = function(unit, name)
 		for _, a in ipairs(auraState[unit] or {}) do if a.name == name then return a end end
@@ -2425,6 +2428,40 @@ do -- Easy cast: double right-click the world casts Fishing (out of combat, pole
 	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
 	inCombat = false
 	check(log.binding == nil, "...not in a fight")
+	-- Auto lure: no lure on the pole and some in the bags: the double-click puts one on first.
+	local savedSkills, savedItems = extra.skills, extra.items
+	extra.skills = { { skillLineID = 356, skillLineDisplayName = "Fishing", skillLineRank = 75, rank = 75 } }
+	extra.items = { [6529] = 4, [6530] = 2, [6532] = 5 } -- Shiny Bauble, Nightcrawlers, Bright Baubles (needs 100)
+	Fire("UNIT_INVENTORY_CHANGED", "player")
+	check(readout.text.text:find("No lure (Nightcrawlers next)", 1, true), "auto lure: the readout says which lure goes on next")
+	now = now + 1
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(log.binding and StzxUIFishingCast:GetAttribute("type") == "macro"
+		and StzxUIFishingCast:GetAttribute("macrotext") == "/use item:6530\n/use 16",
+		"...the double right-click puts on the best lure your skill allows (Nightcrawlers, not Bright Baubles)")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	log.settings.STZXUI_FISHING_LURECHOICE:SetValue("WEAKEST")
+	check(Fish.PickLure().id == 6529, "...or the weakest first, to save the good ones")
+	log.settings.STZXUI_FISHING_LURECHOICE:SetValue("BEST")
+	fishing.lureMS = 600000
+	now = now + 1
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(StzxUIFishingCast:GetAttribute("type") == "spell", "...with a lure on, it casts")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	fishing.lureMS = nil
+	log.settings.STZXUI_FISHING_AUTOLURE:SetValue(false)
+	now = now + 1
+	Script(WorldFrame, "OnMouseDown", "RightButton"); now = now + 0.2; Script(WorldFrame, "OnMouseDown", "RightButton")
+	check(StzxUIFishingCast:GetAttribute("type") == "spell", "...auto lure has its own switch")
+	Script(StzxUIFishingCast, "PostClick", "RightButton", false)
+	log.settings.STZXUI_FISHING_AUTOLURE:SetValue(true)
+	local box = Fish.TackleBox()
+	check(#box == 3 and box[3].lure.name == "Bright Baubles" and not box[3].usable and box[1].count == 4,
+		"tackle box: the lures you carry, how many, and which you can use yet")
+	SlashCmdList.STZXUI("fishing")
+	local said = table.concat(log.prints, " ")
+	check(said:find("Bright Baubles x5 (can't use yet)", 1, true), "...listed by /stzx fishing too")
+	extra.skills, extra.items = savedSkills, savedItems
 	extra.known = nil
 end
 fishing.pole = false

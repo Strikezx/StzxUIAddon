@@ -23,6 +23,8 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Fishing: auto lure. With double right-click casting, a pole with no lure gets one first (the best one your Fishing skill can use, or the weakest first to save the good ones); the next double right-click casts. The lure timer says which lure goes on next.
+- Fishing: tackle box. Hover the lure timer for the lures you carry, how many, their bonus and which you can't use yet; also in /stzx fishing. The tooltip also counts this session's catches across zones.
 - Threat meter (new Threat Meter page, Gameplay folder): a movable list of who has how much threat on your target, highest first, in class colours (pets grey), each a share of the top threat. In a group by default (solo optional), only in combat (optional), 3–10 bars. A "Threat 92%" warning with a sound when you pass a level you choose (70–100%) without aggro, once per climb. If the game makes threat secret, bars still show in group order without the warning. Sample bars in test mode for placing it.
 - Threat: your threat % on the target and focus frames, in a small box coloured like Blizzard's (grey, yellow, orange, red; a tank sees how far ahead of the next person). Shown even when the game makes threat secret, then coloured only by whether you're tanking (Unit Frames > Target/Focus > Show my threat).
 - Threat check: a moment into each fight and again mid-fight, StzxUI notes whether the game lets addons read threat, and says so in chat after the fight (first time and when it changes). `/stzx threat` checks right now and shows the last fight (Combat > Threat).
