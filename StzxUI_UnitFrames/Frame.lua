@@ -221,9 +221,55 @@ local function ApplyLayout(frame)
 	frame.power:SetReverseFill(not left)
 end
 
+-- Your threat on this enemy (target and focus frames): a % in a small box
+-- coloured by threat status. Secret threat (some fights) is shown as it is,
+-- never compared: the box is then red while you're tanking, grey otherwise.
+local THREAT_UNITS = { target = true, focus = true }
+local TANKING, NOT_TANKING -- colours for the secret case (made on first use)
+
+local function CreateThreatBox(frame)
+	local box = CreateFrame("Frame", nil, frame)
+	box:SetSize(38, 14)
+	box:SetFrameLevel(frame:GetFrameLevel() + 5)
+	box.fill = box:CreateTexture(nil, "BACKGROUND")
+	box.fill:SetAllPoints()
+	box.fill:SetColorTexture(1, 1, 1, 0.85)
+	box.text = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	box.text:SetPoint("CENTER", 0, 0)
+	box.text:SetTextColor(0, 0, 0)
+	box:Hide()
+	frame.threatBox = box
+end
+
+function ns.UpdateThreat(frame)
+	local box = frame.threatBox
+	if not box then return end
+	-- The inner top corner, away from the portrait and name.
+	local left = frame.side == "LEFT"
+	box:ClearAllPoints()
+	box:SetPoint(left and "BOTTOMRIGHT" or "BOTTOMLEFT", frame.body, left and "TOPRIGHT" or "TOPLEFT", 0, 1)
+	if not frame.settings.threat or not Plain(UnitCanAttack("player", frame.unit)) then box:Hide() return end
+	local t = StzxUI.Threat.Read("player", frame.unit)
+	if not t then box:Hide() return end
+	if t.secret then
+		TANKING = TANKING or CreateColor(1, 0.1, 0.1, 1)
+		NOT_TANKING = NOT_TANKING or CreateColor(0.69, 0.69, 0.69, 1)
+		box.text:SetFormattedText("%.0f%%", t.percent)
+		box.fill:SetVertexColorFromBoolean(t.tanking, TANKING, NOT_TANKING)
+		box:Show()
+	elseif t.percent and t.percent > 0 then
+		box.text:SetFormattedText("%.0f%%", t.percent)
+		box.fill:SetVertexColor(StzxUI.Threat.Colour(t.status))
+		box:Show()
+	else
+		box:Hide()
+	end
+end
+
 function ns.UpdateUnitFrame(frame)
 	if not frame then return end
 	ApplyLayout(frame)
+	ns.UpdateThreat(frame)
 	if not Plain(UnitExists(frame.unit)) then return end
 	UpdateName(frame)
 	UpdateLevel(frame)
@@ -264,6 +310,10 @@ local function OnEvent(frame, event)
 		UpdatePortrait(frame)
 	elseif event == "UNIT_AURA" or event == "PLAYER_REGEN_ENABLED" then
 		ns.UpdateAuras(frame)
+		if event == "PLAYER_REGEN_ENABLED" then ns.UpdateThreat(frame) end
+	elseif event == "UNIT_THREAT_LIST_UPDATE" or event == "UNIT_THREAT_SITUATION_UPDATE"
+		or event == "PLAYER_REGEN_DISABLED" then
+		ns.UpdateThreat(frame)
 	elseif event == "UNIT_FACTION" or event == "UNIT_FLAGS" then
 		UpdateHealth(frame) -- colour may change (e.g. tapped, hostile)
 	else
@@ -334,6 +384,13 @@ function ns.CreateUnitFrame(unit, globalName, side, settings, size)
 	frame.nameText = Style.Text(frame, dims.nameFont)
 	frame.portrait = CreatePortrait(frame)
 	ns.CreateAuraContainer(frame) -- buffs and debuffs (Auras.lua)
+	if THREAT_UNITS[unit] then
+		CreateThreatBox(frame)
+		frame:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", unit)
+		frame:RegisterUnitEvent("UNIT_THREAT_SITUATION_UPDATE", "player")
+		frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+	end
 
 	-- Events for this unit only.
 	for event in pairs(HEALTH_EVENTS) do frame:RegisterUnitEvent(event, unit) end

@@ -20,6 +20,7 @@ local FRAME_DEFAULTS = {
 	auraSpacing = 1,        -- pixels between icons
 	auraPosition = "ABOVE", -- "ABOVE" or "BELOW" the frame
 	width = 230,            -- the frame's length (Style.WIDTH)
+	threat = true,          -- target and focus: your threat % in a small coloured box
 }
 
 -- The small frames start simpler: no portrait, percent only, no auras.
@@ -143,6 +144,11 @@ local function AddFrameOptions(page, spec)
 	StzxUI:AddCheckbox(page, owner, "showDebuffs", "Show debuffs",
 		"Small debuff icons, bordered by type: blue magic, purple curse, brown disease, green poison.", RefreshAll)
 	if unit == "target" or unit == "focus" then
+		StzxUI:AddCheckbox(page, owner, "threat", "Show my threat",
+			"Your threat on this enemy as a % in a small box at the top of the frame, coloured like Blizzard's: "
+			.. "grey safe, yellow close to pulling, orange pulled, red tanking. (For a tank: how far ahead of "
+			.. "the next person.) If the game makes threat secret in a fight, the % still shows but the box "
+			.. "stays plain (red while you're tanking).", RefreshAll)
 		StzxUI:AddCheckbox(page, owner, "onlyMine", "Only my debuffs",
 			"Only debuffs you put on the target, e.g. to watch your own DoTs.", RefreshAll)
 	end

@@ -23,6 +23,8 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Threat: your threat % on the target and focus frames, in a small box coloured like Blizzard's (grey, yellow, orange, red; a tank sees how far ahead of the next person). Shown even when the game makes threat secret, then coloured only by whether you're tanking (Unit Frames > Target/Focus > Show my threat).
+- Threat check: a moment into each fight and again mid-fight, StzxUI notes whether the game lets addons read threat, and says so in chat after the fight (first time and when it changes). `/stzx threat` checks right now and shows the last fight (Combat > Threat).
 - Brand wordmark art (by Augure) in the options window's title bar and on the StzxUI page in Blizzard's AddOns options: "Stzx" in your accent colour, "UI" in white.
 - Skins page: the Accent colour choice is there too (the same setting as on the General page).
 - Welcome screen: the art now opens at half size over a lighter dim, with "Size" (25–100%) and "Screen dimming" sliders on its page.

@@ -433,7 +433,9 @@ local function InstallClient()
 	function GetLootSlotLink(i) return lootWindow[i] and lootWindow[i].link end
 	function GetLootSlotInfo(i) local l = lootWindow[i]; if l then return nil, l.link, 1, nil, l.quality end end
 	function IsShiftKeyDown() return shiftDown end
-	C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end }
+	C_Secrets = { ShouldAurasBeSecret = function() return aurasSecret end,
+		ShouldUnitThreatStateBeSecret = function() return extra.threatSecret or false end,
+		ShouldUnitThreatValuesBeSecret = function() return extra.threatSecret or false end }
 	function UnitName(u) local d = units[u]; if d then return d.name, d.surname end end
 	function UnitIsPlayer(u) local d = units[u]; return d and d.isPlayer or false end
 	function UnitIsUnit(a, b)
@@ -507,7 +509,17 @@ local function InstallClient()
 		GetNamePlates = function() local list = {} for _, np in pairs(nameplates) do if not np.forbiddenPlate then list[#list + 1] = np end end return list end,
 	}
 	function UnitCanAttack(_, u) return U(u).attackable or false end
-	function UnitDetailedThreatSituation(_, u) return U(u).tanking end
+	-- Threat on mob u: unitState[u].tanking / .threatStatus / .threatPercent / .threatLead.
+	function UnitDetailedThreatSituation(_, u)
+		local d = U(u)
+		return d.tanking, d.threatStatus, d.threatPercent, d.threatPercent, 1000
+	end
+	function UnitThreatPercentageOfLead(_, u) return U(u).threatLead end
+	function GetThreatStatusColor(status)
+		local c = ({ [0] = { 0.69, 0.69, 0.69 }, { 1, 1, 0.47 }, { 1, 0.6, 0 }, { 1, 0, 0 } })[status]
+		return c[1], c[2], c[3]
+	end
+	function UnitAffectingCombat() return inCombat end
 	function GetCreatureDifficultyColor() return { r = 1, g = 1, b = 0 } end
 	function UnitChannelInfo(u) return Cast(u, true) end
 	-- Auras
@@ -4067,6 +4079,68 @@ end)()
 	check(_G.StzxUIWelcome == nil, "...login splash has its own switch")
 	SlashCmdList.STZXUI("splash")
 	check(_G.StzxUIWelcome:IsShown(), ".../stzx splash still works with login off")
+end)()
+
+;(function() -- Threat: the box on the target frame, the fight check, /stzx threat
+	Reload()
+	local savedTarget = unitState.target
+	unitState.target = { hp = 100, hpMax = 100, reaction = 2, level = 12, attackable = true,
+		tanking = false, threatStatus = 1, threatPercent = 87.4 }
+	Fire("PLAYER_TARGET_CHANGED")
+	local box = StzxUITargetFrame.threatBox
+	check(box and box.shown and box.text.text == "87%", "threat: your % in a box on the target frame")
+	check(box.fill.vertex[1] == 1 and box.fill.vertex[2] == 1, "...yellow when close to pulling")
+	unitState.target.threatStatus, unitState.target.threatPercent = 2, 104
+	Fire("UNIT_THREAT_LIST_UPDATE", "target")
+	check(box.text.text == "104%" and box.fill.vertex[2] == 0.6, "...orange once you've pulled it")
+	unitState.target.tanking, unitState.target.threatStatus, unitState.target.threatLead = true, 3, 130
+	Fire("UNIT_THREAT_SITUATION_UPDATE", "player")
+	check(box.text.text == "130%" and box.fill.vertex[2] == 0, "...tanking: red, and how far ahead of the next person")
+	unitState.target.tanking, unitState.target.threatStatus, unitState.target.threatPercent = nil, nil, nil
+	Fire("UNIT_THREAT_LIST_UPDATE", "target")
+	check(not box.shown, "...gone when you're not on its threat list")
+	unitState.target.tanking, unitState.target.threatStatus, unitState.target.threatPercent = SECRET, SECRET, SECRET
+	Fire("UNIT_THREAT_LIST_UPDATE", "target")
+	check(box.shown and box.fill.vertex == "secret" and box.text.text == SECRET_TEXT,
+		"...secret threat (some fights): still shown, coloured only by whether you're tanking")
+	unitState.target.tanking, unitState.target.threatStatus, unitState.target.threatPercent, unitState.target.threatLead =
+		false, 1, 50, nil
+	unitState.target.attackable = false
+	Fire("UNIT_THREAT_LIST_UPDATE", "target")
+	check(not box.shown, "...never on a friendly target")
+	unitState.target.attackable = true
+	log.settings.STZXUI_UNITFRAMESTARGET_THREAT:SetValue(false)
+	check(not box.shown, "...and it has its own switch")
+	log.settings.STZXUI_UNITFRAMESTARGET_THREAT:SetValue(true)
+	check(box.shown, "(back on)")
+
+	-- The automatic check: a moment into the fight and mid-fight, said once after.
+	local function Fight(secret)
+		extra.threatSecret = secret
+		inCombat = true
+		Fire("PLAYER_REGEN_DISABLED")
+		RunAfters()
+		inCombat = false
+		log.prints = {}
+		Fire("PLAYER_REGEN_ENABLED")
+		return table.concat(log.prints, " ")
+	end
+	local said = Fight(false)
+	check(said:find("threat check: start of fight: readable, mid-fight: readable.", 1, true),
+		"threat check: after the first fight, a chat line says whether threat was readable")
+	check(not Fight(false):find("threat check", 1, true), "...not again while the answer stays the same")
+	check(Fight(true):find("start of fight: secret, mid-fight: secret", 1, true), "...and again when it changes")
+	log.prints = {}
+	SlashCmdList.STZXUI("threat")
+	local out = table.concat(log.prints, " ")
+	check(out:find("threat right now:", 1, true) and out:find("last fight: start of fight: secret", 1, true),
+		"/stzx threat: checks now and shows the last fight")
+	log.settings.STZXUI_COMBAT_THREATCHECK:SetValue(false)
+	check(not Fight(false):find("threat check", 1, true), "...the check has its own switch")
+	log.settings.STZXUI_COMBAT_THREATCHECK:SetValue(true)
+	extra.threatSecret = nil
+	unitState.target = savedTarget
+	Fire("PLAYER_TARGET_CHANGED")
 end)()
 
 io.write(("%d passed, %d failed\n"):format(passes, failures))

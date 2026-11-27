@@ -16,4 +16,5 @@ OptionsWindow.lua
 Movers.lua
 MoveMode.lua
 Auras.lua
+Threat.lua
 Skin.lua

@@ -26,6 +26,7 @@ local Combat = StzxUI:NewModule("Combat", ADDON_NAME, {
 	petInTowns = false,    -- also in towns and inns (resting)
 	healerMana = true,     -- healers' mana in a group
 	healersByClass = true, -- nobody marked as healer: show the classes that can heal
+	threatCheck = true,    -- note whether threat is readable in fights (StzxUI.Threat)
 }, {
 	title = "Combat",
 	description = "A combat timer, a reminder when your pet is missing, and your group's healers' mana.",
@@ -291,6 +292,11 @@ function Combat:OnInitialize()
 			StzxUI:Say("Blizzard's Cooldown Manager isn't available here.")
 		end
 	end, "Blizzard's own settings for it. Its icons and bars are placed with Edit Mode.")
+	StzxUI:AddHeader(page, "Threat")
+	StzxUI:AddCheckbox(page, self, "threatCheck", "Check whether threat is readable in fights",
+		"A moment after a fight starts and again mid-fight, StzxUI looks at your target's threat and notes "
+		.. "whether the game lets addons read it. After the fight it says so in chat: the first time, and "
+		.. "whenever the answer changes. /stzx threat shows the last fight's answer any time.")
 	StzxUI:AddHeader(page, "Healers' mana")
 	StzxUI:AddCheckbox(page, self, "healerMana", "Show my group's healers' mana",
 		"A small box in groups. Place it in move mode.", UpdateHealers)
@@ -311,9 +317,12 @@ function Combat:OnEnable()
 	events:SetScript("OnEvent", function(_, event, unit)
 		if event == "PLAYER_REGEN_DISABLED" then
 			FightStarted()
+			if Combat.db.threatCheck then StzxUI.Threat.FightStarted() end
 			UpdatePetWarning()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			FightEnded()
+			local said = StzxUI.Threat.FightEnded()
+			if said and Combat.db.threatCheck then StzxUI:Say(said) end
 			UpdatePetWarning()
 		elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
 			UpdateHealers()
