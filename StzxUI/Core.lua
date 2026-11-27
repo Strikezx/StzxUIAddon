@@ -105,6 +105,19 @@ function StzxUI:Say(...)
 	print(PREFIX, ...)
 end
 
+-- Copper as gold/silver/copper with coin icons. The game's function for this
+-- lives in C_CurrencyInfo on this client (the old global GetCoinTextureString
+-- is gone); GetMoneyString is Blizzard's own formatter as a second choice.
+function StzxUI.Money(copper)
+	copper = math.floor(copper or 0)
+	if C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString then
+		return C_CurrencyInfo.GetCoinTextureString(copper)
+	elseif GetMoneyString then
+		return GetMoneyString(copper)
+	end
+	return ("%dg %ds %dc"):format(math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100)
+end
+
 -- A big centre-screen warning, like a raid warning. RaidWarningUtil is
 -- Blizzard's current way; the older RaidNotice_AddMessage only exists when
 -- the game loads its compatibility fallbacks, so it's the second choice.

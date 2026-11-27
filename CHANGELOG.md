@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Quest rewards: a Lua error when a quest offered reward choices (the coin-text function lives in C_CurrencyInfo on this client). Merchant chat lines now show gold, silver and copper with coin icons instead of plain copper.
 - Skins: scrolling lists (the AddOns list, and others like it) skin rows they make later too, so gold Blizzard ticks no longer sit next to StzxUI squares.
 
 ### Fixed (from a code review against Blizzard's source)

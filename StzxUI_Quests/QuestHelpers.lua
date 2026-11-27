@@ -169,7 +169,7 @@ function QuestHelpers.ShowValues(db)
 			local index = button:GetID()
 			local m = Mark(button)
 			if values[index] then
-				m.text:SetText(GetCoinTextureString(values[index]))
+				m.text:SetText(StzxUI.Money(values[index]))
 				m.text:Show()
 				m.coin:SetShown(index == best)
 			else

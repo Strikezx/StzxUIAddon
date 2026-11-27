@@ -34,9 +34,7 @@ local Helpers = StzxUI:NewModule("Helpers", ADDON_NAME, {
 })
 ns.Helpers = Helpers
 
-local function Money(copper)
-	return GetCoinTextureString and GetCoinTextureString(copper) or (("%dc"):format(copper))
-end
+local Money = StzxUI.Money
 
 ---------------------------------------------------------------------------
 -- Vendor: sell greys, repair

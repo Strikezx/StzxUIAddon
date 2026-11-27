@@ -799,7 +799,9 @@ local function InstallClient()
 	function GetGuildBankWithdrawMoney() return extra.guildAllowance or -1 end
 	function GetGuildBankMoney() return extra.guildBank or 1000000 end
 	function GetActiveQuestID() return nil end
-	function GetCoinTextureString(c) return c .. "c" end
+	-- Like the game: the coin formatter is only in C_CurrencyInfo (no global GetCoinTextureString).
+	C_CurrencyInfo = C_CurrencyInfo or {}
+	function C_CurrencyInfo.GetCoinTextureString(c) return c .. "c" end
 	function GetInventoryItemCount() return extra.ammoCount or 0 end
 	INVSLOT_AMMO = 0
 	-- Battleground scoreboard: extra.bgWinner (0 Horde, 1 Alliance), extra.scores = { PVPScoreInfo, ... }.
