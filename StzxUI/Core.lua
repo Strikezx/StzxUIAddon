@@ -37,6 +37,46 @@ StzxUI.PALETTES = {
 local STZX_BACKGROUND = { r = 0.025, g = 0.028, b = 0.035 }
 StzxUI.BACKGROUND = { r = STZX_BACKGROUND.r, g = STZX_BACKGROUND.g, b = STZX_BACKGROUND.b }
 
+-- The StzxUI wordmark, drawn from the brand art in Media/: pure-white PNGs
+-- (no colour baked in) tinted at runtime - "Stzx" in the accent, "UI" in
+-- white, the same split as the |cff4fc3f7Stzx|rUI titles. Returns a frame
+-- sized to the art; it re-tints itself on show so it always matches
+-- StzxUI.ACCENT, which ApplyAccent fills in after load.
+-- Each file centres its glyph art on a transparent power-of-two canvas; the
+-- coord tables below crop away the empty margins (left, right, top, bottom
+-- in texture coordinates, the order SetTexCoord takes; 0 is the top edge;
+-- measured by the brand kit's measure_art.py). The
+-- widths follow from the trimmed aspect: STZX is 4.03:1, UI is 1.57:1.
+local STZX_COORDS = { 0.2480, 0.7520, 0.0, 1.0 }
+local UI_COORDS = { 0.1094, 0.8828, 0.0156, 1.0 } -- UI's art starts one row down
+
+function StzxUI:AddBrandMark(parent, height)
+	local accent = self.ACCENT
+	local stzxW = math.floor(height * 4.03 + 0.5)
+	local uiW = math.floor(height * 1.57 + 0.5)
+	local gap = math.max(2, math.floor(height * 0.32 + 0.5)) -- the tracking
+	local brand = CreateFrame("Frame", nil, parent)
+	brand:SetSize(stzxW + gap + uiW, height)
+	local function Glyph(texture, file, coords)
+		texture:SetTexture("Interface\\AddOns\\StzxUI\\Media\\" .. file)
+		texture:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+		texture:SetPoint("TOPLEFT", brand, "TOPLEFT")
+		texture:SetPoint("BOTTOMLEFT", brand, "BOTTOMLEFT")
+		return texture
+	end
+	local stzx = Glyph(brand:CreateTexture(nil, "OVERLAY"), "wordmark-stzx.png", STZX_COORDS)
+	stzx:SetVertexColor(accent.r, accent.g, accent.b)
+	stzx:SetWidth(stzxW)
+	local ui = Glyph(brand:CreateTexture(nil, "OVERLAY"), "wordmark-ui.png", UI_COORDS)
+	ui:SetPoint("TOPLEFT", stzx, "TOPRIGHT", gap, 0)
+	ui:SetPoint("BOTTOMLEFT", stzx, "BOTTOMRIGHT", gap, 0)
+	ui:SetWidth(uiW)
+	brand:SetScript("OnShow", function()
+		stzx:SetVertexColor(accent.r, accent.g, accent.b)
+	end)
+	return brand
+end
+
 -- Account-wide core settings (the same on every character).
 StzxUI.CORE_DEFAULTS = {
 	chatMessages = true,   -- print StzxUI notices in the chat window

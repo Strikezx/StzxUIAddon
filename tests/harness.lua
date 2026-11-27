@@ -3540,12 +3540,45 @@ local landing = Category("StzxUI").frame
 check(landing == StzxUISettingsLanding and Category("General").parent == Category("StzxUI"),
 	"StzxUI's AddOns entry is a welcome page; options are on sub-pages")
 landing:Hide(); landing:Show()
+-- The welcome page's title is now brand art (two white wordmark textures),
+-- not a fontstring: STZX tinted to the accent, UI left white.
+local function texturesOf(f)
+	local t = {}
+	for _, x in ipairs(frames) do if x.parent == f and x.kind == "Texture" then t[#t + 1] = x end end
+	return t
+end
+local function hasWordmark(root)
+	for _, tex in ipairs(texturesOf(root)) do
+		if tex.texture and tex.texture:find("wordmark-stzx", 1, true) then return tex end
+	end
+end
+local brandTex = hasWordmark(landing.title)
+check(landing.title and brandTex
+	and (brandTex.vertex[1] - StzxUI.ACCENT.r) ^ 2 < 1e-6 and (brandTex.vertex[3] - StzxUI.ACCENT.b) ^ 2 < 1e-6,
+	"welcome page: the title is the brand art, tinted to the accent")
+-- UI half stays white; and the art re-tints on show (accent changes after a reload).
+local uiTex
+for _, x in ipairs(texturesOf(landing.title)) do if x.texture:find("wordmark-ui", 1, true) then uiTex = x end end
+check(uiTex and not uiTex.vertex, "...UI half stays white")
+do
+	local saved = { StzxUI.ACCENT.r, StzxUI.ACCENT.g, StzxUI.ACCENT.b }
+	StzxUI.ACCENT.r, StzxUI.ACCENT.g, StzxUI.ACCENT.b = 1, 0, 0
+	landing.title:GetScript("OnShow")()
+	check(brandTex.vertex[1] == 1 and brandTex.vertex[2] == 0, "...and re-tints to a changed accent on show")
+	StzxUI.ACCENT.r, StzxUI.ACCENT.g, StzxUI.ACCENT.b = saved[1], saved[2], saved[3]
+end
+check(not hasWordmark(landing) and landing.title.kind == "Frame", "the art title replaced the text title")
 local landingText = {}
 for _, f in ipairs(frames) do if f.parent == landing and f.kind == "FontString" then landingText[#landingText + 1] = f.text end end
 local all = table.concat(landingText, " | ")
-check(all:find("Stzx|rUI") and all:find("Version: development copy") and all:find("Unit frames, party"),
-	"welcome page: title, version and what StzxUI does")
+check(all:find("Version: development copy") and all:find("Unit frames, party"),
+	"welcome page: version and what StzxUI does")
+check(not all:find("Stzx|rUI", 1, true), "...and no text title left behind")
 check(all:find("Sections on:|r Social, Info"), "...and which sections are on")
+-- The options window's title bar carries the same brand art.
+local owBrandTex = hasWordmark(StzxUIOptions.brand)
+check(owBrandTex and (owBrandTex.vertex[1] - StzxUI.ACCENT.r) ^ 2 < 1e-6,
+	"options window title bar: brand art tinted to the accent")
 OW:Hide()
 SettingsPanel.shown = true
 landing.open:Click()
