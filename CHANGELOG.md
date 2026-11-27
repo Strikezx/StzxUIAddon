@@ -23,6 +23,7 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Profiles page: "Starter layouts". Strikezx's StzxUI layout (one click: added as a new profile and switched to, nothing of yours changed, click-cast spells left empty) and Strikezx's EditMode layout (a copy box with the steps for Blizzard's own Edit Mode Import). Made on a 2560x1440 screen.
 - Send Mail: the "Recent" and "My characters" list now sits in StzxUI's box (accent edges all round, a line under each heading, the palette's dark fill).
 - Fishing: auto lure. With double right-click casting, a pole with no lure gets one first (the best one your Fishing skill can use, or the weakest first to save the good ones); the next double right-click casts. The lure timer says which lure goes on next. It never stands in the way of casting: with no lure you can use it casts straight away, and if putting a lure on didn't take, the next double right-click casts (it tries the lure again 20 seconds later).
 - Fishing: tackle box. Hover the lure timer for the lures you carry, how many, their bonus and which you can't use yet; also in /stzx fishing. The tooltip also counts this session's catches across zones.

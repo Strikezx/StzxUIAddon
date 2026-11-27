@@ -1304,6 +1304,24 @@ do -- a string from before names were included
 	local old = "!STZX1!" .. C_EncodingUtil.EncodeBase64(C_EncodingUtil.CompressString(C_EncodingUtil.SerializeCBOR(
 		{ addon = "StzxUI", v = 1, profile = { positions = {} } })))
 	check(StzxUI:ImportProfile(old) == "Imported", "older strings still suggest 'Imported'")
+	-- Starter layouts: the shipped strings are real game exports (CBOR + deflate), which this fake can't
+	-- read, so the check swaps in a fake export of a profile with click-cast spells set.
+	local layout = StzxUI.STARTER_LAYOUTS[1]
+	check(layout and layout.profile:sub(1, 7) == "!STZX1!" and layout.editMode:sub(1, 4) == "5 0 ",
+		"starter layout: Strikezx's StzxUI profile and Edit Mode layout are shipped")
+	local saved = layout.profile
+	StzxUI.profile.modules.GroupFrames = StzxUI.profile.modules.GroupFrames or {}
+	StzxUI.profile.modules.GroupFrames.clickCast = { shift1 = "Healing Wave" }
+	layout.profile = StzxUI:ExportProfile()
+	StzxUI.profile.modules.GroupFrames.clickCast = nil
+	local made = StzxUI:UseStarterLayout(layout)
+	check(made == "Strikezx's StzxUI layout" and StzxUI:GetChosenProfile() == made and DialogShown(),
+		"...'Use' adds it as a new profile and switches to it (asks to reload)")
+	StzxUIDialog.cancelButton:Click()
+	check(StzxUIDB.profiles[made].modules.GroupFrames.clickCast == nil, "...without anyone's click-cast spells")
+	check(StzxUI:UseStarterLayout(layout) == "Strikezx's StzxUI layout 2", "...again: a second copy, nothing overwritten")
+	StzxUIDialog.cancelButton:Click()
+	layout.profile = saved
 end
 
 -- Delete

@@ -409,6 +409,44 @@ local function AddProfilesPage(self)
 			})
 		end,
 		"Adds a shared profile without touching your existing ones.")
+
+	-- Starter layouts (StarterLayouts.lua): ready-made setups to begin from.
+	if self.STARTER_LAYOUTS and #self.STARTER_LAYOUTS > 0 then
+		self:AddHeader(page, "Starter layouts",
+			"Ready-made setups to start from. Each comes in two parts: StzxUI's own settings and frame spots, "
+			.. "and a Blizzard Edit Mode layout for the bars and frames Edit Mode places. Use both for the full look.")
+		for _, layout in ipairs(self.STARTER_LAYOUTS) do
+			self:AddButton(page, layout.profileName, "Use",
+				function()
+					self:ShowDialog({
+						title = layout.profileName,
+						text = ("Add %s's StzxUI settings as a new profile and switch to it? Your own profiles "
+							.. "stay as they are. Made on a %s screen: on another size, nudge frames in move mode "
+							.. "(/stzx move). Then copy the Edit Mode layout below."):format(layout.by, layout.screen),
+						accept = "Use it",
+						onAccept = function()
+							local made, problem = self:UseStarterLayout(layout)
+							if not made then return false, problem end
+							return true
+						end,
+					})
+				end,
+				"Adds it as a new profile (nothing of yours is changed) and switches to it after a reload.")
+			self:AddButton(page, layout.editModeName, "Copy",
+				function()
+					self:ShowDialog({
+						title = layout.editModeName,
+						text = "Press Ctrl+C to copy. Then: Esc > Edit Mode > the Layout dropdown > Import, "
+							.. "paste it (Ctrl+V), name it and Save. (StzxUI leaves the import to Blizzard's own "
+							.. "button: it keeps Edit Mode safe from \"action blocked\" errors.)",
+						input = "box",
+						value = layout.editMode,
+						selectAll = true,
+					})
+				end,
+				"Blizzard's Edit Mode layout for the action bars and other frames Edit Mode places.")
+		end
+	end
 end
 
 function StzxUI:FinishSettingsPanel()

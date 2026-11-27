@@ -12,6 +12,7 @@ Profiles.lua
 Characters.lua
 Dialog.lua
 Settings.lua
+StarterLayouts.lua
 OptionsWindow.lua
 Movers.lua
 MoveMode.lua
