@@ -151,8 +151,10 @@ function Skins:OnInitialize()
 		.. "buttons. Items, spells and talents are never touched. Changes apply after a reload.",
 		{ { "FULL", "Full" }, { "FRAMES", "Frames only" } },
 		function() StzxUI:AskReload("The new restyle level applies after a reload.") end)
+	StzxUI:AddAccentChoice(page, "SkinsAccent") -- the same choice as on the General page
 	StzxUI:AddDropdown(page, self, "colour", "Edge colour",
-		"The thin edge and accent lines round skinned windows (and the tooltip).",
+		"The thin edge and accent lines round skinned windows (and the tooltip). \"StzxUI accent colour\" "
+		.. "follows the Accent colour above.",
 		{ { "ACCENT", "StzxUI accent colour" }, { "CLASS", "My class colour" }, { "BLACK", "Black" } }, ApplyLook)
 	StzxUI:AddSlider(page, self, "opacity", "Window background", "How solid the dark background is.",
 		60, 100, 2, function(value) return ("%d%%"):format(value) end, ApplyLook)

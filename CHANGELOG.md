@@ -22,6 +22,7 @@
 - Layer readout: reads nameplates by their unit names (the old way found none).
 
 ### Added
+- Skins page: the Accent colour choice is there too (the same setting as on the General page).
 - Welcome screen: the art now opens at half size over a lighter dim, with "Size" (25–100%) and "Screen dimming" sliders on its page.
 - Welcome screen (new section, in the Look folder): StzxUI's splash — the brand art across a dimmed screen, a moment after logging in, not after a /reload (option "Show when you log in", on), and any time with `/stzx splash` or the button on its page. A click, right-click or Esc closes it. The art ships in a new `StzxUI/Media/` folder (welcome-2048.png, lockup-512x128.png, icon-128.png) for other parts of StzxUI to reuse. Brand kit, HTML masters and render scripts live with the stream kit at `Strikezx/stzxui/` (outside this repo).
 - Accent colour: two red palettes, Red (#CC1111) and Bright red (#FF3333), each on a neutral #0D0D0D black behind StzxUI's windows, options window and pop-ups (Options > General > Accent colour; applies after a reload).

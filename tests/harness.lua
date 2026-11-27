@@ -1483,6 +1483,9 @@ check(StzxUI.BACKGROUND.r == 0.051 and StzxUI.BACKGROUND.b == 0.051, "...on #0D0
 StzxUIDB.core.accent = "BRIGHTRED"
 Reload()
 check(StzxUI.ACCENT.r == 1 and StzxUI.ACCENT.g == 0.2, "bright red palette: #FF3333")
+log.settings.STZXUI_SKINSACCENT_ACCENT:SetValue("RED")
+check(StzxUIDB.core.accent == "RED" and DialogShown(), "the Skins page has the same accent choice (one saved value, asks to reload)")
+StzxUIDialog.cancelButton:Click()
 StzxUIDB.core.accent = "STZX"
 Reload()
 check(StzxUI.ACCENT.r == 0.31, "back to StzxUI blue")

@@ -213,6 +213,22 @@ function StzxUI:CreateLandingPage()
 	return page
 end
 
+-- The accent colour choice. It lives on the General page and on the Skins
+-- page (where people look for colours); both edit the same saved value.
+-- `ownerName` keeps the two settings' names apart.
+StzxUI.ACCENT_CHOICES = {
+	{ "STZX", "StzxUI blue" }, { "CLASS", "My class colour" },
+	{ "RED", "Red (#CC1111, on #0D0D0D black)" }, { "BRIGHTRED", "Bright red (#FF3333, on #0D0D0D black)" },
+}
+function StzxUI:AddAccentChoice(page, ownerName)
+	local owner = { name = ownerName, db = self.db.core, defaults = self.CORE_DEFAULTS }
+	self:AddDropdown(page, owner, "accent", "Accent colour",
+		"The colour of StzxUI's highlights: move mode, windows, frame rings, skinned windows' edges. "
+		.. "The reds also switch the dark behind windows to a neutral black. Changes apply after a reload.",
+		self.ACCENT_CHOICES,
+		function() self:AskReload("The accent colour changes after a reload.") end)
+end
+
 function StzxUI:CreateSettingsPanel()
 	-- The top entry is the welcome page; the options themselves are on sub-pages.
 	local category = Settings.RegisterCanvasLayoutCategory(self:CreateLandingPage(), "StzxUI")
@@ -243,11 +259,7 @@ function StzxUI:CreateSettingsPanel()
 		function() self:RefreshGrid() end)
 
 	self:AddHeader(category, "General")
-	self:AddDropdown(category, core, "accent", "Accent colour",
-		"The colour of StzxUI's highlights: move mode, windows, frame rings. Changes apply after a reload.",
-		{ { "STZX", "StzxUI blue" }, { "CLASS", "My class colour" },
-			{ "RED", "Red (#CC1111, on #0D0D0D black)" }, { "BRIGHTRED", "Bright red (#FF3333, on #0D0D0D black)" } },
-		function() self:AskReload("The accent colour changes after a reload.") end)
+	self:AddAccentChoice(category, "Core")
 	self:AddCheckbox(category, core, "chatMessages", "Show StzxUI notices in chat",
 		"Short messages such as \"Declined a duel from ...\". Replies to /stzx commands always show.")
 end
